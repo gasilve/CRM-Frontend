@@ -1,0 +1,312 @@
+﻿/* Core themes: dark-1…5, light-1…5 (palette tokens only) */
+
+/* dark-1 â€” Midnight -------------------------------------------------- */
+html[data-theme="dark-1"] {
+  --color-ink-0: #04060c;
+  --color-ink-1: #080b14;
+  --color-ink-2: #0d1220;
+  --color-ink-3: #131a2c;
+  --color-ink-4: #1a2238;
+  --color-line:   rgba(232, 238, 248, 0.08);
+  --color-line-2: rgba(232, 238, 248, 0.14);
+  --color-line-3: rgba(232, 238, 248, 0.22);
+  --color-text-hi:  #e8eef8;
+  --color-text-mid: #9aa6bd;
+  --color-text-lo:  #5b6680;
+  --color-accent:      #4a7fff;
+  --color-accent-2:    #7aa1ff;
+  --color-accent-soft: rgba(74, 127, 255, 0.16);
+  --color-accent-glow: rgba(74, 127, 255, 0.45);
+  --color-pos:  #34d399;
+  --color-neg:  #f87171;
+  --color-warn: #f59e0b;
+  --color-bg-tint:         rgba(22, 54, 124, 0.22);
+  --color-surface-shine:   rgba(255, 255, 255, 0.018);
+  --color-scrollbar:       rgba(232, 238, 248, 0.08);
+  --color-scrollbar-hover: rgba(232, 238, 248, 0.18);
+  --color-backdrop:        rgba(2, 5, 12, 0.72);
+  --color-operator-from:   #4a7fff;
+  --color-operator-to:     #1f3a8a;
+  --shadow-alpha:           0.60;
+  --shadow-alpha-heavy:     0.75;
+}
+
+/* dark-2 â€” Obsidian -------------------------------------------------- */
+html[data-theme="dark-2"] {
+  --color-ink-0: #070509;
+  --color-ink-1: #0e0a12;
+  --color-ink-2: #16111d;
+  --color-ink-3: #1e1828;
+  --color-ink-4: #271f32;
+  --color-line:   rgba(230, 220, 255, 0.08);
+  --color-line-2: rgba(230, 220, 255, 0.14);
+  --color-line-3: rgba(230, 220, 255, 0.22);
+  --color-text-hi:  #ede8ff;
+  --color-text-mid: #9f8fc0;
+  --color-text-lo:  #5e5178;
+  --color-accent:      #a78bfa;
+  --color-accent-2:    #c4b0fd;
+  --color-accent-soft: rgba(167, 139, 250, 0.16);
+  --color-accent-glow: rgba(167, 139, 250, 0.45);
+  --color-pos:  #34d399;
+  --color-neg:  #f87171;
+  --color-warn: #f59e0b;
+  --color-bg-tint:         rgba(88, 28, 135, 0.18);
+  --color-surface-shine:   rgba(255, 255, 255, 0.018);
+  --color-scrollbar:       rgba(230, 220, 255, 0.08);
+  --color-scrollbar-hover: rgba(230, 220, 255, 0.18);
+  --color-backdrop:        rgba(4, 2, 8, 0.75);
+  --color-operator-from:   #a78bfa;
+  --color-operator-to:     #4c1d95;
+  --shadow-alpha:           0.65;
+  --shadow-alpha-heavy:     0.78;
+}
+
+/* dark-3 â€” Abyss ----------------------------------------------------- */
+html[data-theme="dark-3"] {
+  --color-ink-0: #030c0b;
+  --color-ink-1: #050f0d;
+  --color-ink-2: #091614;
+  --color-ink-3: #0e1e1b;
+  --color-ink-4: #142621;
+  --color-line:   rgba(220, 250, 245, 0.08);
+  --color-line-2: rgba(220, 250, 245, 0.14);
+  --color-line-3: rgba(220, 250, 245, 0.22);
+  --color-text-hi:  #d8faf5;
+  --color-text-mid: #7ab5ad;
+  --color-text-lo:  #3d6d67;
+  --color-accent:      #2dd4bf;
+  --color-accent-2:    #5ee7d6;
+  --color-accent-soft: rgba(45, 212, 191, 0.16);
+  --color-accent-glow: rgba(45, 212, 191, 0.40);
+  --color-pos:  #34d399;
+  --color-neg:  #f87171;
+  --color-warn: #f59e0b;
+  --color-bg-tint:         rgba(13, 148, 136, 0.16);
+  --color-surface-shine:   rgba(255, 255, 255, 0.018);
+  --color-scrollbar:       rgba(220, 250, 245, 0.08);
+  --color-scrollbar-hover: rgba(220, 250, 245, 0.18);
+  --color-backdrop:        rgba(0, 4, 4, 0.75);
+  --color-operator-from:   #2dd4bf;
+  --color-operator-to:     #0f766e;
+  --shadow-alpha:           0.65;
+  --shadow-alpha-heavy:     0.78;
+}
+
+/* dark-4 â€” Ember ----------------------------------------------------- */
+html[data-theme="dark-4"] {
+  --color-ink-0: #0c0804;
+  --color-ink-1: #130e06;
+  --color-ink-2: #1c1409;
+  --color-ink-3: #261c0d;
+  --color-ink-4: #312411;
+  --color-line:   rgba(255, 240, 200, 0.08);
+  --color-line-2: rgba(255, 240, 200, 0.14);
+  --color-line-3: rgba(255, 240, 200, 0.22);
+  --color-text-hi:  #fff0d8;
+  --color-text-mid: #c0955a;
+  --color-text-lo:  #7a5c2f;
+  --color-accent:      #f59e0b;
+  --color-accent-2:    #fbbf24;
+  --color-accent-soft: rgba(245, 158, 11, 0.16);
+  --color-accent-glow: rgba(245, 158, 11, 0.40);
+  --color-pos:  #34d399;
+  --color-neg:  #f87171;
+  --color-warn: #fbbf24;
+  --color-bg-tint:         rgba(120, 53, 15, 0.20);
+  --color-surface-shine:   rgba(255, 255, 255, 0.018);
+  --color-scrollbar:       rgba(255, 240, 200, 0.08);
+  --color-scrollbar-hover: rgba(255, 240, 200, 0.18);
+  --color-backdrop:        rgba(6, 3, 0, 0.75);
+  --color-operator-from:   #f59e0b;
+  --color-operator-to:     #92400e;
+  --shadow-alpha:           0.65;
+  --shadow-alpha-heavy:     0.78;
+}
+
+/* dark-5 â€” Crimson --------------------------------------------------- */
+html[data-theme="dark-5"] {
+  --color-ink-0: #0a0406;
+  --color-ink-1: #110608;
+  --color-ink-2: #1a0a0f;
+  --color-ink-3: #220e14;
+  --color-ink-4: #2c1219;
+  --color-line:   rgba(255, 220, 230, 0.08);
+  --color-line-2: rgba(255, 220, 230, 0.14);
+  --color-line-3: rgba(255, 220, 230, 0.22);
+  --color-text-hi:  #ffe8ee;
+  --color-text-mid: #c07a8a;
+  --color-text-lo:  #7a3f4e;
+  --color-accent:      #fb7185;
+  --color-accent-2:    #fda4af;
+  --color-accent-soft: rgba(251, 113, 133, 0.16);
+  --color-accent-glow: rgba(251, 113, 133, 0.40);
+  --color-pos:  #34d399;
+  --color-neg:  #f87171;
+  --color-warn: #f59e0b;
+  --color-bg-tint:         rgba(136, 19, 55, 0.18);
+  --color-surface-shine:   rgba(255, 255, 255, 0.018);
+  --color-scrollbar:       rgba(255, 220, 230, 0.08);
+  --color-scrollbar-hover: rgba(255, 220, 230, 0.18);
+  --color-backdrop:        rgba(4, 0, 2, 0.75);
+  --color-operator-from:   #fb7185;
+  --color-operator-to:     #9f1239;
+  --shadow-alpha:           0.65;
+  --shadow-alpha-heavy:     0.78;
+}
+
+/* light-1 â€” Cloud ---------------------------------------------------- */
+html[data-theme="light-1"] {
+  --color-ink-0: #f0f4ff;
+  --color-ink-1: #e8ecf8;
+  --color-ink-2: #ffffff;
+  --color-ink-3: #f3f6fd;
+  --color-ink-4: #eaeffa;
+  --color-line:   rgba(15, 23, 64, 0.08);
+  --color-line-2: rgba(15, 23, 64, 0.14);
+  --color-line-3: rgba(15, 23, 64, 0.22);
+  --color-text-hi:  #0f172a;
+  --color-text-mid: #4a5782;
+  --color-text-lo:  #8c97b8;
+  --color-accent:      #3b6ff5;
+  --color-accent-2:    #5f8bff;
+  --color-accent-soft: rgba(59, 111, 245, 0.12);
+  --color-accent-glow: rgba(59, 111, 245, 0.35);
+  --color-pos:  #059669;
+  --color-neg:  #dc2626;
+  --color-warn: #d97706;
+  --color-bg-tint:         rgba(59, 111, 245, 0.07);
+  --color-surface-shine:   rgba(255, 255, 255, 0.80);
+  --color-scrollbar:       rgba(15, 23, 64, 0.10);
+  --color-scrollbar-hover: rgba(15, 23, 64, 0.22);
+  --color-backdrop:        rgba(10, 15, 40, 0.50);
+  --color-operator-from:   #3b6ff5;
+  --color-operator-to:     #1e3a8a;
+  --shadow-alpha:           0.12;
+  --shadow-alpha-heavy:     0.18;
+}
+
+/* light-2 â€” Ivory ---------------------------------------------------- */
+html[data-theme="light-2"] {
+  --color-ink-0: #f5f0e9;
+  --color-ink-1: #ede7da;
+  --color-ink-2: #faf7f2;
+  --color-ink-3: #f0ece5;
+  --color-ink-4: #e8e3db;
+  --color-line:   rgba(40, 30, 15, 0.08);
+  --color-line-2: rgba(40, 30, 15, 0.14);
+  --color-line-3: rgba(40, 30, 15, 0.22);
+  --color-text-hi:  #1e1508;
+  --color-text-mid: #6b5a3e;
+  --color-text-lo:  #a0896c;
+  --color-accent:      #6366f1;
+  --color-accent-2:    #818cf8;
+  --color-accent-soft: rgba(99, 102, 241, 0.12);
+  --color-accent-glow: rgba(99, 102, 241, 0.30);
+  --color-pos:  #059669;
+  --color-neg:  #dc2626;
+  --color-warn: #d97706;
+  --color-bg-tint:         rgba(99, 102, 241, 0.05);
+  --color-surface-shine:   rgba(255, 255, 255, 0.65);
+  --color-scrollbar:       rgba(40, 30, 15, 0.10);
+  --color-scrollbar-hover: rgba(40, 30, 15, 0.22);
+  --color-backdrop:        rgba(20, 15, 8, 0.50);
+  --color-operator-from:   #6366f1;
+  --color-operator-to:     #3730a3;
+  --shadow-alpha:           0.10;
+  --shadow-alpha-heavy:     0.16;
+}
+
+/* light-3 â€” Frost ---------------------------------------------------- */
+html[data-theme="light-3"] {
+  --color-ink-0: #eaf2f0;
+  --color-ink-1: #deeae8;
+  --color-ink-2: #f6fbfa;
+  --color-ink-3: #eaf3f2;
+  --color-ink-4: #e0eceb;
+  --color-line:   rgba(5, 50, 45, 0.08);
+  --color-line-2: rgba(5, 50, 45, 0.14);
+  --color-line-3: rgba(5, 50, 45, 0.22);
+  --color-text-hi:  #0d1f1e;
+  --color-text-mid: #3d6d68;
+  --color-text-lo:  #7da5a0;
+  --color-accent:      #0d9488;
+  --color-accent-2:    #14b8a6;
+  --color-accent-soft: rgba(13, 148, 136, 0.12);
+  --color-accent-glow: rgba(13, 148, 136, 0.30);
+  --color-pos:  #059669;
+  --color-neg:  #dc2626;
+  --color-warn: #d97706;
+  --color-bg-tint:         rgba(13, 148, 136, 0.06);
+  --color-surface-shine:   rgba(255, 255, 255, 0.70);
+  --color-scrollbar:       rgba(5, 50, 45, 0.10);
+  --color-scrollbar-hover: rgba(5, 50, 45, 0.22);
+  --color-backdrop:        rgba(5, 20, 18, 0.50);
+  --color-operator-from:   #0d9488;
+  --color-operator-to:     #134e4a;
+  --shadow-alpha:           0.10;
+  --shadow-alpha-heavy:     0.16;
+}
+
+/* light-4 â€” Lilac ---------------------------------------------------- */
+html[data-theme="light-4"] {
+  --color-ink-0: #f0edf8;
+  --color-ink-1: #e8e3f5;
+  --color-ink-2: #fdf9ff;
+  --color-ink-3: #f3eefc;
+  --color-ink-4: #ece6f8;
+  --color-line:   rgba(40, 15, 80, 0.08);
+  --color-line-2: rgba(40, 15, 80, 0.14);
+  --color-line-3: rgba(40, 15, 80, 0.22);
+  --color-text-hi:  #1a0b3c;
+  --color-text-mid: #6040a0;
+  --color-text-lo:  #9975c8;
+  --color-accent:      #7c3aed;
+  --color-accent-2:    #9f5cf7;
+  --color-accent-soft: rgba(124, 58, 237, 0.12);
+  --color-accent-glow: rgba(124, 58, 237, 0.30);
+  --color-pos:  #059669;
+  --color-neg:  #dc2626;
+  --color-warn: #d97706;
+  --color-bg-tint:         rgba(124, 58, 237, 0.06);
+  --color-surface-shine:   rgba(255, 255, 255, 0.75);
+  --color-scrollbar:       rgba(40, 15, 80, 0.10);
+  --color-scrollbar-hover: rgba(40, 15, 80, 0.22);
+  --color-backdrop:        rgba(15, 5, 35, 0.50);
+  --color-operator-from:   #7c3aed;
+  --color-operator-to:     #4c1d95;
+  --shadow-alpha:           0.10;
+  --shadow-alpha-heavy:     0.16;
+}
+
+/* light-5 â€” Dune ----------------------------------------------------- */
+html[data-theme="light-5"] {
+  --color-ink-0: #f3ede4;
+  --color-ink-1: #ebe4d8;
+  --color-ink-2: #faf7f2;
+  --color-ink-3: #f0ebe2;
+  --color-ink-4: #e8e2d8;
+  --color-line:   rgba(60, 35, 8, 0.08);
+  --color-line-2: rgba(60, 35, 8, 0.14);
+  --color-line-3: rgba(60, 35, 8, 0.22);
+  --color-text-hi:  #231508;
+  --color-text-mid: #7a5130;
+  --color-text-lo:  #a87c54;
+  --color-accent:      #d97706;
+  --color-accent-2:    #f59e0b;
+  --color-accent-soft: rgba(217, 119, 6, 0.12);
+  --color-accent-glow: rgba(217, 119, 6, 0.30);
+  --color-pos:  #059669;
+  --color-neg:  #dc2626;
+  --color-warn: #d97706;
+  --color-bg-tint:         rgba(217, 119, 6, 0.06);
+  --color-surface-shine:   rgba(255, 255, 255, 0.65);
+  --color-scrollbar:       rgba(60, 35, 8, 0.10);
+  --color-scrollbar-hover: rgba(60, 35, 8, 0.22);
+  --color-backdrop:        rgba(25, 15, 5, 0.50);
+  --color-operator-from:   #d97706;
+  --color-operator-to:     #92400e;
+  --shadow-alpha:           0.10;
+  --shadow-alpha-heavy:     0.16;
+}
+

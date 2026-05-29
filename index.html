@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Accenty — CRM</title>
+    <!-- Prevent flash of wrong theme: apply data-theme before first paint -->
+    <script>
+      (function () {
+        var valid = [
+          "dark-1","dark-2","dark-3","dark-4","dark-5",
+          "dark-6","dark-7","dark-8","dark-9","dark-10",
+          "dark-11","dark-12","dark-13","dark-14","dark-15",
+          "dark-16","dark-17","dark-18","dark-19","dark-20",
+          "light-1","light-2","light-3","light-4","light-5",
+          "light-6","light-7","light-8","light-9","light-10",
+        ];
+        var stored;
+        try { stored = localStorage.getItem("accenty.crm.theme.v1"); } catch (_) {}
+        document.documentElement.setAttribute(
+          "data-theme",
+          stored && valid.indexOf(stored) !== -1 ? stored : "dark-1"
+        );
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Michroma&family=Montserrat:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

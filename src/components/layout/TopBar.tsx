@@ -1,0 +1,73 @@
+import { Bell, Palette, Search } from "lucide-react";
+import { useRef, useState } from "react";
+import { ThemePicker } from "./ThemePicker";
+
+export default function TopBar() {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const themeButtonRef = useRef<HTMLButtonElement>(null);
+
+  return (
+    <header className="app-topbar sticky top-0 z-20 flex h-[var(--shell-chrome-height)] shrink-0 items-center gap-3 border-b border-[var(--color-line)] bg-[var(--color-ink-0)]/70 px-6 backdrop-blur-xl">
+      {/* Search */}
+      <div className="group relative flex h-10 w-full max-w-[800px] flex-1 items-center gap-3 rounded-[10px] border border-[var(--color-line)] bg-[var(--color-ink-2)]/70 px-3.5 transition-colors focus-within:border-[var(--color-line-2)]">
+        <Search size={15} strokeWidth={1.6} className="shrink-0 text-[var(--color-text-lo)]" />
+        <input
+          type="search"
+          placeholder="Search investigators, cases, clients…"
+          className="min-w-0 flex-1 bg-transparent text-[14px] text-[var(--color-text-hi)] placeholder:text-[var(--color-text-lo)] focus:outline-none"
+        />
+      </div>
+
+      <div className="ml-auto flex items-center gap-2">
+        {/* Theme picker trigger */}
+        <div className="relative">
+          <button
+            ref={themeButtonRef}
+            aria-label="Choose theme"
+            aria-expanded={pickerOpen}
+            onClick={() => setPickerOpen((v) => !v)}
+            className="grid h-10 w-10 place-items-center rounded-[10px] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)] aria-expanded:border-[var(--color-line-3)] aria-expanded:text-[var(--color-text-hi)]"
+          >
+            <Palette size={16} strokeWidth={1.6} />
+          </button>
+          <ThemePicker
+            open={pickerOpen}
+            onClose={() => setPickerOpen(false)}
+            triggerRef={themeButtonRef}
+          />
+        </div>
+
+        {/* Notifications */}
+        <button
+          aria-label="Notifications"
+          className="relative grid h-10 w-10 place-items-center rounded-[10px] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+        >
+          <Bell size={16} strokeWidth={1.6} />
+          <span
+            className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]"
+            style={{ boxShadow: "0 0 8px color-mix(in srgb, var(--color-accent) 80%, transparent)" }}
+          />
+        </button>
+
+        {/* Profile */}
+        <div className="ml-1 flex h-10 items-center gap-3 rounded-[10px] border border-[var(--color-line)] bg-[var(--color-ink-2)]/60 py-1 pl-1 pr-3.5">
+          <div
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-medium text-white"
+            style={{
+              background:
+                "linear-gradient(135deg, var(--color-operator-from), var(--color-operator-to))",
+            }}
+          >
+            MA
+          </div>
+          <div className="hidden text-left leading-tight lg:block">
+            <div className="text-[13.5px] font-medium text-[var(--color-text-hi)]">
+              Mara Aren
+            </div>
+            <div className="text-[11px] text-[var(--color-text-lo)]">Principal</div>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}

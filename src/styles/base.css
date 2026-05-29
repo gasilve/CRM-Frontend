@@ -1,0 +1,64 @@
+﻿/* Base reset, body, scrollbars */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(58% 44% at 50% 56%, var(--color-bg-tint), var(--color-ink-1) 62%, var(--color-ink-0) 100%),
+      var(--color-ink-0);
+    color: var(--color-text-hi);
+    font-family: var(--font-sans);
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Light themes get a clean soft radial instead of the surveillance gradient */
+  html[data-theme^="light"] body {
+    background:
+      radial-gradient(60% 50% at 50% 30%, var(--color-bg-tint), transparent 65%),
+      var(--color-ink-0);
+  }
+
+  button {
+    font-family: inherit;
+  }
+
+  .font-mono,
+  [class*="font-mono"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-scrollbar);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-scrollbar-hover);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+}

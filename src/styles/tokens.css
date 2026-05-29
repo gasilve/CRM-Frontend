@@ -1,0 +1,55 @@
+﻿/* Design tokens (dark-1 defaults — overridden by html[data-theme] in themes/) */
+
+@theme {
+  /* Surfaces */
+  --color-ink-0: #04060c;
+  --color-ink-1: #080b14;
+  --color-ink-2: #0d1220;
+  --color-ink-3: #131a2c;
+  --color-ink-4: #1a2238;
+
+  /* Borders */
+  --color-line:   rgba(232, 238, 248, 0.08);
+  --color-line-2: rgba(232, 238, 248, 0.14);
+  --color-line-3: rgba(232, 238, 248, 0.22);
+
+  /* Text */
+  --color-text-hi:  #e8eef8;
+  --color-text-mid: #9aa6bd;
+  --color-text-lo:  #5b6680;
+
+  /* Accent */
+  --color-accent:      #4a7fff;
+  --color-accent-2:    #7aa1ff;
+  --color-accent-soft: rgba(74, 127, 255, 0.16);
+  --color-accent-glow: rgba(74, 127, 255, 0.45);
+
+  /* Status */
+  --color-pos:  #34d399;
+  --color-neg:  #f87171;
+  --color-warn: #f59e0b;
+
+  /* Typography */
+  --font-display: "Cormorant Garamond", serif;
+  --font-eyebrow: "Cinzel", serif;
+  --font-sans:    "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, monospace;
+
+  /* Shape */
+  --radius-card: 14px;
+  --radius-tile: 10px;
+}
+
+/* Per-theme extras live in themes/*.css; these are global fallbacks (= dark-1). */
+:root {
+  --shell-chrome-height: 4.75rem;
+  --color-bg-tint:         rgba(22, 54, 124, 0.22);
+  --color-surface-shine:   rgba(255, 255, 255, 0.018);
+  --color-scrollbar:       rgba(232, 238, 248, 0.08);
+  --color-scrollbar-hover: rgba(232, 238, 248, 0.18);
+  --color-backdrop:        rgba(2, 5, 12, 0.72);
+  --color-operator-from:   #4a7fff;
+  --color-operator-to:     #1f3a8a;
+  --shadow-alpha:           0.6;
+  --shadow-alpha-heavy:     0.75;
+}

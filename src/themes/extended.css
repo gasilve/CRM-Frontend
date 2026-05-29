@@ -1,0 +1,777 @@
+﻿/* Extended themes: dark-6…20, light-6…10 (palette + --theme-* layout tokens) */
+
+/* dark-6 — Dynamo Dark ----------------------------------------------- */
+html[data-theme="dark-6"] {
+  --color-ink-0: #030303;
+  --color-ink-1: #090909;
+  --color-ink-2: #121212;
+  --color-ink-3: #1a1a1a;
+  --color-ink-4: #232323;
+  --color-line:   rgba(255, 255, 255, 0.10);
+  --color-line-2: rgba(255, 255, 255, 0.18);
+  --color-line-3: rgba(255, 255, 255, 0.28);
+  --color-text-hi:  #ffffff;
+  --color-text-mid: #d7d7d7;
+  --color-text-lo:  #949494;
+  --color-accent:      #ff2f4f;
+  --color-accent-2:    #ff7a8f;
+  --color-accent-soft: rgba(255, 47, 79, 0.22);
+  --color-accent-glow: rgba(255, 47, 79, 0.5);
+  --color-pos:  #22c55e;
+  --color-neg:  #ff4d64;
+  --color-warn: #f59e0b;
+  --color-bg-tint:         rgba(255, 33, 74, 0.18);
+  --color-surface-shine:   rgba(255, 255, 255, 0.03);
+  --color-scrollbar:       rgba(255, 255, 255, 0.12);
+  --color-scrollbar-hover: rgba(255, 255, 255, 0.24);
+  --color-backdrop:        rgba(0, 0, 0, 0.74);
+  --color-operator-from:   #ff2f4f;
+  --color-operator-to:     #8f0f22;
+  --shadow-alpha:           0.72;
+  --shadow-alpha-heavy:     0.86;
+  --theme-sidebar-bg: linear-gradient(180deg, #190b0e 0%, #0b0b0b 100%);
+  --theme-sidebar-border: rgba(255, 47, 79, 0.34);
+  --theme-topbar-bg: rgba(18, 18, 18, 0.82);
+  --theme-main-bg: radial-gradient(95% 80% at 50% 0%, rgba(255, 47, 79, 0.08), transparent 70%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(255, 47, 79, 0.05), transparent 58%), #121212;
+  --theme-surface-border: rgba(255, 47, 79, 0.3);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(38, 6, 12, 0.35) 22%, rgba(20, 5, 8, 0.78) 100%);
+  --theme-atmo-radial: radial-gradient(70% 58% at 50% 52%, rgba(255, 47, 79, 0.20), rgba(3, 3, 3, 0.92) 70%, #010101 100%);
+}
+
+/* dark-7 â€” Emerald Dark ---------------------------------------------- */
+html[data-theme="dark-7"] {
+  --color-ink-0: #010806;
+  --color-ink-1: #05100d;
+  --color-ink-2: #081713;
+  --color-ink-3: #0f211c;
+  --color-ink-4: #163029;
+  --color-line:   rgba(210, 255, 240, 0.1);
+  --color-line-2: rgba(210, 255, 240, 0.18);
+  --color-line-3: rgba(210, 255, 240, 0.28);
+  --color-text-hi:  #e9fff7;
+  --color-text-mid: #a9d9ca;
+  --color-text-lo:  #5f907f;
+  --color-accent:      #10b981;
+  --color-accent-2:    #34d399;
+  --color-accent-soft: rgba(16, 185, 129, 0.22);
+  --color-accent-glow: rgba(16, 185, 129, 0.45);
+  --color-pos:  #22c55e;
+  --color-neg:  #f87171;
+  --color-warn: #fbbf24;
+  --color-bg-tint:         rgba(16, 185, 129, 0.18);
+  --color-surface-shine:   rgba(255, 255, 255, 0.03);
+  --color-scrollbar:       rgba(210, 255, 240, 0.12);
+  --color-scrollbar-hover: rgba(210, 255, 240, 0.24);
+  --color-backdrop:        rgba(0, 10, 8, 0.74);
+  --color-operator-from:   #10b981;
+  --color-operator-to:     #065f46;
+  --shadow-alpha:           0.72;
+  --shadow-alpha-heavy:     0.86;
+  --theme-sidebar-bg: linear-gradient(180deg, #053429 0%, #081713 100%);
+  --theme-sidebar-border: rgba(52, 211, 153, 0.36);
+  --theme-topbar-bg: rgba(8, 23, 19, 0.82);
+  --theme-main-bg: radial-gradient(95% 80% at 50% 0%, rgba(16, 185, 129, 0.09), transparent 70%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(16, 185, 129, 0.06), transparent 58%), #0b1d18;
+  --theme-surface-border: rgba(52, 211, 153, 0.28);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(3, 37, 30, 0.35) 22%, rgba(2, 20, 16, 0.8) 100%);
+  --theme-atmo-radial: radial-gradient(70% 58% at 50% 52%, rgba(16, 185, 129, 0.2), rgba(1, 10, 8, 0.9) 70%, #010403 100%);
+}
+
+/* dark-8 â€” Premium Dark ---------------------------------------------- */
+html[data-theme="dark-8"] {
+  --color-ink-0: #060606;
+  --color-ink-1: #0c0c0c;
+  --color-ink-2: #121212;
+  --color-ink-3: #1a1a1a;
+  --color-ink-4: #242424;
+  --color-line:   rgba(226, 190, 118, 0.1);
+  --color-line-2: rgba(226, 190, 118, 0.18);
+  --color-line-3: rgba(226, 190, 118, 0.28);
+  --color-text-hi:  #f6f2ea;
+  --color-text-mid: #c5b08a;
+  --color-text-lo:  #7b6a47;
+  --color-accent:      #c6a15b;
+  --color-accent-2:    #e2c48b;
+  --color-accent-soft: rgba(198, 161, 91, 0.2);
+  --color-accent-glow: rgba(198, 161, 91, 0.45);
+  --color-pos:  #65d28f;
+  --color-neg:  #ef6f6f;
+  --color-warn: #e2c48b;
+  --color-bg-tint:         rgba(198, 161, 91, 0.14);
+  --color-surface-shine:   rgba(255, 245, 225, 0.05);
+  --color-scrollbar:       rgba(226, 190, 118, 0.12);
+  --color-scrollbar-hover: rgba(226, 190, 118, 0.26);
+  --color-backdrop:        rgba(0, 0, 0, 0.78);
+  --color-operator-from:   #c6a15b;
+  --color-operator-to:     #7a5b11;
+  --shadow-alpha:           0.75;
+  --shadow-alpha-heavy:     0.9;
+  --theme-sidebar-bg: linear-gradient(180deg, #14100a 0%, #0a0a0a 100%);
+  --theme-sidebar-border: rgba(198, 161, 91, 0.34);
+  --theme-topbar-bg: rgba(10, 10, 10, 0.84);
+  --theme-main-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 35%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(198, 161, 91, 0.07), transparent 55%), #141414;
+  --theme-surface-border: rgba(198, 161, 91, 0.28);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(33, 24, 8, 0.35) 22%, rgba(18, 14, 7, 0.8) 100%);
+  --theme-atmo-radial: radial-gradient(68% 52% at 50% 56%, rgba(198, 161, 91, 0.16), rgba(8, 8, 8, 0.9) 70%, #040404 100%);
+}
+
+/* dark-9 â€” Neon Dark -------------------------------------------------- */
+html[data-theme="dark-9"] {
+  --color-ink-0: #05040a;
+  --color-ink-1: #0a0713;
+  --color-ink-2: #120d1f;
+  --color-ink-3: #1b1430;
+  --color-ink-4: #261f40;
+  --color-line:   rgba(210, 235, 255, 0.12);
+  --color-line-2: rgba(210, 235, 255, 0.2);
+  --color-line-3: rgba(210, 235, 255, 0.3);
+  --color-text-hi:  #edf6ff;
+  --color-text-mid: #a4b9d8;
+  --color-text-lo:  #66759a;
+  --color-accent:      #00e5ff;
+  --color-accent-2:    #7df9ff;
+  --color-accent-soft: rgba(0, 229, 255, 0.2);
+  --color-accent-glow: rgba(0, 229, 255, 0.52);
+  --color-pos:  #34d399;
+  --color-neg:  #ff5fa2;
+  --color-warn: #ffd166;
+  --color-bg-tint:         rgba(109, 67, 255, 0.2);
+  --color-surface-shine:   rgba(255, 255, 255, 0.035);
+  --color-scrollbar:       rgba(210, 235, 255, 0.13);
+  --color-scrollbar-hover: rgba(210, 235, 255, 0.26);
+  --color-backdrop:        rgba(6, 3, 14, 0.76);
+  --color-operator-from:   #00e5ff;
+  --color-operator-to:     #6d43ff;
+  --shadow-alpha:           0.74;
+  --shadow-alpha-heavy:     0.88;
+  --theme-sidebar-bg: linear-gradient(180deg, #130a2d 0%, #0a0713 100%);
+  --theme-sidebar-border: rgba(0, 229, 255, 0.34);
+  --theme-topbar-bg: rgba(10, 7, 19, 0.84);
+  --theme-main-bg: radial-gradient(95% 80% at 50% 0%, rgba(109, 67, 255, 0.12), transparent 72%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(0, 229, 255, 0.06), rgba(109, 67, 255, 0.04) 45%, transparent 70%), #130f23;
+  --theme-surface-border: rgba(0, 229, 255, 0.28);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(36, 14, 60, 0.35) 22%, rgba(18, 9, 35, 0.8) 100%);
+  --theme-atmo-radial: radial-gradient(72% 58% at 50% 52%, rgba(109, 67, 255, 0.24), rgba(6, 4, 13, 0.93) 68%, #04030a 100%);
+}
+
+/* dark-10 â€” Royal Dark ----------------------------------------------- */
+html[data-theme="dark-10"] {
+  --color-ink-0: #020611;
+  --color-ink-1: #070f1f;
+  --color-ink-2: #0d1930;
+  --color-ink-3: #132445;
+  --color-ink-4: #1a315c;
+  --color-line:   rgba(220, 230, 255, 0.1);
+  --color-line-2: rgba(220, 230, 255, 0.18);
+  --color-line-3: rgba(220, 230, 255, 0.28);
+  --color-text-hi:  #edf3ff;
+  --color-text-mid: #9eb1d2;
+  --color-text-lo:  #5d7295;
+  --color-accent:      #5b7cff;
+  --color-accent-2:    #8da4ff;
+  --color-accent-soft: rgba(91, 124, 255, 0.2);
+  --color-accent-glow: rgba(91, 124, 255, 0.45);
+  --color-pos:  #4ade80;
+  --color-neg:  #f87171;
+  --color-warn: #fbbf24;
+  --color-bg-tint:         rgba(91, 124, 255, 0.2);
+  --color-surface-shine:   rgba(255, 255, 255, 0.03);
+  --color-scrollbar:       rgba(220, 230, 255, 0.12);
+  --color-scrollbar-hover: rgba(220, 230, 255, 0.24);
+  --color-backdrop:        rgba(2, 6, 18, 0.78);
+  --color-operator-from:   #5b7cff;
+  --color-operator-to:     #253a88;
+  --shadow-alpha:           0.72;
+  --shadow-alpha-heavy:     0.86;
+  --theme-sidebar-bg: linear-gradient(180deg, #0a1733 0%, #070f1f 100%);
+  --theme-sidebar-border: rgba(141, 164, 255, 0.34);
+  --theme-topbar-bg: rgba(7, 15, 31, 0.82);
+  --theme-main-bg: radial-gradient(90% 76% at 50% 0%, rgba(91, 124, 255, 0.1), transparent 70%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(91, 124, 255, 0.06), transparent 58%), #10203b;
+  --theme-surface-border: rgba(141, 164, 255, 0.28);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(13, 29, 69, 0.35) 22%, rgba(8, 17, 38, 0.8) 100%);
+  --theme-atmo-radial: radial-gradient(70% 56% at 50% 54%, rgba(91, 124, 255, 0.22), rgba(2, 8, 18, 0.92) 68%, #020611 100%);
+}
+
+/* light-6 â€” Dynamo Light --------------------------------------------- */
+html[data-theme="light-6"] {
+  --color-ink-0: #fff4f6;
+  --color-ink-1: #ffe5ea;
+  --color-ink-2: #ffffff;
+  --color-ink-3: #fff1f4;
+  --color-ink-4: #ffdfe6;
+  --color-line:   rgba(80, 15, 26, 0.12);
+  --color-line-2: rgba(80, 15, 26, 0.2);
+  --color-line-3: rgba(80, 15, 26, 0.3);
+  --color-text-hi:  #2e0f15;
+  --color-text-mid: #7b3a46;
+  --color-text-lo:  #b2707b;
+  --color-accent:      #ff2f4f;
+  --color-accent-2:    #ff5f78;
+  --color-accent-soft: rgba(255, 47, 79, 0.14);
+  --color-accent-glow: rgba(255, 47, 79, 0.34);
+  --color-pos:  #16a34a;
+  --color-neg:  #dc2626;
+  --color-warn: #d97706;
+  --color-bg-tint:         rgba(255, 47, 79, 0.1);
+  --color-surface-shine:   rgba(255, 255, 255, 0.85);
+  --color-scrollbar:       rgba(80, 15, 26, 0.12);
+  --color-scrollbar-hover: rgba(80, 15, 26, 0.24);
+  --color-backdrop:        rgba(45, 5, 15, 0.52);
+  --color-operator-from:   #ff2f4f;
+  --color-operator-to:     #c81e3a;
+  --shadow-alpha:           0.15;
+  --shadow-alpha-heavy:     0.22;
+  --theme-sidebar-bg: linear-gradient(180deg, #4a0f1b 0%, #2a090f 100%);
+  --theme-sidebar-border: rgba(255, 47, 79, 0.35);
+  --theme-topbar-bg: rgba(255, 255, 255, 0.9);
+  --theme-main-bg: linear-gradient(180deg, rgba(255, 47, 79, 0.09), transparent 35%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(255, 47, 79, 0.08), transparent 60%), #ffffff;
+  --theme-surface-border: rgba(255, 47, 79, 0.22);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(255, 47, 79, 0.12) 24%, rgba(88, 19, 32, 0.22) 100%);
+}
+
+/* light-7 â€” Emerald Light -------------------------------------------- */
+html[data-theme="light-7"] {
+  --color-ink-0: #eefcf7;
+  --color-ink-1: #daf6eb;
+  --color-ink-2: #ffffff;
+  --color-ink-3: #e8faf2;
+  --color-ink-4: #d6f0e6;
+  --color-line:   rgba(8, 56, 40, 0.12);
+  --color-line-2: rgba(8, 56, 40, 0.2);
+  --color-line-3: rgba(8, 56, 40, 0.3);
+  --color-text-hi:  #0e2a21;
+  --color-text-mid: #2d6b56;
+  --color-text-lo:  #60a28c;
+  --color-accent:      #10b981;
+  --color-accent-2:    #34d399;
+  --color-accent-soft: rgba(16, 185, 129, 0.14);
+  --color-accent-glow: rgba(16, 185, 129, 0.34);
+  --color-pos:  #16a34a;
+  --color-neg:  #dc2626;
+  --color-warn: #d97706;
+  --color-bg-tint:         rgba(16, 185, 129, 0.1);
+  --color-surface-shine:   rgba(255, 255, 255, 0.86);
+  --color-scrollbar:       rgba(8, 56, 40, 0.12);
+  --color-scrollbar-hover: rgba(8, 56, 40, 0.24);
+  --color-backdrop:        rgba(4, 35, 25, 0.5);
+  --color-operator-from:   #10b981;
+  --color-operator-to:     #047857;
+  --shadow-alpha:           0.15;
+  --shadow-alpha-heavy:     0.22;
+  --theme-sidebar-bg: linear-gradient(180deg, #0e4736 0%, #083125 100%);
+  --theme-sidebar-border: rgba(52, 211, 153, 0.35);
+  --theme-topbar-bg: rgba(255, 255, 255, 0.9);
+  --theme-main-bg: linear-gradient(180deg, rgba(16, 185, 129, 0.09), transparent 35%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(16, 185, 129, 0.08), transparent 60%), #ffffff;
+  --theme-surface-border: rgba(16, 185, 129, 0.22);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(16, 185, 129, 0.12) 24%, rgba(6, 70, 53, 0.22) 100%);
+}
+
+/* light-8 â€” Premium Light -------------------------------------------- */
+html[data-theme="light-8"] {
+  --color-ink-0: #f8f7f4;
+  --color-ink-1: #efede8;
+  --color-ink-2: #ffffff;
+  --color-ink-3: #f5f3ee;
+  --color-ink-4: #e8e5de;
+  --color-line:   rgba(40, 30, 15, 0.12);
+  --color-line-2: rgba(40, 30, 15, 0.2);
+  --color-line-3: rgba(40, 30, 15, 0.3);
+  --color-text-hi:  #1e1b17;
+  --color-text-mid: #5b5245;
+  --color-text-lo:  #938779;
+  --color-accent:      #ad8a4a;
+  --color-accent-2:    #c6a15b;
+  --color-accent-soft: rgba(173, 138, 74, 0.14);
+  --color-accent-glow: rgba(173, 138, 74, 0.32);
+  --color-pos:  #15803d;
+  --color-neg:  #dc2626;
+  --color-warn: #b45309;
+  --color-bg-tint:         rgba(173, 138, 74, 0.08);
+  --color-surface-shine:   rgba(255, 255, 255, 0.86);
+  --color-scrollbar:       rgba(40, 30, 15, 0.12);
+  --color-scrollbar-hover: rgba(40, 30, 15, 0.24);
+  --color-backdrop:        rgba(20, 15, 8, 0.5);
+  --color-operator-from:   #ad8a4a;
+  --color-operator-to:     #7a5b11;
+  --shadow-alpha:           0.16;
+  --shadow-alpha-heavy:     0.24;
+  --theme-sidebar-bg: linear-gradient(180deg, #111111 0%, #1a1a1a 100%);
+  --theme-sidebar-border: rgba(198, 161, 91, 0.35);
+  --theme-topbar-bg: rgba(255, 255, 255, 0.92);
+  --theme-main-bg: linear-gradient(180deg, rgba(173, 138, 74, 0.08), transparent 35%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(173, 138, 74, 0.07), transparent 60%), #ffffff;
+  --theme-surface-border: rgba(173, 138, 74, 0.22);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(173, 138, 74, 0.12) 24%, rgba(60, 45, 14, 0.2) 100%);
+}
+
+/* dark-11 â€” Racer (black/white + Ferrari red accents) ------------------- */
+html[data-theme="dark-11"] {
+  --color-ink-0: #030303;
+  --color-ink-1: #090909;
+  --color-ink-2: #121212;
+  --color-ink-3: #1a1a1a;
+  --color-ink-4: #232323;
+  --color-line:   rgba(255, 255, 255, 0.10);
+  --color-line-2: rgba(255, 255, 255, 0.18);
+  --color-line-3: rgba(255, 255, 255, 0.28);
+  --color-text-hi:  #ffffff;
+  --color-text-mid: #d4d4d4;
+  --color-text-lo:  #949494;
+  --color-accent:      #d40000;
+  --color-accent-2:    #ff3b1f;
+  --color-accent-soft: rgba(212, 0, 0, 0.16);
+  --color-accent-glow: rgba(212, 0, 0, 0.32);
+  --color-pos:  #4ade80;
+  --color-neg:  #ef4444;
+  --color-warn: #facc15;
+  --color-bg-tint:         rgba(212, 0, 0, 0.05);
+  --color-surface-shine:   rgba(255, 255, 255, 0.03);
+  --color-scrollbar:       rgba(255, 255, 255, 0.12);
+  --color-scrollbar-hover: rgba(255, 255, 255, 0.24);
+  --color-backdrop:        rgba(0, 0, 0, 0.82);
+  --color-operator-from:   #d40000;
+  --color-operator-to:     #7a0000;
+  --shadow-alpha:           0.72;
+  --shadow-alpha-heavy:     0.86;
+  --theme-sidebar-bg: linear-gradient(180deg, #111111 0%, #0b0b0b 100%);
+  --theme-sidebar-border: rgba(212, 0, 0, 0.28);
+  --theme-topbar-bg: rgba(18, 18, 18, 0.82);
+  --theme-main-bg: linear-gradient(180deg, rgba(212, 0, 0, 0.03), transparent 32%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 58%), #121212;
+  --theme-surface-border: rgba(255, 255, 255, 0.12);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.03) 22%, rgba(10, 10, 10, 0.82) 100%);
+  --theme-atmo-radial: radial-gradient(68% 54% at 50% 56%, rgba(212, 0, 0, 0.07), rgba(6, 6, 6, 0.96) 68%, #030303 100%);
+}
+
+/* dark-12 â€” Nitro ----------------------------------------------------- */
+html[data-theme="dark-12"] {
+  --color-ink-0: #050505;
+  --color-ink-1: #090909;
+  --color-ink-2: #111111;
+  --color-ink-3: #191919;
+  --color-ink-4: #232323;
+  --color-line:   rgba(255, 145, 66, 0.12);
+  --color-line-2: rgba(255, 145, 66, 0.22);
+  --color-line-3: rgba(255, 145, 66, 0.32);
+  --color-text-hi:  #fff6eb;
+  --color-text-mid: #d2c2b2;
+  --color-text-lo:  #8f7e70;
+  --color-accent:      #ff7a00;
+  --color-accent-2:    #ffb366;
+  --color-accent-soft: rgba(255, 122, 0, 0.2);
+  --color-accent-glow: rgba(255, 122, 0, 0.45);
+  --color-pos:  #4ade80;
+  --color-neg:  #f87171;
+  --color-warn: #f59e0b;
+  --color-bg-tint:         rgba(255, 122, 0, 0.18);
+  --color-surface-shine:   rgba(255, 255, 255, 0.035);
+  --color-scrollbar:       rgba(255, 145, 66, 0.14);
+  --color-scrollbar-hover: rgba(255, 145, 66, 0.28);
+  --color-backdrop:        rgba(4, 2, 0, 0.8);
+  --color-operator-from:   #ff7a00;
+  --color-operator-to:     #8a3f00;
+  --shadow-alpha:           0.75;
+  --shadow-alpha-heavy:     0.9;
+  --theme-sidebar-bg: linear-gradient(180deg, #2b1606 0%, #0b0b0b 100%);
+  --theme-sidebar-border: rgba(255, 122, 0, 0.34);
+  --theme-topbar-bg: rgba(14, 14, 14, 0.84);
+  --theme-main-bg: radial-gradient(92% 74% at 50% 0%, rgba(255, 122, 0, 0.12), transparent 70%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(255, 122, 0, 0.07), transparent 58%), #141414;
+  --theme-surface-border: rgba(255, 122, 0, 0.28);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(60, 29, 4, 0.34) 22%, rgba(22, 12, 3, 0.82) 100%);
+  --theme-atmo-radial: radial-gradient(70% 54% at 50% 54%, rgba(255, 122, 0, 0.2), rgba(7, 7, 7, 0.92) 68%, #030303 100%);
+}
+
+/* dark-14 â€” Bunsen ---------------------------------------------------- */
+html[data-theme="dark-14"] {
+  --color-ink-0: #020407;
+  --color-ink-1: #070b12;
+  --color-ink-2: #0c1420;
+  --color-ink-3: #132033;
+  --color-ink-4: #1c2c43;
+  --color-line:   rgba(114, 205, 255, 0.14);
+  --color-line-2: rgba(114, 205, 255, 0.24);
+  --color-line-3: rgba(114, 205, 255, 0.34);
+  --color-text-hi:  #ebf6ff;
+  --color-text-mid: #a6c2d8;
+  --color-text-lo:  #607f97;
+  --color-accent:      #3bc7ff;
+  --color-accent-2:    #83e3ff;
+  --color-accent-soft: rgba(59, 199, 255, 0.2);
+  --color-accent-glow: rgba(59, 199, 255, 0.5);
+  --color-pos:  #4ade80;
+  --color-neg:  #f87171;
+  --color-warn: #f97316;
+  --color-bg-tint:         rgba(255, 132, 37, 0.12);
+  --color-surface-shine:   rgba(255, 255, 255, 0.035);
+  --color-scrollbar:       rgba(114, 205, 255, 0.14);
+  --color-scrollbar-hover: rgba(114, 205, 255, 0.28);
+  --color-backdrop:        rgba(2, 5, 10, 0.8);
+  --color-operator-from:   #3bc7ff;
+  --color-operator-to:     #2563eb;
+  --shadow-alpha:           0.75;
+  --shadow-alpha-heavy:     0.9;
+  --theme-sidebar-bg: linear-gradient(180deg, #0e2035 0%, #0a121e 100%);
+  --theme-sidebar-border: rgba(59, 199, 255, 0.34);
+  --theme-topbar-bg: rgba(10, 18, 30, 0.84);
+  --theme-main-bg: radial-gradient(90% 70% at 50% 0%, rgba(255, 132, 37, 0.09), transparent 52%), radial-gradient(85% 75% at 50% 0%, rgba(59, 199, 255, 0.12), transparent 72%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(59, 199, 255, 0.07), rgba(255, 132, 37, 0.04) 48%, transparent 72%), #0e1b2b;
+  --theme-surface-border: rgba(59, 199, 255, 0.28);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(18, 57, 84, 0.34) 22%, rgba(7, 20, 35, 0.84) 100%);
+  --theme-atmo-radial: radial-gradient(70% 54% at 50% 54%, rgba(59, 199, 255, 0.24), rgba(6, 14, 24, 0.93) 63%, #020407 100%);
+}
+
+/* dark-13 â€” High End -------------------------------------------------- */
+html[data-theme="dark-13"] {
+  --color-ink-0: #030303;
+  --color-ink-1: #080808;
+  --color-ink-2: #0f0f0f;
+  --color-ink-3: #151515;
+  --color-ink-4: #1d1d1d;
+  --color-line:   rgba(255, 255, 255, 0.09);
+  --color-line-2: rgba(255, 255, 255, 0.16);
+  --color-line-3: rgba(255, 255, 255, 0.24);
+  --color-text-hi:  #f8f8f8;
+  --color-text-mid: #c7c7c7;
+  --color-text-lo:  #8a8a8a;
+  --color-accent:      #f8f8f8;
+  --color-accent-2:    #ffffff;
+  --color-accent-soft: rgba(255, 255, 255, 0.14);
+  --color-accent-glow: rgba(255, 255, 255, 0.32);
+  --color-pos:  #65d28f;
+  --color-neg:  #ef6f6f;
+  --color-warn: #e5e5e5;
+  --color-bg-tint:         rgba(255, 255, 255, 0.04);
+  --color-surface-shine:   rgba(255, 255, 255, 0.03);
+  --color-scrollbar:       rgba(255, 255, 255, 0.11);
+  --color-scrollbar-hover: rgba(255, 255, 255, 0.22);
+  --color-backdrop:        rgba(0, 0, 0, 0.84);
+  --color-operator-from:   #ffffff;
+  --color-operator-to:     #9ca3af;
+  --shadow-alpha:           0.78;
+  --shadow-alpha-heavy:     0.92;
+  --theme-sidebar-bg: linear-gradient(180deg, #0d0d0d 0%, #040404 100%);
+  --theme-sidebar-border: rgba(255, 255, 255, 0.24);
+  --theme-topbar-bg: rgba(8, 8, 8, 0.88);
+  --theme-main-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 32%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 58%), #101010;
+  --theme-surface-border: rgba(255, 255, 255, 0.2);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.05) 22%, rgba(10, 10, 10, 0.86) 100%);
+  --theme-atmo-radial: radial-gradient(68% 52% at 50% 56%, rgba(255, 255, 255, 0.09), rgba(6, 6, 6, 0.94) 70%, #020202 100%);
+}
+
+/* dark-15 â€” Phantom --------------------------------------------------- */
+html[data-theme="dark-15"] {
+  --color-ink-0: #04060a;
+  --color-ink-1: #080c15;
+  --color-ink-2: #0f1523;
+  --color-ink-3: #171f31;
+  --color-ink-4: #212c40;
+  --color-line:   rgba(170, 188, 255, 0.12);
+  --color-line-2: rgba(170, 188, 255, 0.22);
+  --color-line-3: rgba(170, 188, 255, 0.32);
+  --color-text-hi:  #eff3ff;
+  --color-text-mid: #b5c0e0;
+  --color-text-lo:  #7480a3;
+  --color-accent:      #8ea2ff;
+  --color-accent-2:    #b4c2ff;
+  --color-accent-soft: rgba(142, 162, 255, 0.2);
+  --color-accent-glow: rgba(142, 162, 255, 0.45);
+  --color-pos:  #65d28f;
+  --color-neg:  #f87171;
+  --color-warn: #fbbf24;
+  --color-bg-tint:         rgba(142, 162, 255, 0.16);
+  --color-surface-shine:   rgba(255, 255, 255, 0.03);
+  --color-scrollbar:       rgba(170, 188, 255, 0.13);
+  --color-scrollbar-hover: rgba(170, 188, 255, 0.26);
+  --color-backdrop:        rgba(2, 4, 10, 0.82);
+  --color-operator-from:   #8ea2ff;
+  --color-operator-to:     #5563c9;
+  --shadow-alpha:           0.75;
+  --shadow-alpha-heavy:     0.9;
+  --theme-sidebar-bg: linear-gradient(180deg, #121932 0%, #090e1a 100%);
+  --theme-sidebar-border: rgba(142, 162, 255, 0.32);
+  --theme-topbar-bg: rgba(9, 14, 26, 0.86);
+  --theme-main-bg: radial-gradient(90% 72% at 50% 0%, rgba(142, 162, 255, 0.1), transparent 70%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(142, 162, 255, 0.07), transparent 58%), #101829;
+  --theme-surface-border: rgba(142, 162, 255, 0.25);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(28, 37, 72, 0.34) 22%, rgba(12, 17, 33, 0.84) 100%);
+  --theme-atmo-radial: radial-gradient(70% 54% at 50% 54%, rgba(142, 162, 255, 0.2), rgba(6, 10, 20, 0.92) 68%, #03060c 100%);
+}
+
+/* dark-16 â€” Tsunami (Dynamo Dark blue swap) --------------------------- */
+html[data-theme="dark-16"] {
+  --color-ink-0: #030303;
+  --color-ink-1: #090909;
+  --color-ink-2: #121212;
+  --color-ink-3: #1a1a1a;
+  --color-ink-4: #232323;
+  --color-line:   rgba(255, 255, 255, 0.10);
+  --color-line-2: rgba(255, 255, 255, 0.18);
+  --color-line-3: rgba(255, 255, 255, 0.28);
+  --color-text-hi:  #ffffff;
+  --color-text-mid: #d7d7d7;
+  --color-text-lo:  #949494;
+  --color-accent:      #2b7bff;
+  --color-accent-2:    #74a7ff;
+  --color-accent-soft: rgba(43, 123, 255, 0.22);
+  --color-accent-glow: rgba(43, 123, 255, 0.5);
+  --color-pos:  #22c55e;
+  --color-neg:  #ff4d64;
+  --color-warn: #f59e0b;
+  --color-bg-tint:         rgba(43, 123, 255, 0.18);
+  --color-surface-shine:   rgba(255, 255, 255, 0.03);
+  --color-scrollbar:       rgba(255, 255, 255, 0.12);
+  --color-scrollbar-hover: rgba(255, 255, 255, 0.24);
+  --color-backdrop:        rgba(0, 0, 0, 0.74);
+  --color-operator-from:   #2b7bff;
+  --color-operator-to:     #0f2266;
+  --shadow-alpha:           0.72;
+  --shadow-alpha-heavy:     0.86;
+  --theme-sidebar-bg: linear-gradient(180deg, #0b0e19 0%, #0b0b0b 100%);
+  --theme-sidebar-border: rgba(43, 123, 255, 0.34);
+  --theme-topbar-bg: rgba(18, 18, 18, 0.82);
+  --theme-main-bg: radial-gradient(95% 80% at 50% 0%, rgba(43, 123, 255, 0.08), transparent 70%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(43, 123, 255, 0.05), transparent 58%), #121212;
+  --theme-surface-border: rgba(43, 123, 255, 0.3);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(6, 14, 38, 0.35) 22%, rgba(5, 12, 28, 0.78) 100%);
+  --theme-atmo-radial: radial-gradient(70% 58% at 50% 52%, rgba(43, 123, 255, 0.20), rgba(3, 3, 3, 0.92) 70%, #010101 100%);
+}
+
+/* dark-17 â€” Toxic ----------------------------------------------------- */
+html[data-theme="dark-17"] {
+  --color-ink-0: #030503;
+  --color-ink-1: #070b07;
+  --color-ink-2: #0d140d;
+  --color-ink-3: #151f15;
+  --color-ink-4: #1d291d;
+  --color-line:   rgba(175, 255, 66, 0.14);
+  --color-line-2: rgba(175, 255, 66, 0.24);
+  --color-line-3: rgba(175, 255, 66, 0.34);
+  --color-text-hi:  #f1ffe8;
+  --color-text-mid: #bfd9ac;
+  --color-text-lo:  #7f9d71;
+  --color-accent:      #7fff00;
+  --color-accent-2:    #b6ff5a;
+  --color-accent-soft: rgba(127, 255, 0, 0.24);
+  --color-accent-glow: rgba(127, 255, 0, 0.52);
+  --color-pos:  #86efac;
+  --color-neg:  #fb7185;
+  --color-warn: #facc15;
+  --color-bg-tint:         rgba(127, 255, 0, 0.16);
+  --color-surface-shine:   rgba(255, 255, 255, 0.035);
+  --color-scrollbar:       rgba(175, 255, 66, 0.14);
+  --color-scrollbar-hover: rgba(175, 255, 66, 0.28);
+  --color-backdrop:        rgba(2, 8, 2, 0.84);
+  --color-operator-from:   #7fff00;
+  --color-operator-to:     #3f7f00;
+  --shadow-alpha:           0.77;
+  --shadow-alpha-heavy:     0.92;
+  --theme-sidebar-bg: linear-gradient(180deg, #14220d 0%, #070b07 100%);
+  --theme-sidebar-border: rgba(127, 255, 0, 0.34);
+  --theme-topbar-bg: rgba(7, 11, 7, 0.88);
+  --theme-main-bg: radial-gradient(90% 74% at 50% 0%, rgba(127, 255, 0, 0.12), transparent 72%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(127, 255, 0, 0.08), transparent 58%), #111811;
+  --theme-surface-border: rgba(127, 255, 0, 0.28);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(35, 62, 12, 0.36) 22%, rgba(12, 20, 7, 0.86) 100%);
+  --theme-atmo-radial: radial-gradient(70% 54% at 50% 54%, rgba(127, 255, 0, 0.2), rgba(8, 12, 8, 0.94) 68%, #030503 100%);
+}
+
+/* dark-18 â€” Iconic ---------------------------------------------------- */
+html[data-theme="dark-18"] {
+  --color-ink-0: #000000;
+  --color-ink-1: #030303;
+  --color-ink-2: #080808;
+  --color-ink-3: #0f0f10;
+  --color-ink-4: #171719;
+  --color-line:   rgba(230, 230, 235, 0.1);
+  --color-line-2: rgba(230, 230, 235, 0.17);
+  --color-line-3: rgba(230, 230, 235, 0.24);
+  --color-text-hi:  #f5f5f5;
+  --color-text-mid: #bdbdc4;
+  --color-text-lo:  #7d7d87;
+  --color-accent:      #f3f4f6;
+  --color-accent-2:    #ffffff;
+  --color-accent-soft: rgba(243, 244, 246, 0.12);
+  --color-accent-glow: rgba(243, 244, 246, 0.26);
+  --color-pos:  #86efac;
+  --color-neg:  #f87171;
+  --color-warn: #d4d4d8;
+  --color-bg-tint:         rgba(255, 255, 255, 0.03);
+  --color-surface-shine:   rgba(255, 255, 255, 0.025);
+  --color-scrollbar:       rgba(230, 230, 235, 0.1);
+  --color-scrollbar-hover: rgba(230, 230, 235, 0.2);
+  --color-backdrop:        rgba(0, 0, 0, 0.88);
+  --color-operator-from:   #ffffff;
+  --color-operator-to:     #9ca3af;
+  --shadow-alpha:           0.8;
+  --shadow-alpha-heavy:     0.96;
+  --theme-sidebar-bg: linear-gradient(180deg, #070707 0%, #000000 100%);
+  --theme-sidebar-border: rgba(255, 255, 255, 0.2);
+  --theme-topbar-bg: rgba(3, 3, 3, 0.9);
+  --theme-main-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 30%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 58%), #090909;
+  --theme-surface-border: rgba(255, 255, 255, 0.16);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.04) 22%, rgba(3, 3, 3, 0.88) 100%);
+  --theme-atmo-radial: radial-gradient(66% 50% at 50% 56%, rgba(255, 255, 255, 0.06), rgba(2, 2, 2, 0.95) 70%, #000000 100%);
+}
+
+/* dark-19 â€” Galaxy ---------------------------------------------------- */
+html[data-theme="dark-19"] {
+  --color-ink-0: #010006;
+  --color-ink-1: #03020a;
+  --color-ink-2: #06040f;
+  --color-ink-3: #0a0716;
+  --color-ink-4: #100b1f;
+  --color-line:   rgba(220, 200, 255, 0.14);
+  --color-line-2: rgba(220, 200, 255, 0.24);
+  --color-line-3: rgba(220, 200, 255, 0.36);
+  --color-text-hi:  #faf5ff;
+  --color-text-mid: #d4c2f0;
+  --color-text-lo:  #9a84c4;
+  --color-accent:      #b45cff;
+  --color-accent-2:    #d08bff;
+  --color-accent-soft: rgba(180, 92, 255, 0.24);
+  --color-accent-glow: rgba(180, 92, 255, 0.58);
+  --color-pos:  #4ade80;
+  --color-neg:  #fb7185;
+  --color-warn: #fbbf24;
+  --color-bg-tint:         rgba(124, 58, 237, 0.14);
+  --color-surface-shine:   rgba(255, 255, 255, 0.04);
+  --color-scrollbar:       rgba(220, 200, 255, 0.16);
+  --color-scrollbar-hover: rgba(220, 200, 255, 0.32);
+  --color-backdrop:        rgba(0, 0, 0, 0.88);
+  --color-operator-from:   #b45cff;
+  --color-operator-to:     #5b21b6;
+  --shadow-alpha:           0.82;
+  --shadow-alpha-heavy:     0.96;
+  --theme-sidebar-bg: linear-gradient(180deg, #12061f 0%, #030108 100%);
+  --theme-sidebar-border: rgba(192, 132, 252, 0.4);
+  --theme-topbar-bg: rgba(6, 4, 10, 0.92);
+  --theme-main-bg: radial-gradient(92% 74% at 50% 0%, rgba(124, 58, 237, 0.1), transparent 72%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(180, 92, 255, 0.06), transparent 58%), #08040f;
+  --theme-surface-border: rgba(192, 132, 252, 0.32);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(36, 10, 62, 0.42) 22%, rgba(8, 3, 14, 0.92) 100%);
+  --theme-atmo-radial: radial-gradient(72% 56% at 50% 54%, rgba(124, 58, 237, 0.18), rgba(2, 0, 6, 0.97) 68%, #010006 100%);
+}
+
+/* dark-20 â€” Monolith -------------------------------------------------- */
+html[data-theme="dark-20"] {
+  --color-ink-0: #05070d;
+  --color-ink-1: #0a0e18;
+  --color-ink-2: #111827;
+  --color-ink-3: #172033;
+  --color-ink-4: #1f2937;
+  --color-line:   rgba(148, 163, 184, 0.12);
+  --color-line-2: rgba(148, 163, 184, 0.22);
+  --color-line-3: rgba(148, 163, 184, 0.32);
+  --color-text-hi:  #e5e7eb;
+  --color-text-mid: #b5becb;
+  --color-text-lo:  #7e8798;
+  --color-accent:      #6b7280;
+  --color-accent-2:    #9ca3af;
+  --color-accent-soft: rgba(107, 114, 128, 0.2);
+  --color-accent-glow: rgba(107, 114, 128, 0.4);
+  --color-pos:  #4ade80;
+  --color-neg:  #f87171;
+  --color-warn: #fbbf24;
+  --color-bg-tint:         rgba(107, 114, 128, 0.16);
+  --color-surface-shine:   rgba(255, 255, 255, 0.03);
+  --color-scrollbar:       rgba(148, 163, 184, 0.14);
+  --color-scrollbar-hover: rgba(148, 163, 184, 0.28);
+  --color-backdrop:        rgba(3, 6, 12, 0.84);
+  --color-operator-from:   #9ca3af;
+  --color-operator-to:     #4b5563;
+  --shadow-alpha:           0.76;
+  --shadow-alpha-heavy:     0.92;
+  --theme-sidebar-bg: linear-gradient(180deg, #141a26 0%, #090d15 100%);
+  --theme-sidebar-border: rgba(156, 163, 175, 0.32);
+  --theme-topbar-bg: rgba(9, 13, 21, 0.88);
+  --theme-main-bg: radial-gradient(90% 72% at 50% 0%, rgba(107, 114, 128, 0.12), transparent 72%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(107, 114, 128, 0.07), transparent 58%), #151c2a;
+  --theme-surface-border: rgba(156, 163, 175, 0.27);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(32, 39, 53, 0.36) 22%, rgba(13, 18, 28, 0.86) 100%);
+  --theme-atmo-radial: radial-gradient(70% 54% at 50% 54%, rgba(107, 114, 128, 0.22), rgba(8, 12, 20, 0.93) 68%, #05070d 100%);
+}
+
+/* light-9 â€” Neon Light ----------------------------------------------- */
+html[data-theme="light-9"] {
+  --color-ink-0: #f4f0ff;
+  --color-ink-1: #ece5ff;
+  --color-ink-2: #ffffff;
+  --color-ink-3: #f2edff;
+  --color-ink-4: #e5deff;
+  --color-line:   rgba(45, 30, 90, 0.12);
+  --color-line-2: rgba(45, 30, 90, 0.2);
+  --color-line-3: rgba(45, 30, 90, 0.3);
+  --color-text-hi:  #1a1440;
+  --color-text-mid: #4a3d88;
+  --color-text-lo:  #7d6eb9;
+  --color-accent:      #00b8ff;
+  --color-accent-2:    #6f5dff;
+  --color-accent-soft: rgba(0, 184, 255, 0.14);
+  --color-accent-glow: rgba(0, 184, 255, 0.36);
+  --color-pos:  #16a34a;
+  --color-neg:  #db2777;
+  --color-warn: #d97706;
+  --color-bg-tint:         rgba(111, 93, 255, 0.1);
+  --color-surface-shine:   rgba(255, 255, 255, 0.9);
+  --color-scrollbar:       rgba(45, 30, 90, 0.12);
+  --color-scrollbar-hover: rgba(45, 30, 90, 0.24);
+  --color-backdrop:        rgba(20, 10, 45, 0.5);
+  --color-operator-from:   #00b8ff;
+  --color-operator-to:     #6f5dff;
+  --shadow-alpha:           0.15;
+  --shadow-alpha-heavy:     0.23;
+  --theme-sidebar-bg: linear-gradient(180deg, #23175a 0%, #13103a 100%);
+  --theme-sidebar-border: rgba(0, 184, 255, 0.35);
+  --theme-topbar-bg: rgba(255, 255, 255, 0.9);
+  --theme-main-bg: linear-gradient(180deg, rgba(111, 93, 255, 0.11), transparent 35%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(0, 184, 255, 0.08), rgba(111, 93, 255, 0.04) 45%, transparent 70%), #ffffff;
+  --theme-surface-border: rgba(111, 93, 255, 0.24);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(111, 93, 255, 0.13) 24%, rgba(34, 20, 75, 0.22) 100%);
+}
+
+/* light-10 â€” Royal Light --------------------------------------------- */
+html[data-theme="light-10"] {
+  --color-ink-0: #f2f6ff;
+  --color-ink-1: #e5ecff;
+  --color-ink-2: #ffffff;
+  --color-ink-3: #edf2ff;
+  --color-ink-4: #dde6ff;
+  --color-line:   rgba(20, 35, 90, 0.12);
+  --color-line-2: rgba(20, 35, 90, 0.2);
+  --color-line-3: rgba(20, 35, 90, 0.3);
+  --color-text-hi:  #0f1a3d;
+  --color-text-mid: #3d4f87;
+  --color-text-lo:  #7084bd;
+  --color-accent:      #4864f2;
+  --color-accent-2:    #7a90ff;
+  --color-accent-soft: rgba(72, 100, 242, 0.14);
+  --color-accent-glow: rgba(72, 100, 242, 0.34);
+  --color-pos:  #16a34a;
+  --color-neg:  #dc2626;
+  --color-warn: #d97706;
+  --color-bg-tint:         rgba(72, 100, 242, 0.09);
+  --color-surface-shine:   rgba(255, 255, 255, 0.9);
+  --color-scrollbar:       rgba(20, 35, 90, 0.12);
+  --color-scrollbar-hover: rgba(20, 35, 90, 0.24);
+  --color-backdrop:        rgba(8, 18, 50, 0.5);
+  --color-operator-from:   #4864f2;
+  --color-operator-to:     #2944ca;
+  --shadow-alpha:           0.15;
+  --shadow-alpha-heavy:     0.23;
+  --theme-sidebar-bg: linear-gradient(180deg, #1a2d76 0%, #101d54 100%);
+  --theme-sidebar-border: rgba(122, 144, 255, 0.35);
+  --theme-topbar-bg: rgba(255, 255, 255, 0.92);
+  --theme-main-bg: linear-gradient(180deg, rgba(72, 100, 242, 0.1), transparent 35%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(72, 100, 242, 0.08), transparent 60%), #ffffff;
+  --theme-surface-border: rgba(72, 100, 242, 0.24);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(72, 100, 242, 0.12) 24%, rgba(24, 42, 102, 0.21) 100%);
+}
+

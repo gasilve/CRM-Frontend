@@ -1,0 +1,127 @@
+/* New wild-theme layout overrides (themes 6-15 only) */
+html[data-theme$="-6"] .app-sidebar,
+html[data-theme$="-7"] .app-sidebar,
+html[data-theme$="-8"] .app-sidebar,
+html[data-theme$="-9"] .app-sidebar,
+html[data-theme$="-10"] .app-sidebar,
+html[data-theme$="-11"] .app-sidebar,
+html[data-theme$="-12"] .app-sidebar,
+html[data-theme$="-13"] .app-sidebar,
+html[data-theme$="-14"] .app-sidebar,
+html[data-theme$="-15"] .app-sidebar,
+html[data-theme$="-16"] .app-sidebar,
+html[data-theme$="-17"] .app-sidebar,
+html[data-theme$="-18"] .app-sidebar,
+html[data-theme$="-19"] .app-sidebar,
+html[data-theme$="-20"] .app-sidebar {
+  background: var(--theme-sidebar-bg) !important;
+  border-right-color: var(--theme-sidebar-border) !important;
+}
+
+html[data-theme$="-6"] .app-topbar,
+html[data-theme$="-7"] .app-topbar,
+html[data-theme$="-8"] .app-topbar,
+html[data-theme$="-9"] .app-topbar,
+html[data-theme$="-10"] .app-topbar,
+html[data-theme$="-11"] .app-topbar,
+html[data-theme$="-12"] .app-topbar,
+html[data-theme$="-13"] .app-topbar,
+html[data-theme$="-14"] .app-topbar,
+html[data-theme$="-15"] .app-topbar,
+html[data-theme$="-16"] .app-topbar,
+html[data-theme$="-17"] .app-topbar,
+html[data-theme$="-18"] .app-topbar,
+html[data-theme$="-19"] .app-topbar,
+html[data-theme$="-20"] .app-topbar {
+  background: var(--theme-topbar-bg) !important;
+  border-bottom-color: var(--theme-sidebar-border) !important;
+}
+
+html[data-theme$="-6"] .app-main,
+html[data-theme$="-7"] .app-main,
+html[data-theme$="-8"] .app-main,
+html[data-theme$="-9"] .app-main,
+html[data-theme$="-10"] .app-main,
+html[data-theme$="-11"] .app-main,
+html[data-theme$="-12"] .app-main,
+html[data-theme$="-13"] .app-main,
+html[data-theme$="-14"] .app-main,
+html[data-theme$="-15"] .app-main,
+html[data-theme$="-16"] .app-main,
+html[data-theme$="-17"] .app-main,
+html[data-theme$="-18"] .app-main,
+html[data-theme$="-19"] .app-main,
+html[data-theme$="-20"] .app-main {
+  background: var(--theme-main-bg);
+}
+
+html[data-theme$="-6"] .surface,
+html[data-theme$="-7"] .surface,
+html[data-theme$="-8"] .surface,
+html[data-theme$="-9"] .surface,
+html[data-theme$="-10"] .surface,
+html[data-theme$="-11"] .surface,
+html[data-theme$="-12"] .surface,
+html[data-theme$="-13"] .surface,
+html[data-theme$="-14"] .surface,
+html[data-theme$="-15"] .surface,
+html[data-theme$="-16"] .surface,
+html[data-theme$="-17"] .surface,
+html[data-theme$="-18"] .surface,
+html[data-theme$="-19"] .surface,
+html[data-theme$="-20"] .surface {
+  background: var(--theme-surface-bg);
+  border-color: var(--theme-surface-border);
+}
+
+html[data-theme="dark-6"] .atmo-radial,
+html[data-theme="dark-7"] .atmo-radial,
+html[data-theme="dark-8"] .atmo-radial,
+html[data-theme="dark-9"] .atmo-radial,
+html[data-theme="dark-10"] .atmo-radial,
+html[data-theme="dark-11"] .atmo-radial,
+html[data-theme="dark-12"] .atmo-radial,
+html[data-theme="dark-13"] .atmo-radial,
+html[data-theme="dark-14"] .atmo-radial,
+html[data-theme="dark-15"] .atmo-radial,
+html[data-theme="dark-16"] .atmo-radial,
+html[data-theme="dark-17"] .atmo-radial,
+html[data-theme="dark-18"] .atmo-radial,
+html[data-theme="dark-19"] .atmo-radial,
+html[data-theme="dark-20"] .atmo-radial {
+  background: var(--theme-atmo-radial);
+}
+
+/* Fix contrast in custom light sidebars (themes 6-10) */
+html[data-theme="light-6"] .app-sidebar,
+html[data-theme="light-7"] .app-sidebar,
+html[data-theme="light-8"] .app-sidebar,
+html[data-theme="light-9"] .app-sidebar,
+html[data-theme="light-10"] .app-sidebar {
+  --color-text-hi: #f8fafc;
+  --color-text-mid: #e2e8f0;
+  --color-text-lo: #b7c4d6;
+  --color-line: rgba(255, 255, 255, 0.14);
+  --color-line-2: rgba(255, 255, 255, 0.24);
+  --color-line-3: rgba(255, 255, 255, 0.34);
+}
+
+/* â”€â”€ Light themes: suppress dark surveillance overlays â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+html[data-theme^="light"] .atmo-radial,
+html[data-theme^="light"] .atmo-scanlines,
+html[data-theme^="light"] .atmo-sweep,
+html[data-theme^="light"] .atmo-noise {
+  display: none;
+}
+html[data-theme^="light"] .atmo-vignette {
+  background: radial-gradient(circle at 50% 56%, transparent 55%, rgba(0, 0, 0, 0.06) 100%);
+}
+
+/* â”€â”€ Theme picker animation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.theme-picker-panel {
+  animation: themePickerIn 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes themePickerIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
