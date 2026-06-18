@@ -10,6 +10,7 @@ import Billing from "./pages/Billing";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Assistant from "./pages/Assistant";
+import DocumentGenerator from "./pages/DocumentGenerator";
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/assistant" element={<Assistant />} />
+        <Route path="/documents" element={<DocumentGenerator />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

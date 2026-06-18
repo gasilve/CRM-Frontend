@@ -2,8 +2,6 @@
 
 Vite + React + TypeScript + Tailwind CSS v4 implementation of the Accenty CRM dashboard.
 
-> See [`../DESIGN.md`](../DESIGN.md) for the visual language, references, and the Gridstack-vs-Muuri decision.
-
 ## Run
 
 ```bash

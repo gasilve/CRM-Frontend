@@ -9,10 +9,12 @@ import {
   BarChart3,
   Settings,
   BotMessageSquare,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { invCases, investigators } from "@/lib/mock-data";
+import accentyLogoMark from "@/assets/branding/accenty-logo-mark.svg";
 
 // Live badge counts — swap with API data later
 const openCases = invCases.filter((c) => c.status === "open").length;
@@ -49,6 +51,7 @@ const groups: Group[] = [
   {
     label: "System",
     items: [
+      { to: "/documents", label: "Report Generator", icon: ScrollText },
       { to: "/assistant", label: "AI Assistant", icon: BotMessageSquare },
       { to: "/settings", label: "Settings", icon: Settings },
     ],
@@ -117,33 +120,22 @@ function SidebarLink({ item }: { item: Item }) {
 export default function Sidebar() {
   return (
     <aside className="app-sidebar relative z-10 flex h-full w-[244px] shrink-0 flex-col border-r border-[var(--color-line)] bg-[var(--color-ink-1)]/80 backdrop-blur-xl">
-      {/* Wordmark */}
-      <div className="flex h-[var(--shell-chrome-height)] shrink-0 items-center gap-3 px-6">
-        <div className="relative">
-          <div
-            className="grid h-7 w-7 place-items-center rounded-md"
-            style={{
-              background: "linear-gradient(135deg, var(--color-operator-from), var(--color-operator-to))",
-              boxShadow: "0 0 12px color-mix(in srgb, var(--color-operator-from) 45%, transparent)",
-            }}
-          >
-            <span className="font-display text-[15px] font-light italic leading-none text-white">A</span>
-          </div>
-        </div>
-        <div className="leading-tight">
-          <div
-            className="text-[12px] font-medium text-[var(--color-text-hi)]"
-            style={{ fontFamily: "var(--font-eyebrow)", letterSpacing: "0.32em" }}
-          >
-            ACCENTY
-          </div>
-          <div className="text-[10px] font-light tracking-widest text-[var(--color-text-lo)]">
-            Field Ops · v0.1
+      {/* Wordmark — same px/gap as nav links below */}
+      <div className="flex h-[var(--shell-chrome-height)] shrink-0 items-center px-3">
+        <div className="flex w-full items-center gap-6 px-3">
+          <img
+            src={accentyLogoMark}
+            alt=""
+            aria-hidden
+            className="h-10 w-10 shrink-0 object-contain"
+          />
+          <div className="font-[Cinzel] text-[17px] font-semibold tracking-[0.08em] text-[var(--color-text-hi)] lowercase leading-none">
+            accenty
           </div>
         </div>
       </div>
 
-      <div className="hairline mx-5 mb-2 opacity-60" />
+      <div className="hairline mx-3 mb-2 opacity-60" />
 
       <nav className="flex-1 overflow-y-auto px-3 py-2">
         {groups.map((group, gi) => (

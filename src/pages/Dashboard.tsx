@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [draggingWidgetId, setDraggingWidgetId] = useState<WidgetId | null>(
     null,
   );
+  const [dockPlacing, setDockPlacing] = useState(false);
   const trashHoveredRef = useRef(false);
   const [trashHovered, setTrashHovered] = useState(false);
 
@@ -157,7 +158,7 @@ export default function Dashboard() {
       />
 
       <DragTrash
-        visible={draggingWidgetId !== null}
+        visible={draggingWidgetId !== null || dockPlacing}
         hovered={trashHovered}
         onHoverChange={(hovered) => {
           trashHoveredRef.current = hovered;
@@ -171,6 +172,7 @@ export default function Dashboard() {
         gridRef={gridHandleRef}
         gridMountKey={mountKey}
         onClose={() => setDockOpen(false)}
+        onPlacingChange={setDockPlacing}
       />
     </div>
   );

@@ -8,7 +8,9 @@ RUN npm ci
 COPY . .
 
 ARG VITE_API_URL=https://api.accenty.ai
+ARG VITE_CRM_API_URL=https://crm-api.accenty.ai
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_CRM_API_URL=$VITE_CRM_API_URL
 
 RUN npm run build
 

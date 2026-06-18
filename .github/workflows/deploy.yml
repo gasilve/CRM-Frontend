@@ -2,7 +2,7 @@ name: Deploy CRM
 
 on:
   push:
-    branches: [dev, main]
+    branches: [prod, dev, main]
 
 env:
   AWS_REGION: us-east-1
@@ -35,6 +35,7 @@ jobs:
           docker build \
             --platform linux/amd64 \
             --build-arg VITE_API_URL=https://api.accenty.ai \
+            --build-arg VITE_CRM_API_URL=https://crm-api.accenty.ai \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             .

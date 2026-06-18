@@ -34,6 +34,7 @@ type Props = {
   gridRef: React.MutableRefObject<DashboardGridHandle | null>;
   gridMountKey: number;
   onClose: () => void;
+  onPlacingChange?: (placing: boolean) => void;
 };
 
 export default function WidgetDock({
@@ -42,6 +43,7 @@ export default function WidgetDock({
   gridRef,
   gridMountKey,
   onClose,
+  onPlacingChange,
 }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const laneRef = useRef<HTMLDivElement>(null);
@@ -58,6 +60,9 @@ export default function WidgetDock({
   const [placingDrag, setPlacingDrag] = useState(false);
   placingDragRef.current = placingDrag;
 
+  const onPlacingChangeRef = useRef(onPlacingChange);
+  onPlacingChangeRef.current = onPlacingChange;
+
   const finishPlacementDrag = useCallback(() => {
     if (!placingDragRef.current) return;
     placingDragRef.current = false;
@@ -65,6 +70,7 @@ export default function WidgetDock({
     shellRef.current?.classList.remove("is-dock-placing");
     document.body.classList.remove("dashboard-dock-placing");
     cleanupDockDragIn(dockWidgetIdsRef.current);
+    onPlacingChangeRef.current?.(false);
   }, []);
 
   const isDockHelperDragging = useCallback(
@@ -129,6 +135,7 @@ export default function WidgetDock({
       shellEl?.classList.add("is-dock-placing");
       document.body.classList.add("dashboard-dock-placing");
       onClose();
+      onPlacingChangeRef.current?.(true);
     };
 
     const onPointerDown = (e: PointerEvent) => {
