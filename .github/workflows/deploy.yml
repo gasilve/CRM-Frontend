@@ -1,12 +1,14 @@
-name: Deploy CRM
+name: Deploy Frontend
 
 on:
   push:
-    branches: [prod, dev, main]
+    branches: [prod]
 
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: accenty-front
+  ECS_CLUSTER: accenty
+  ECS_SERVICE: accenty-front
 
 jobs:
   deploy:
@@ -34,10 +36,19 @@ jobs:
         run: |
           docker build \
             --platform linux/amd64 \
-            --build-arg VITE_API_URL=https://api.accenty.ai \
-            --build-arg VITE_CRM_API_URL=https://crm-api.accenty.ai \
+            --build-arg VITE_CRM_API_URL=https://crm.api.accenty.ai \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Deploy to ECS
+        continue-on-error: true
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+          echo "ECS deploy triggered (ignored if cluster/service not created yet)"
