@@ -58,13 +58,13 @@ export default function TopBar() {
                 "linear-gradient(135deg, var(--color-operator-from), var(--color-operator-to))",
             }}
           >
-            MA
+            TM
           </div>
           <div className="hidden text-left leading-tight lg:block">
             <div className="text-[13.5px] font-medium text-[var(--color-text-hi)]">
-              Mara Aren
+              Todd Montgomery
             </div>
-            <div className="text-[11px] text-[var(--color-text-lo)]">Principal</div>
+            <div className="text-[11px] text-[var(--color-text-lo)]">President</div>
           </div>
         </div>
       </div>

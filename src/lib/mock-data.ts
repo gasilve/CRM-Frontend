@@ -357,17 +357,17 @@ export interface ScheduleItem { id: string; when: string; date: string; title: s
 export interface ActivityItem { id: string; type: "call" | "email" | "meeting" | "deal" | "note"; text: string; who: string; whoInitials: string; at: string; }
 
 export const clients: Client[] = [
-  { id: "C-1042", name: "Helena Voss",    email: "helena@northstar.io",     company: "Northstar Capital",  segment: "Enterprise", arr: 184_500, status: "active",   owner: "M. Aren",  ownerInitials: "MA", lastTouch: "2h ago",    joined: "2023-04-11" },
+  { id: "C-1042", name: "Helena Voss",    email: "helena@northstar.io",     company: "Northstar Capital",  segment: "Enterprise", arr: 184_500, status: "active",   owner: "T. Montgomery",  ownerInitials: "TM", lastTouch: "2h ago",    joined: "2023-04-11" },
   { id: "C-1043", name: "Idris Okafor",   email: "idris@cobaltlabs.co",     company: "Cobalt Labs",        segment: "Mid-market", arr:  72_000, status: "active",   owner: "S. Pine",  ownerInitials: "SP", lastTouch: "yesterday", joined: "2024-01-30" },
-  { id: "C-1044", name: "Mei Lin",        email: "mei@lumen-grove.com",     company: "Lumen Grove",        segment: "Enterprise", arr: 246_000, status: "active",   owner: "M. Aren",  ownerInitials: "MA", lastTouch: "3d ago",    joined: "2022-11-02" },
+  { id: "C-1044", name: "Mei Lin",        email: "mei@lumen-grove.com",     company: "Lumen Grove",        segment: "Enterprise", arr: 246_000, status: "active",   owner: "T. Montgomery",  ownerInitials: "TM", lastTouch: "3d ago",    joined: "2022-11-02" },
   { id: "C-1045", name: "Quinn Thatcher", email: "quinn@parallaxworks.io",  company: "Parallax Works",     segment: "SMB",        arr:  18_400, status: "prospect", owner: "T. Owen",  ownerInitials: "TO", lastTouch: "5h ago",    joined: "2025-03-18" },
   { id: "C-1046", name: "Rafa Cordero",   email: "rafa@hiver-collective.co",company: "Hiver Collective",   segment: "Mid-market", arr:  48_900, status: "active",   owner: "S. Pine",  ownerInitials: "SP", lastTouch: "1w ago",    joined: "2024-07-22" },
 ];
 
 export const cases: CaseRow[] = [
-  { id: "K-3201", title: "Annual renewal — Northstar",  client: "Northstar Capital", owner: "M. Aren", ownerInitials: "MA", value: 184_500, priority: "high", status: "in_progress", age: 14 },
+  { id: "K-3201", title: "Annual renewal — Northstar",  client: "Northstar Capital", owner: "T. Montgomery", ownerInitials: "TM", value: 184_500, priority: "high", status: "in_progress", age: 14 },
   { id: "K-3202", title: "Onboarding flow review",      client: "Cobalt Labs",       owner: "S. Pine", ownerInitials: "SP", value:  18_000, priority: "med",  status: "qualifying",  age: 3  },
-  { id: "K-3203", title: "Pilot expansion proposal",    client: "Lumen Grove",       owner: "M. Aren", ownerInitials: "MA", value:  92_000, priority: "high", status: "in_progress", age: 9  },
+  { id: "K-3203", title: "Pilot expansion proposal",    client: "Lumen Grove",       owner: "T. Montgomery", ownerInitials: "TM", value:  92_000, priority: "high", status: "in_progress", age: 9  },
   { id: "K-3204", title: "Inbound — discovery call",    client: "Parallax Works",    owner: "T. Owen", ownerInitials: "TO", value:  12_500, priority: "low",  status: "new",         age: 1  },
   { id: "K-3205", title: "Contract redlines — Hiver",   client: "Hiver Collective",  owner: "S. Pine", ownerInitials: "SP", value:  48_900, priority: "med",  status: "blocked",     age: 21 },
 ];

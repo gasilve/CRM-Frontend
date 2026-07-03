@@ -74,6 +74,18 @@ html[data-theme$="-20"] .surface {
   border-color: var(--theme-surface-border);
 }
 
+html[data-theme="dark-5"] .atmo-radial {
+  background: radial-gradient(
+    68% 54% at 50% 52%,
+    rgba(212, 0, 0, 0.30),
+    rgba(42, 0, 0, 0.88) 58%,
+    #0A0000 100%
+  );
+}
+html[data-theme="dark-5"] .atmo-vignette {
+  background: radial-gradient(circle at 50% 50%, transparent 38%, rgba(0, 0, 0, 0.48) 100%);
+}
+
 html[data-theme="dark-6"] .atmo-radial,
 html[data-theme="dark-7"] .atmo-radial,
 html[data-theme="dark-8"] .atmo-radial,

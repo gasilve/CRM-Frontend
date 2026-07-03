@@ -49,11 +49,11 @@ export type ThemeMeta = {
 };
 
 export const THEMES: ThemeMeta[] = [
+  { id: "dark-5",  name: "Ruby",  mode: "dark",  bg: "#1E0000", accent: "#d40000" },
   { id: "dark-1",  name: "Midnight", mode: "dark",  bg: "#0d1220", accent: "#4a7fff" },
-  { id: "dark-2",  name: "Obsidian", mode: "dark",  bg: "#16111d", accent: "#a78bfa" },
   { id: "dark-3",  name: "Abyss",    mode: "dark",  bg: "#091614", accent: "#2dd4bf" },
   { id: "dark-4",  name: "Ember",    mode: "dark",  bg: "#1c1409", accent: "#f59e0b" },
-  { id: "dark-5",  name: "Crimson",  mode: "dark",  bg: "#1a0a0f", accent: "#fb7185" },
+  { id: "dark-2",  name: "Obsidian", mode: "dark",  bg: "#16111d", accent: "#a78bfa" },
   { id: "dark-6",  name: "Dynamo Dark",  mode: "dark",  bg: "#13080a", accent: "#ff355e" },
   { id: "dark-7",  name: "Emerald Dark", mode: "dark",  bg: "#07110f", accent: "#10b981" },
   { id: "dark-8",  name: "Premium Dark", mode: "dark",  bg: "#0a0a0a", accent: "#d4af37" },
@@ -82,7 +82,7 @@ export const THEMES: ThemeMeta[] = [
 ];
 
 export const THEME_LS_KEY = "accenty.crm.theme.v1";
-const DEFAULT_THEME: ThemeId = "dark-1";
+const DEFAULT_THEME: ThemeId = "dark-5";
 
 type ThemeCtx = {
   themeId: ThemeId;
