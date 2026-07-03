@@ -124,7 +124,7 @@ html[data-theme="dark-4"] {
   --shadow-alpha-heavy:     0.78;
 }
 
-/* dark-5 — Ruby (Accenty logo palette) ------------------------------ */
+/* dark-5 — Ruby (Accenty logo palette, dimmed) ---------------------- */
 html[data-theme="dark-5"] {
   --color-ink-0: #0A0000;
   --color-ink-1: #120000;
@@ -132,27 +132,27 @@ html[data-theme="dark-5"] {
   --color-ink-3: #2E0000;
   --color-ink-4: #420000;
   --color-line:   rgba(255, 255, 255, 0.08);
-  --color-line-2: rgba(255, 90, 90, 0.16);
-  --color-line-3: rgba(255, 110, 110, 0.24);
+  --color-line-2: rgba(255, 90, 90, 0.14);
+  --color-line-3: rgba(255, 110, 110, 0.20);
   --color-text-hi:  #ffffff;
-  --color-text-mid: #e8b4b4;
-  --color-text-lo:  #9e5c5c;
+  --color-text-mid: #a68a8a;
+  --color-text-lo:  #6e5050;
   --color-accent:      #d40000;
-  --color-accent-2:    #ff3b2e;
-  --color-accent-soft: rgba(212, 0, 0, 0.18);
-  --color-accent-glow: rgba(212, 0, 0, 0.45);
+  --color-accent-2:    #e62e22;
+  --color-accent-soft: rgba(212, 0, 0, 0.14);
+  --color-accent-glow: rgba(212, 0, 0, 0.30);
   --color-pos:  #34d399;
   --color-neg:  #ff5c5c;
   --color-warn: #f59e0b;
-  --color-bg-tint:         rgba(212, 0, 0, 0.24);
-  --color-surface-shine:   rgba(255, 255, 255, 0.022);
-  --color-scrollbar:       rgba(255, 200, 200, 0.10);
-  --color-scrollbar-hover: rgba(255, 200, 200, 0.20);
-  --color-backdrop:        rgba(10, 0, 0, 0.82);
+  --color-bg-tint:         rgba(212, 0, 0, 0.18);
+  --color-surface-shine:   rgba(255, 255, 255, 0.018);
+  --color-scrollbar:       rgba(255, 200, 200, 0.08);
+  --color-scrollbar-hover: rgba(255, 200, 200, 0.16);
+  --color-backdrop:        rgba(10, 0, 0, 0.78);
   --color-operator-from:   #d40000;
   --color-operator-to:     #5c0000;
-  --shadow-alpha:           0.68;
-  --shadow-alpha-heavy:     0.82;
+  --shadow-alpha:           0.62;
+  --shadow-alpha-heavy:     0.76;
 }
 
 /* light-1 â€” Cloud ---------------------------------------------------- */
