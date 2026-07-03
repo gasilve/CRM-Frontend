@@ -77,13 +77,13 @@ html[data-theme$="-20"] .surface {
 html[data-theme="dark-5"] .atmo-radial {
   background: radial-gradient(
     68% 54% at 50% 52%,
-    rgba(212, 0, 0, 0.30),
-    rgba(42, 0, 0, 0.88) 58%,
+    rgba(212, 0, 0, 0.20),
+    rgba(42, 0, 0, 0.86) 58%,
     #0A0000 100%
   );
 }
 html[data-theme="dark-5"] .atmo-vignette {
-  background: radial-gradient(circle at 50% 50%, transparent 38%, rgba(0, 0, 0, 0.48) 100%);
+  background: radial-gradient(circle at 50% 50%, transparent 42%, rgba(0, 0, 0, 0.40) 100%);
 }
 
 html[data-theme="dark-6"] .atmo-radial,

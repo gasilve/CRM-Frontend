@@ -1,6 +1,6 @@
 ﻿/* Extended themes: dark-6…20, light-6…10 (palette + --theme-* layout tokens) */
 
-/* dark-6 — Dynamo Dark ----------------------------------------------- */
+/* dark-6 — Dynamo Dark (black base + Ruby accents) ------------------- */
 html[data-theme="dark-6"] {
   --color-ink-0: #030303;
   --color-ink-1: #090909;
@@ -13,30 +13,30 @@ html[data-theme="dark-6"] {
   --color-text-hi:  #ffffff;
   --color-text-mid: #d7d7d7;
   --color-text-lo:  #949494;
-  --color-accent:      #ff2f4f;
-  --color-accent-2:    #ff7a8f;
-  --color-accent-soft: rgba(255, 47, 79, 0.22);
-  --color-accent-glow: rgba(255, 47, 79, 0.5);
+  --color-accent:      #d40000;
+  --color-accent-2:    #e62e22;
+  --color-accent-soft: rgba(212, 0, 0, 0.18);
+  --color-accent-glow: rgba(212, 0, 0, 0.36);
   --color-pos:  #22c55e;
-  --color-neg:  #ff4d64;
+  --color-neg:  #ff5c5c;
   --color-warn: #f59e0b;
-  --color-bg-tint:         rgba(255, 33, 74, 0.18);
+  --color-bg-tint:         rgba(212, 0, 0, 0.14);
   --color-surface-shine:   rgba(255, 255, 255, 0.03);
   --color-scrollbar:       rgba(255, 255, 255, 0.12);
   --color-scrollbar-hover: rgba(255, 255, 255, 0.24);
   --color-backdrop:        rgba(0, 0, 0, 0.74);
-  --color-operator-from:   #ff2f4f;
-  --color-operator-to:     #8f0f22;
+  --color-operator-from:   #d40000;
+  --color-operator-to:     #5c0000;
   --shadow-alpha:           0.72;
   --shadow-alpha-heavy:     0.86;
-  --theme-sidebar-bg: linear-gradient(180deg, #190b0e 0%, #0b0b0b 100%);
-  --theme-sidebar-border: rgba(255, 47, 79, 0.34);
+  --theme-sidebar-bg: linear-gradient(180deg, #140000 0%, #0b0b0b 100%);
+  --theme-sidebar-border: rgba(212, 0, 0, 0.28);
   --theme-topbar-bg: rgba(18, 18, 18, 0.82);
-  --theme-main-bg: radial-gradient(95% 80% at 50% 0%, rgba(255, 47, 79, 0.08), transparent 70%);
-  --theme-surface-bg: linear-gradient(180deg, rgba(255, 47, 79, 0.05), transparent 58%), #121212;
-  --theme-surface-border: rgba(255, 47, 79, 0.3);
-  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(38, 6, 12, 0.35) 22%, rgba(20, 5, 8, 0.78) 100%);
-  --theme-atmo-radial: radial-gradient(70% 58% at 50% 52%, rgba(255, 47, 79, 0.20), rgba(3, 3, 3, 0.92) 70%, #010101 100%);
+  --theme-main-bg: radial-gradient(95% 80% at 50% 0%, rgba(212, 0, 0, 0.08), transparent 70%);
+  --theme-surface-bg: linear-gradient(180deg, rgba(212, 0, 0, 0.05), transparent 58%), #121212;
+  --theme-surface-border: rgba(212, 0, 0, 0.24);
+  --theme-dock-bg: linear-gradient(180deg, transparent 0%, rgba(20, 0, 0, 0.35) 22%, rgba(10, 0, 0, 0.78) 100%);
+  --theme-atmo-radial: radial-gradient(70% 58% at 50% 52%, rgba(212, 0, 0, 0.18), rgba(3, 3, 3, 0.92) 70%, #010101 100%);
 }
 
 /* dark-7 â€” Emerald Dark ---------------------------------------------- */

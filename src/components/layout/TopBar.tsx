@@ -1,4 +1,4 @@
-import { Bell, Palette, Search } from "lucide-react";
+import { Palette, Search } from "lucide-react";
 import { useRef, useState } from "react";
 import { ThemePicker } from "./ThemePicker";
 
@@ -36,18 +36,6 @@ export default function TopBar() {
             triggerRef={themeButtonRef}
           />
         </div>
-
-        {/* Notifications */}
-        <button
-          aria-label="Notifications"
-          className="relative grid h-10 w-10 place-items-center rounded-[10px] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
-        >
-          <Bell size={16} strokeWidth={1.6} />
-          <span
-            className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]"
-            style={{ boxShadow: "0 0 8px color-mix(in srgb, var(--color-accent) 80%, transparent)" }}
-          />
-        </button>
 
         {/* Profile */}
         <div className="ml-1 flex h-10 items-center gap-3 rounded-[10px] border border-[var(--color-line)] bg-[var(--color-ink-2)]/60 py-1 pl-1 pr-3.5">
