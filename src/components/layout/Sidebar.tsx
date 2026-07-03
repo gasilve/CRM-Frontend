@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { invCases, investigators } from "@/lib/mock-data";
-import accentyLogoMark from "@/assets/branding/accenty-logo-mark.svg";
+import accentyLogo from "@/assets/branding/accenty-logo.png";
 
 // Live badge counts — swap with API data later
 const openCases = invCases.filter((c) => c.status === "open").length;
@@ -120,19 +120,13 @@ function SidebarLink({ item }: { item: Item }) {
 export default function Sidebar() {
   return (
     <aside className="app-sidebar relative z-10 flex h-full w-[244px] shrink-0 flex-col border-r border-[var(--color-line)] bg-[var(--color-ink-1)]/80 backdrop-blur-xl">
-      {/* Wordmark — same px/gap as nav links below */}
-      <div className="flex h-[var(--shell-chrome-height)] shrink-0 items-center px-3">
-        <div className="flex w-full items-center gap-6 px-3">
-          <img
-            src={accentyLogoMark}
-            alt=""
-            aria-hidden
-            className="h-10 w-10 shrink-0 object-contain"
-          />
-          <div className="font-[Cinzel] text-[17px] font-semibold tracking-[0.08em] text-[var(--color-text-hi)] lowercase leading-none">
-            accenty
-          </div>
-        </div>
+      {/* Wordmark */}
+      <div className="flex h-[var(--shell-chrome-height)] shrink-0 items-center justify-center px-3">
+        <img
+          src={accentyLogo}
+          alt="Accenty AI"
+          className="h-[4.875rem] w-auto max-w-[258px] object-contain"
+        />
       </div>
 
       <div className="hairline mx-3 mb-2 opacity-60" />
@@ -161,11 +155,11 @@ export default function Sidebar() {
               className="grid h-8 w-8 place-items-center rounded-full text-[10px] font-medium text-white"
               style={{ background: "linear-gradient(135deg, var(--color-operator-from), var(--color-operator-to))" }}
             >
-              AD
+              TM
             </div>
             <div className="leading-tight">
-              <div className="text-[12.5px] font-medium text-[var(--color-text-hi)]">Admin</div>
-              <div className="text-[10.5px] text-[var(--color-text-lo)]">Principal · Accenty</div>
+              <div className="text-[12.5px] font-medium text-[var(--color-text-hi)]">Todd Montgomery</div>
+              <div className="text-[10.5px] text-[var(--color-text-lo)]">President</div>
             </div>
           </div>
         </div>

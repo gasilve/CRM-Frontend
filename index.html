@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Accenty — CRM</title>
-    <link rel="icon" type="image/svg+xml" href="/admin/favicon.svg" />
+    <link rel="icon" type="image/png" href="/admin/favicon.png" />
     <!-- Prevent flash of wrong theme: apply data-theme before first paint -->
     <script>
       (function () {
@@ -20,7 +20,7 @@
         try { stored = localStorage.getItem("accenty.crm.theme.v1"); } catch (_) {}
         document.documentElement.setAttribute(
           "data-theme",
-          stored && valid.indexOf(stored) !== -1 ? stored : "dark-1"
+          stored && valid.indexOf(stored) !== -1 ? stored : "dark-5"
         );
       })();
     </script>
