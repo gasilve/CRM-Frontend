@@ -1,48 +1,11 @@
-import { useEffect, useState } from "react";
-import { X, Lightbulb, Plus, Pencil, Check } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { X, Lightbulb, Plus, Pencil, Check, Loader2, ScrollText } from "lucide-react";
 import { cn } from "@/lib/cn";
-
-export interface StyleRule {
-  id: string;
-  code: string;
-  text: string;
-  createdAt: string;
-}
-
-const RULES_LS_KEY = "accenty.crm.style-rules.v1";
-
-const SEED_RULES: StyleRule[] = [
-  {
-    id: "rule-011",
-    code: "RULE-011",
-    text: "Casino and venue names should be kept exactly as written — do not abbreviate or rename.",
-    createdAt: "May 29",
-  },
-  {
-    id: "rule-009",
-    code: "RULE-009",
-    text: "Each surveillance day gets its own paragraph, bolded date range as the lead-in.",
-    createdAt: "May 29",
-  },
-];
-
-function loadRules(): StyleRule[] {
-  try {
-    const raw = localStorage.getItem(RULES_LS_KEY);
-    if (raw) return JSON.parse(raw) as StyleRule[];
-  } catch {
-    /* ignore */
-  }
-  return SEED_RULES;
-}
-
-function saveRules(rules: StyleRule[]) {
-  try {
-    localStorage.setItem(RULES_LS_KEY, JSON.stringify(rules));
-  } catch {
-    /* ignore */
-  }
-}
+import {
+  reportConfigApi,
+  type PromptConfig,
+  type StyleRule,
+} from "@/lib/report-config-api";
 
 interface Props {
   open: boolean;
@@ -50,15 +13,43 @@ interface Props {
   onRulesChange?: (count: number) => void;
 }
 
+type PanelTab = "prompt" | "rules";
+
 export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props) {
-  const [rules, setRules] = useState<StyleRule[]>(loadRules);
+  const [tab, setTab] = useState<PanelTab>("prompt");
+  const [rules, setRules] = useState<StyleRule[]>([]);
+  const [prompt, setPrompt] = useState<PromptConfig | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
+  const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [promptRes, rulesRes] = await Promise.all([
+        reportConfigApi.getPrompt(),
+        reportConfigApi.listStyleRules(),
+      ]);
+      setPrompt(promptRes);
+      setRules(rulesRes.rules);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load report configuration.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     onRulesChange?.(rules.length);
   }, [rules.length, onRulesChange]);
+
+  useEffect(() => {
+    if (open) void load();
+  }, [open, load]);
 
   useEffect(() => {
     if (!open) return;
@@ -71,33 +62,42 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
     if (!open) {
       setEditingId(null);
       setEditDraft("");
+      setFeedback("");
+      setTab("prompt");
     }
   }, [open]);
 
-  const persist = (updated: StyleRule[]) => {
-    setRules(updated);
-    saveRules(updated);
-  };
-
-  const addRule = () => {
+  const addRule = async () => {
     const text = feedback.trim();
     if (!text) return;
-    const next: StyleRule = {
-      id: `rule-${Date.now()}`,
-      code: `RULE-${String(rules.length + 1).padStart(3, "0")}`,
-      text,
-      createdAt: new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-    };
-    persist([next, ...rules]);
-    setFeedback("");
+    setSaving(true);
+    setError(null);
+    try {
+      const { rule } = await reportConfigApi.createStyleRule(text);
+      setRules((prev) => [rule, ...prev]);
+      setFeedback("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add rule.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const removeRule = (id: string) => {
-    if (editingId === id) {
-      setEditingId(null);
-      setEditDraft("");
+  const removeRule = async (id: string) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await reportConfigApi.deleteStyleRule(id);
+      if (editingId === id) {
+        setEditingId(null);
+        setEditDraft("");
+      }
+      setRules((prev) => prev.filter((r) => r.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove rule.");
+    } finally {
+      setSaving(false);
     }
-    persist(rules.filter((r) => r.id !== id));
   };
 
   const startEdit = (rule: StyleRule) => {
@@ -110,12 +110,21 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
     setEditDraft("");
   };
 
-  const saveEdit = (id: string) => {
+  const saveEdit = async (id: string) => {
     const text = editDraft.trim();
     if (!text) return;
-    persist(rules.map((r) => (r.id === id ? { ...r, text } : r)));
-    setEditingId(null);
-    setEditDraft("");
+    setSaving(true);
+    setError(null);
+    try {
+      const { rule } = await reportConfigApi.updateStyleRule(id, text);
+      setRules((prev) => prev.map((r) => (r.id === id ? rule : r)));
+      setEditingId(null);
+      setEditDraft("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update rule.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -131,14 +140,14 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
 
       <aside
         className={cn(
-          "fixed top-0 right-0 z-50 flex h-full w-[min(400px,92vw)] flex-col",
+          "fixed top-0 right-0 z-50 flex h-full w-[min(440px,92vw)] flex-col",
           "border-l border-[var(--color-line)] bg-[var(--color-ink-1)] shadow-2xl",
           "transition-transform duration-250 ease-out",
           open ? "translate-x-0" : "translate-x-full",
         )}
         aria-hidden={!open}
         role="dialog"
-        aria-label="Style rules"
+        aria-label="Report agent configuration"
       >
         <div className="flex items-start justify-between gap-3 border-b border-[var(--color-line)] px-5 py-4">
           <div className="flex gap-2.5">
@@ -146,9 +155,9 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
               <Lightbulb size={17} strokeWidth={1.6} />
             </div>
             <div>
-              <h2 className="text-[15px] font-medium text-[var(--color-text-hi)]">Style rules</h2>
-              <p className="text-[11.5px] leading-snug text-[var(--color-text-lo)] mt-0.5 max-w-[260px]">
-                Standing instructions the agent follows every time it converts a document.
+              <h2 className="text-[15px] font-medium text-[var(--color-text-hi)]">Report agent</h2>
+              <p className="text-[11.5px] leading-snug text-[var(--color-text-lo)] mt-0.5 max-w-[280px]">
+                View the AI prompt and manage standing style rules for every conversion.
               </p>
             </div>
           </div>
@@ -162,122 +171,201 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-          {rules.length === 0 && (
-            <p className="text-[12px] text-[var(--color-text-lo)] text-center py-8">
-              No rules yet. Add one below.
-            </p>
-          )}
-          {rules.map((rule) => {
-            const isEditing = editingId === rule.id;
-            return (
-              <div
-                key={rule.id}
-                className="rounded-[12px] border border-[var(--color-line)] bg-[var(--color-ink-2)] p-3.5"
-              >
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="font-mono text-[10px] tracking-wider text-[var(--color-accent-2)]">
-                    {rule.code}
-                  </span>
-                  <span className="text-[10px] text-[var(--color-text-lo)]">{rule.createdAt}</span>
-                </div>
-
-                {isEditing ? (
-                  <textarea
-                    value={editDraft}
-                    onChange={(e) => setEditDraft(e.target.value)}
-                    rows={4}
-                    autoFocus
-                    className={cn(
-                      "w-full resize-y rounded-[8px] border border-[var(--color-line)]",
-                      "bg-[var(--color-ink-1)] text-[var(--color-text-hi)] text-[12.5px] leading-relaxed p-2.5",
-                      "focus:outline-none focus:border-[var(--color-accent)] transition-colors",
-                    )}
-                  />
-                ) : (
-                  <p className="text-[12.5px] leading-relaxed text-[var(--color-text-mid)]">{rule.text}</p>
-                )}
-
-                <div className="mt-2.5 flex items-center gap-3">
-                  {isEditing ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => saveEdit(rule.id)}
-                        disabled={!editDraft.trim()}
-                        className="flex items-center gap-1 text-[11px] text-[var(--color-accent-2)] hover:text-[var(--color-text-hi)] disabled:opacity-40 transition-colors"
-                      >
-                        <Check size={12} />
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelEdit}
-                        className="text-[11px] text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)] transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => startEdit(rule)}
-                        className="flex items-center gap-1 text-[11px] text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)] transition-colors"
-                      >
-                        <Pencil size={11} />
-                        Edit
-                      </button>
-                      <span className="text-[var(--color-line-2)]">·</span>
-                      <button
-                        type="button"
-                        onClick={() => removeRule(rule.id)}
-                        className="text-[11px] text-[var(--color-text-lo)] hover:text-[var(--color-neg)] transition-colors"
-                      >
-                        Remove
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div className="flex border-b border-[var(--color-line)] px-5 gap-1">
+          {(
+            [
+              ["prompt", "Main prompt", ScrollText],
+              ["rules", "Style rules", Lightbulb],
+            ] as const
+          ).map(([id, label, Icon]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2.5 text-[12px] font-medium border-b-2 -mb-px transition-colors",
+                tab === id
+                  ? "border-[var(--color-accent)] text-[var(--color-text-hi)]"
+                  : "border-transparent text-[var(--color-text-lo)] hover:text-[var(--color-text-mid)]",
+              )}
+            >
+              <Icon size={13} />
+              {label}
+              {id === "rules" && rules.length > 0 && (
+                <span className="rounded-full bg-[var(--color-warn)]/15 px-1.5 text-[10px] font-mono text-[var(--color-warn)]">
+                  {rules.length}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
 
-        <div className="border-t border-[var(--color-line)] px-5 py-4 space-y-3">
-          <div>
-            <p className="text-[13px] font-medium text-[var(--color-text-hi)]">
-              Tell the agent what&apos;s wrong
-            </p>
-            <p className="text-[11px] text-[var(--color-text-lo)] mt-0.5 leading-snug">
-              Describe a formatting rule or mistake. It becomes a standing rule for next time.
-            </p>
+        {error && (
+          <div className="mx-5 mt-3 rounded-[8px] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.08)] px-3 py-2 text-[12px] text-[var(--color-neg)]">
+            {error}
           </div>
-          <textarea
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            placeholder="e.g. Keep venue names verbatim. Bold each day's date range."
-            className={cn(
-              "w-full aspect-square max-h-[220px] resize-none rounded-[12px] border border-[var(--color-line)]",
-              "bg-[var(--color-ink-2)] text-[var(--color-text-hi)] text-[13px] leading-relaxed p-3.5",
-              "placeholder:text-[var(--color-text-lo)] focus:outline-none focus:border-[var(--color-accent)] transition-colors",
-            )}
-          />
-          <button
-            type="button"
-            onClick={addRule}
-            disabled={!feedback.trim()}
-            className={cn(
-              "flex w-full items-center justify-center gap-2 rounded-tile py-2.5 text-sm font-medium",
-              "bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity",
-              "disabled:opacity-40 disabled:cursor-not-allowed",
-            )}
-          >
-            <Plus size={15} />
-            Add rule
-          </button>
-        </div>
+        )}
+
+        {loading ? (
+          <div className="flex flex-1 items-center justify-center gap-2 text-[var(--color-text-lo)] text-sm">
+            <Loader2 size={16} className="animate-spin" />
+            Loading…
+          </div>
+        ) : tab === "prompt" ? (
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            <div>
+              <p className="text-[12px] font-medium text-[var(--color-text-hi)] mb-1">System prompt</p>
+              <p className="text-[11px] text-[var(--color-text-lo)] mb-2 leading-snug">
+                Base instructions the agent follows when paraphrasing surveillance notes. Style rules
+                are appended automatically at generation time.
+              </p>
+              <pre
+                className={cn(
+                  "whitespace-pre-wrap rounded-[10px] border border-[var(--color-line)]",
+                  "bg-[var(--color-ink-2)] text-[11px] leading-relaxed text-[var(--color-text-mid)] p-3.5",
+                  "max-h-[min(52vh,420px)] overflow-y-auto font-mono",
+                )}
+              >
+                {prompt?.systemPrompt ?? "—"}
+              </pre>
+            </div>
+            <div>
+              <p className="text-[12px] font-medium text-[var(--color-text-hi)] mb-1">User prompt template</p>
+              <pre
+                className={cn(
+                  "whitespace-pre-wrap rounded-[10px] border border-[var(--color-line)]",
+                  "bg-[var(--color-ink-2)] text-[11px] leading-relaxed text-[var(--color-text-mid)] p-3.5",
+                  "font-mono",
+                )}
+              >
+                {prompt?.userPromptTemplate ?? "—"}
+              </pre>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              {rules.length === 0 && (
+                <p className="text-[12px] text-[var(--color-text-lo)] text-center py-8">
+                  No rules yet. Add one below.
+                </p>
+              )}
+              {rules.map((rule) => {
+                const isEditing = editingId === rule.id;
+                return (
+                  <div
+                    key={rule.id}
+                    className="rounded-[12px] border border-[var(--color-line)] bg-[var(--color-ink-2)] p-3.5"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="font-mono text-[10px] tracking-wider text-[var(--color-accent-2)]">
+                        {rule.code}
+                      </span>
+                      <span className="text-[10px] text-[var(--color-text-lo)]">{rule.createdAt}</span>
+                    </div>
+
+                    {isEditing ? (
+                      <textarea
+                        value={editDraft}
+                        onChange={(e) => setEditDraft(e.target.value)}
+                        rows={4}
+                        autoFocus
+                        className={cn(
+                          "w-full resize-y rounded-[8px] border border-[var(--color-line)]",
+                          "bg-[var(--color-ink-1)] text-[var(--color-text-hi)] text-[12.5px] leading-relaxed p-2.5",
+                          "focus:outline-none focus:border-[var(--color-accent)] transition-colors",
+                        )}
+                      />
+                    ) : (
+                      <p className="text-[12.5px] leading-relaxed text-[var(--color-text-mid)]">{rule.text}</p>
+                    )}
+
+                    <div className="mt-2.5 flex items-center gap-3">
+                      {isEditing ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void saveEdit(rule.id)}
+                            disabled={!editDraft.trim() || saving}
+                            className="flex items-center gap-1 text-[11px] text-[var(--color-accent-2)] hover:text-[var(--color-text-hi)] disabled:opacity-40 transition-colors"
+                          >
+                            <Check size={12} />
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEdit}
+                            className="text-[11px] text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)] transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(rule)}
+                            disabled={saving}
+                            className="flex items-center gap-1 text-[11px] text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)] disabled:opacity-40 transition-colors"
+                          >
+                            <Pencil size={11} />
+                            Edit
+                          </button>
+                          <span className="text-[var(--color-line-2)]">·</span>
+                          <button
+                            type="button"
+                            onClick={() => void removeRule(rule.id)}
+                            disabled={saving}
+                            className="text-[11px] text-[var(--color-text-lo)] hover:text-[var(--color-neg)] disabled:opacity-40 transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="border-t border-[var(--color-line)] px-5 py-4 space-y-3">
+              <div>
+                <p className="text-[13px] font-medium text-[var(--color-text-hi)]">
+                  Suggest a style rule
+                </p>
+                <p className="text-[11px] text-[var(--color-text-lo)] mt-0.5 leading-snug">
+                  Describe a formatting preference. It is saved and applied on every report generation.
+                </p>
+              </div>
+              <textarea
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder="e.g. Keep venue names verbatim. Bold each day's date range."
+                className={cn(
+                  "w-full min-h-[100px] max-h-[220px] resize-y rounded-[12px] border border-[var(--color-line)]",
+                  "bg-[var(--color-ink-2)] text-[var(--color-text-hi)] text-[13px] leading-relaxed p-3.5",
+                  "placeholder:text-[var(--color-text-lo)] focus:outline-none focus:border-[var(--color-accent)] transition-colors",
+                )}
+              />
+              <button
+                type="button"
+                onClick={() => void addRule()}
+                disabled={!feedback.trim() || saving}
+                className={cn(
+                  "flex w-full items-center justify-center gap-2 rounded-tile py-2.5 text-sm font-medium",
+                  "bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity",
+                  "disabled:opacity-40 disabled:cursor-not-allowed",
+                )}
+              >
+                {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+                Add rule
+              </button>
+            </div>
+          </>
+        )}
       </aside>
     </>
   );
 }
+
+export type { StyleRule };
