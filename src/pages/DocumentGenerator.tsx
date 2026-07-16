@@ -8,9 +8,14 @@ import {
   Replace,
   X,
   Plus,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import StyleRulesPanel from "@/components/document-generator/StyleRulesPanel";
+import DocumentAiEditorModal, {
+  type AiEditCorrection,
+} from "@/components/document-generator/DocumentAiEditorModal";
+import DocumentPreview from "@/components/document-generator/DocumentPreview";
 import { reportConfigApi } from "@/lib/report-config-api";
 import { reportsApi } from "@/lib/reports-api";
 
@@ -89,12 +94,20 @@ export default function DocumentGenerator() {
   const [error, setError] = useState<string | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [ruleCount, setRuleCount] = useState(0);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [aiCorrections, setAiCorrections] = useState<AiEditCorrection[]>([]);
+  const [previewRevision, setPreviewRevision] = useState(0);
 
   const slots = slotCount(uploads.length);
   const { cols, rows } = gridLayout(slots);
   const { containerRef, tileSize } = useTileSize(cols, rows);
 
-  const clearOutput = useCallback(() => setOutputFile(null), []);
+  const clearOutput = useCallback(() => {
+    setOutputFile(null);
+    setEditorOpen(false);
+    setAiCorrections([]);
+    setPreviewRevision(0);
+  }, []);
 
   const clearAll = useCallback(() => {
     setUploads([]);
@@ -124,14 +137,12 @@ export default function DocumentGenerator() {
           : "investigation-report";
       const file = new File([blob], `${base} surveillance.docx`, { type: blob.type });
       setOutputFile(file);
-      // Auto-download immediately
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(file);
-      a.download = file.name;
-      a.click();
-      URL.revokeObjectURL(a.href);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not generate report right now.");
+      const raw = err instanceof Error ? err.message : "Could not generate report right now.";
+      const message = /failed to fetch|networkerror|load failed/i.test(raw)
+        ? "Lost connection to the report API before it finished. Make sure crm-api and files-api are running, then try again."
+        : raw;
+      setError(message);
     } finally {
       setGenerating(false);
     }
@@ -186,6 +197,25 @@ export default function DocumentGenerator() {
     a.click();
     URL.revokeObjectURL(a.href);
   };
+
+  const storeAiCorrection = useCallback(
+    (correction: Omit<AiEditCorrection, "id" | "createdAt">) => {
+      setAiCorrections((prev) => [
+        {
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          ...correction,
+        },
+        ...prev,
+      ]);
+    },
+    [],
+  );
+
+  const handleOutputFileChange = useCallback((file: File) => {
+    setOutputFile(file);
+    setPreviewRevision((n) => n + 1);
+  }, []);
 
   return (
     <div className="relative flex h-full min-h-0 flex-col gap-6">
@@ -371,7 +401,7 @@ export default function DocumentGenerator() {
 
             <div
               className={cn(
-                "flex flex-1 min-h-[360px] overflow-hidden rounded-[10px] border border-[var(--color-line)]",
+                "relative flex flex-1 min-h-[360px] overflow-hidden rounded-[10px] border border-[var(--color-line)]",
                 !outputFile && !generating && "bg-[var(--color-ink-1)]/40",
               )}
             >
@@ -386,18 +416,21 @@ export default function DocumentGenerator() {
                   </div>
                 </div>
               ) : outputFile ? (
-                <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-                  <FileText size={36} className="text-[var(--color-accent)]" strokeWidth={1.2} />
-                  <div>
-                    <p className="text-[14px] font-medium text-[var(--color-text-hi)]">Report ready</p>
-                    <p className="text-[12px] text-[var(--color-text-mid)] mt-1 max-w-sm truncate">
-                      {outputFile.name}
-                    </p>
-                    <p className="text-[11px] text-[var(--color-text-lo)] mt-0.5">
-                      Open in Microsoft Word to review
-                    </p>
-                  </div>
-                </div>
+                <>
+                  <DocumentPreview file={outputFile} revision={previewRevision} />
+                  <button
+                    type="button"
+                    onClick={() => setEditorOpen(true)}
+                    className={cn(
+                      "absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-tile border px-3 py-1.5 text-[11px] font-medium shadow-lg",
+                      "border-[var(--color-line)] bg-[var(--color-ink-2)]/95 text-[var(--color-text-hi)]",
+                      "hover:border-[var(--color-accent-soft)]",
+                    )}
+                  >
+                    <Sparkles size={12} className="text-[var(--color-accent-2)]" />
+                    Open AI editor
+                  </button>
+                </>
               ) : (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-[var(--color-text-lo)]">
                   <FileText size={32} strokeWidth={1.2} />
@@ -406,7 +439,7 @@ export default function DocumentGenerator() {
               )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 onClick={() => void runGenerate()}
@@ -422,8 +455,21 @@ export default function DocumentGenerator() {
               </button>
               <button
                 type="button"
+                onClick={() => setEditorOpen(true)}
+                disabled={!outputFile || generating}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-2 rounded-tile border py-2.5 text-[12px] font-medium transition-colors",
+                  "border-[var(--color-accent-soft)] text-[var(--color-text-hi)] hover:bg-[var(--color-accent-soft)]/30",
+                  "disabled:opacity-40 disabled:cursor-not-allowed",
+                )}
+              >
+                <Sparkles size={14} className="text-[var(--color-accent-2)]" />
+                Edit document with AI
+              </button>
+              <button
+                type="button"
                 onClick={handleDownload}
-                disabled={!outputFile}
+                disabled={!outputFile || generating}
                 className={cn(
                   "flex flex-1 items-center justify-center gap-2 rounded-tile border py-2.5 text-[12px] font-medium transition-colors",
                   "border-[var(--color-line)] text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)] hover:border-[var(--color-line-2)]",
@@ -431,7 +477,7 @@ export default function DocumentGenerator() {
                 )}
               >
                 <Download size={14} />
-                Download DOCX
+                Download document
               </button>
             </div>
           </div>
@@ -442,6 +488,15 @@ export default function DocumentGenerator() {
         open={rulesOpen}
         onClose={() => setRulesOpen(false)}
         onRulesChange={setRuleCount}
+      />
+
+      <DocumentAiEditorModal
+        open={editorOpen}
+        file={outputFile}
+        onClose={() => setEditorOpen(false)}
+        onFileChange={handleOutputFileChange}
+        corrections={aiCorrections}
+        onStoreCorrection={storeAiCorrection}
       />
     </div>
   );

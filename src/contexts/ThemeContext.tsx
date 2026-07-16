@@ -69,7 +69,7 @@ export const THEMES: ThemeMeta[] = [
   { id: "dark-18", name: "Iconic",       mode: "dark",  bg: "#010101", accent: "#f3f4f6" },
   { id: "dark-19", name: "Galaxy",       mode: "dark",  bg: "#010006", accent: "#b45cff" },
   { id: "dark-20", name: "Monolith",     mode: "dark",  bg: "#06080f", accent: "#6b7280" },
-  { id: "light-1", name: "Cloud",    mode: "light", bg: "#f0f4ff", accent: "#3b6ff5" },
+  { id: "light-10", name: "Royal Light",  mode: "light", bg: "#f3f6ff", accent: "#4864f2" },
   { id: "light-2", name: "Ivory",    mode: "light", bg: "#faf7f2", accent: "#6366f1" },
   { id: "light-3", name: "Frost",    mode: "light", bg: "#f6fbfa", accent: "#0d9488" },
   { id: "light-4", name: "Lilac",    mode: "light", bg: "#fdf9ff", accent: "#7c3aed" },
@@ -78,11 +78,11 @@ export const THEMES: ThemeMeta[] = [
   { id: "light-7", name: "Emerald Light", mode: "light", bg: "#effcf7", accent: "#10b981" },
   { id: "light-8", name: "Premium Light", mode: "light", bg: "#f9f9f7", accent: "#b8921f" },
   { id: "light-9", name: "Neon Light",    mode: "light", bg: "#f6f2ff", accent: "#00b8ff" },
-  { id: "light-10", name: "Royal Light",  mode: "light", bg: "#f3f6ff", accent: "#4864f2" },
+  { id: "light-1", name: "Cloud",    mode: "light", bg: "#f0f4ff", accent: "#3b6ff5" },
 ];
 
-export const THEME_LS_KEY = "accenty.crm.theme.v1";
-const DEFAULT_THEME: ThemeId = "dark-5";
+export const THEME_LS_KEY = "accenty.crm.theme.v2";
+const DEFAULT_THEME: ThemeId = "light-10";
 
 type ThemeCtx = {
   themeId: ThemeId;
@@ -90,9 +90,12 @@ type ThemeCtx = {
   setTheme: (id: ThemeId) => void;
 };
 
+const defaultThemeMeta =
+  THEMES.find((t) => t.id === DEFAULT_THEME) ?? THEMES[0];
+
 const ThemeContext = createContext<ThemeCtx>({
   themeId: DEFAULT_THEME,
-  themeMeta: THEMES[0],
+  themeMeta: defaultThemeMeta,
   setTheme: () => {},
 });
 

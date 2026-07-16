@@ -104,7 +104,7 @@ html[data-theme="dark-20"] .atmo-radial {
   background: var(--theme-atmo-radial);
 }
 
-/* Fix contrast in custom light sidebars (themes 6-10) */
+/* Fix contrast in custom light sidebars (themes 6-10) — nav sits on dark bg */
 html[data-theme="light-6"] .app-sidebar,
 html[data-theme="light-7"] .app-sidebar,
 html[data-theme="light-8"] .app-sidebar,
@@ -116,6 +116,23 @@ html[data-theme="light-10"] .app-sidebar {
   --color-line: rgba(255, 255, 255, 0.14);
   --color-line-2: rgba(255, 255, 255, 0.24);
   --color-line-3: rgba(255, 255, 255, 0.34);
+}
+
+/*
+ * Operator / surface cards inside those sidebars are light surfaces.
+ * Revert text tokens so "Operator", name, and title stay readable.
+ */
+html[data-theme="light-6"] .app-sidebar .surface,
+html[data-theme="light-7"] .app-sidebar .surface,
+html[data-theme="light-8"] .app-sidebar .surface,
+html[data-theme="light-9"] .app-sidebar .surface,
+html[data-theme="light-10"] .app-sidebar .surface {
+  --color-text-hi: #0f172a;
+  --color-text-mid: #3d4f87;
+  --color-text-lo: #5a6f9a;
+  --color-line: rgba(15, 23, 64, 0.1);
+  --color-line-2: rgba(15, 23, 64, 0.16);
+  --color-line-3: rgba(15, 23, 64, 0.24);
 }
 
 /* â”€â”€ Light themes: suppress dark surveillance overlays â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */

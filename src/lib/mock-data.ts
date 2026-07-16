@@ -91,8 +91,21 @@ export interface TimeEntry {
   investigatorName: string;
   date: string;
   hours: number;
+  /** Optional 0–23 start for calendar placement; otherwise clock-in / 8 AM is used. */
+  startHour?: number;
   location: string;
   notes: string;
+}
+
+/** Timed field notes taken during surveillance (shown inside calendar hour blobs). */
+export interface FieldNote {
+  id: string;
+  investigatorId: string;
+  caseId: string;
+  date: string;
+  /** 24h "HH:MM" */
+  time: string;
+  text: string;
 }
 
 // ─── Investigators ────────────────────────────────────────────────────────────
@@ -127,6 +140,16 @@ export const investigators: Investigator[] = [
     id: "INV-061", name: "Sandra Nwosu",     initials: "SN",
     status: "off_duty", hoursToday: 0,
     totalCasesOpen: 1,
+  },
+  {
+    id: "INV-072", name: "Elena Vasquez",    initials: "EV",
+    status: "on_case", clockInTime: "07:40 AM", hoursToday: 6.0,
+    currentCase: "C-4716", location: "Yonkers, NY", totalCasesOpen: 2,
+  },
+  {
+    id: "INV-078", name: "Andre Bennett",    initials: "AB",
+    status: "clocked_in", clockInTime: "08:05 AM", hoursToday: 5.5,
+    currentCase: "C-4717", location: "Staten Island, NY", totalCasesOpen: 2,
   },
 ];
 
@@ -281,21 +304,64 @@ export const invCases: InvCase[] = [
     dateOpened: "2026-05-26", state: "NJ", daysOpen: 0,
     budget: 40, hoursLogged: 2.0,
   },
+  {
+    id: "C-4716", clientFileNum: "ZUR-2026-0194",
+    client: "Zurich North America",
+    subject: { name: "Nadia Okonkwo", dob: "1986-09-04", city: "Yonkers", state: "NY", description: "Female, 5'6\", medium build, braided hair, drives silver Toyota Camry" },
+    service: "SURV", tags: ["Surveillance", "Work Comp"],
+    status: "open", assignedTo: ["INV-072"],
+    dateOpened: "2026-05-25", state: "NY", daysOpen: 1,
+    budget: 36, hoursLogged: 6.0,
+  },
+  {
+    id: "C-4717", clientFileNum: "AUI-2026-0902",
+    client: "Applied Underwriters Inc",
+    subject: { name: "Luis Romero", dob: "1979-11-21", city: "Staten Island", state: "NY", description: "Male, 5'11\", stocky build, goatee, often wears Mets cap" },
+    service: "WC", tags: ["Work Comp"],
+    status: "open", assignedTo: ["INV-078"],
+    dateOpened: "2026-05-26", state: "NY", daysOpen: 0,
+    budget: 40, hoursLogged: 5.5,
+  },
 ];
 
 // ─── Time entries ─────────────────────────────────────────────────────────────
 
 export const timeEntries: TimeEntry[] = [
-  { id: "TE-001", caseId: "C-4701", investigatorId: "INV-055", investigatorName: "Kevin Tran",       date: "2026-05-26", hours: 3.2,  location: "Queens, NY",    notes: "Mobile surveillance, residence and surrounding streets." },
-  { id: "TE-002", caseId: "C-4702", investigatorId: "INV-017", investigatorName: "James Holt",       date: "2026-05-26", hours: 4.5,  location: "Newark, NJ",    notes: "Subject observed leaving residence, visited gym, grocery store." },
-  { id: "TE-003", caseId: "C-4702", investigatorId: "INV-017", investigatorName: "James Holt",       date: "2026-05-25", hours: 5.0,  location: "Newark, NJ",    notes: "Day 2 surveillance, no significant activity." },
-  { id: "TE-004", caseId: "C-4703", investigatorId: "INV-034", investigatorName: "Priscilla Ortega", date: "2026-05-20", hours: 8.0,  location: "Brooklyn, NY",  notes: "Subject not observed. Maintained coverage of residence." },
-  { id: "TE-005", caseId: "C-4705", investigatorId: "INV-021", investigatorName: "Marcus Webb",      date: "2026-05-26", hours: 6.5,  location: "Jersey City, NJ", notes: "Subject observed performing yard work for 2 hours without apparent restrictions." },
-  { id: "TE-006", caseId: "C-4705", investigatorId: "INV-021", investigatorName: "Marcus Webb",      date: "2026-05-25", hours: 7.0,  location: "Jersey City, NJ", notes: "Subject drove to Home Depot, carried lumber. Video obtained." },
-  { id: "TE-007", caseId: "C-4708", investigatorId: "INV-021", investigatorName: "Marcus Webb",      date: "2026-05-24", hours: 6.0,  location: "Bronx, NY",     notes: "Pre-deployment recon, identified vehicle and residence." },
-  { id: "TE-008", caseId: "C-4708", investigatorId: "INV-034", investigatorName: "Priscilla Ortega", date: "2026-05-24", hours: 6.0,  location: "Bronx, NY",     notes: "Two-car surveillance setup. Subject confirmed at residence." },
-  { id: "TE-009", caseId: "C-4709", investigatorId: "INV-034", investigatorName: "Priscilla Ortega", date: "2026-05-26", hours: 7.1,  location: "Brooklyn, NY",  notes: "Subject met with attorney at 10 AM. Departed at noon." },
-  { id: "TE-010", caseId: "C-4712", investigatorId: "INV-021", investigatorName: "Marcus Webb",      date: "2026-05-25", hours: 6.5,  location: "Queens, NY",    notes: "Subject observed walking dog, jogging approx. 1 mile without difficulty." },
+  { id: "TE-001", caseId: "C-4701", investigatorId: "INV-055", investigatorName: "Kevin Tran",       date: "2026-05-26", hours: 3.2, startHour: 8,  location: "Queens, NY",    notes: "Mobile surveillance, residence and surrounding streets." },
+  { id: "TE-002", caseId: "C-4702", investigatorId: "INV-017", investigatorName: "James Holt",       date: "2026-05-26", hours: 4.5, startHour: 9,  location: "Newark, NJ",    notes: "Subject observed leaving residence, visited gym, grocery store." },
+  { id: "TE-003", caseId: "C-4702", investigatorId: "INV-017", investigatorName: "James Holt",       date: "2026-05-25", hours: 5.0, startHour: 8,  location: "Newark, NJ",    notes: "Day 2 surveillance, no significant activity." },
+  { id: "TE-004", caseId: "C-4703", investigatorId: "INV-034", investigatorName: "Priscilla Ortega", date: "2026-05-20", hours: 8.0, startHour: 7,  location: "Brooklyn, NY",  notes: "Subject not observed. Maintained coverage of residence." },
+  { id: "TE-005", caseId: "C-4705", investigatorId: "INV-021", investigatorName: "Marcus Webb",      date: "2026-05-26", hours: 4.0, startHour: 8,  location: "Jersey City, NJ", notes: "Subject observed performing yard work for 2 hours without apparent restrictions." },
+  { id: "TE-006", caseId: "C-4705", investigatorId: "INV-021", investigatorName: "Marcus Webb",      date: "2026-05-25", hours: 7.0, startHour: 8,  location: "Jersey City, NJ", notes: "Subject drove to Home Depot, carried lumber. Video obtained." },
+  { id: "TE-007", caseId: "C-4708", investigatorId: "INV-021", investigatorName: "Marcus Webb",      date: "2026-05-24", hours: 6.0, startHour: 8,  location: "Bronx, NY",     notes: "Pre-deployment recon, identified vehicle and residence." },
+  { id: "TE-008", caseId: "C-4708", investigatorId: "INV-034", investigatorName: "Priscilla Ortega", date: "2026-05-24", hours: 6.0, startHour: 8,  location: "Bronx, NY",     notes: "Two-car surveillance setup. Subject confirmed at residence." },
+  { id: "TE-009", caseId: "C-4709", investigatorId: "INV-034", investigatorName: "Priscilla Ortega", date: "2026-05-26", hours: 7.1, startHour: 6,  location: "Brooklyn, NY",  notes: "Subject met with attorney at 10 AM. Departed at noon." },
+  { id: "TE-010", caseId: "C-4712", investigatorId: "INV-021", investigatorName: "Marcus Webb",      date: "2026-05-25", hours: 6.5, startHour: 8,  location: "Queens, NY",    notes: "Subject observed walking dog, jogging approx. 1 mile without difficulty." },
+  { id: "TE-011", caseId: "C-4712", investigatorId: "INV-021", investigatorName: "Marcus Webb",      date: "2026-05-26", hours: 2.5, startHour: 13, location: "Queens, NY",    notes: "Afternoon coverage after morning WC surveillance." },
+  { id: "TE-012", caseId: "C-4715", investigatorId: "INV-017", investigatorName: "James Holt",       date: "2026-05-26", hours: 2.0, startHour: 14, location: "Newark, NJ",    notes: "Afternoon disability claim check-in." },
+  { id: "TE-013", caseId: "C-4701", investigatorId: "INV-055", investigatorName: "Kevin Tran",       date: "2026-05-26", hours: 2.5, startHour: 12, location: "Bronx, NY",     notes: "Continued mobile after morning residence watch." },
+  { id: "TE-014", caseId: "C-4708", investigatorId: "INV-061", investigatorName: "Sandra Nwosu",     date: "2026-05-26", hours: 5.0, startHour: 9,  location: "Bronx, NY",     notes: "Backup coverage — off-duty roster held for half day then released." },
+  { id: "TE-015", caseId: "C-4716", investigatorId: "INV-072", investigatorName: "Elena Vasquez",    date: "2026-05-26", hours: 6.0, startHour: 7,  location: "Yonkers, NY",   notes: "Residence and workplace surveillance; subject departed 08:10." },
+  { id: "TE-016", caseId: "C-4717", investigatorId: "INV-078", investigatorName: "Andre Bennett",    date: "2026-05-26", hours: 5.5, startHour: 8,  location: "Staten Island, NY", notes: "WC claim check — subject observed loading truck bed." },
+];
+
+export const fieldNotes: FieldNote[] = [
+  { id: "FN-001", investigatorId: "INV-034", caseId: "C-4709", date: "2026-05-26", time: "06:15", text: "Subject left the house." },
+  { id: "FN-002", investigatorId: "INV-034", caseId: "C-4709", date: "2026-05-26", time: "07:40", text: "Subject entered a black Uber, headed south on Atlantic." },
+  { id: "FN-003", investigatorId: "INV-034", caseId: "C-4709", date: "2026-05-26", time: "10:05", text: "Subject met with attorney at office — video obtained of arrival." },
+  { id: "FN-004", investigatorId: "INV-034", caseId: "C-4709", date: "2026-05-26", time: "12:10", text: "Subject departed attorney’s office, returned to residence." },
+  { id: "FN-005", investigatorId: "INV-021", caseId: "C-4705", date: "2026-05-26", time: "08:45", text: "Subject in driveway stacking lumber — no visible restriction." },
+  { id: "FN-006", investigatorId: "INV-021", caseId: "C-4705", date: "2026-05-26", time: "10:20", text: "Subject used leaf blower for ~25 minutes." },
+  { id: "FN-007", investigatorId: "INV-021", caseId: "C-4712", date: "2026-05-26", time: "13:30", text: "Subject walking dog; gait appears normal." },
+  { id: "FN-008", investigatorId: "INV-017", caseId: "C-4702", date: "2026-05-26", time: "09:25", text: "Subject left residence carrying gym bag." },
+  { id: "FN-009", investigatorId: "INV-017", caseId: "C-4702", date: "2026-05-26", time: "11:10", text: "Subject at grocery store; lifted cases of water into cart." },
+  { id: "FN-010", investigatorId: "INV-055", caseId: "C-4701", date: "2026-05-26", time: "08:50", text: "Subject vehicle departed — mobile surveillance initiated." },
+  { id: "FN-011", investigatorId: "INV-055", caseId: "C-4701", date: "2026-05-26", time: "12:40", text: "Subject stopped at pharmacy, then resumed to Bronx." },
+  { id: "FN-012", investigatorId: "INV-061", caseId: "C-4708", date: "2026-05-26", time: "09:30", text: "Set up perimeter; subject confirmed at residence." },
+  { id: "FN-013", investigatorId: "INV-072", caseId: "C-4716", date: "2026-05-26", time: "08:10", text: "Subject departed residence in silver Camry." },
+  { id: "FN-014", investigatorId: "INV-072", caseId: "C-4716", date: "2026-05-26", time: "11:45", text: "Subject at warehouse loading dock — on feet ~20 min." },
+  { id: "FN-015", investigatorId: "INV-078", caseId: "C-4717", date: "2026-05-26", time: "08:35", text: "Subject loading tools into truck bed, no limp observed." },
+  { id: "FN-016", investigatorId: "INV-078", caseId: "C-4717", date: "2026-05-26", time: "12:15", text: "Subject returned to residence; carried two bags of mulch." },
 ];
 
 // ─── Service type helpers ─────────────────────────────────────────────────────
