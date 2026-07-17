@@ -1,0 +1,130 @@
+@font-face {
+  font-family: "Title Wave";
+  src: url("/fonts/titlewv.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Rexton Regular";
+  src: url("/fonts/rexton-regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Rexton Light";
+  src: url("/fonts/rexton-light.otf") format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Rexton Black";
+  src: url("/fonts/rexton-black.otf") format("opentype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Aliases in case Word stores short family names */
+@font-face {
+  font-family: "Rexton";
+  src: url("/fonts/rexton-regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Rexton";
+  src: url("/fonts/rexton-light.otf") format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Rexton";
+  src: url("/fonts/rexton-black.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+.docx-host {
+  --docx-page-shadow: 0 1px 4px rgba(0, 0, 0, 0.18), 0 8px 24px rgba(0, 0, 0, 0.12);
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(80, 90, 110, 0.35), transparent 55%),
+    linear-gradient(180deg, #3a404c 0%, #2a3038 100%);
+}
+
+.docx-host .docx-wrapper {
+  background: transparent !important;
+  padding: 24px 16px 40px !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.docx-host .docx-wrapper > section.docx {
+  background: #fff !important;
+  box-shadow: var(--docx-page-shadow) !important;
+  margin: 0 !important;
+  color: #000;
+}
+
+.docx-host ::selection {
+  background: rgba(68, 114, 196, 0.35);
+}
+
+.pdf-host {
+  --docx-page-shadow: 0 1px 4px rgba(0, 0, 0, 0.18), 0 8px 24px rgba(0, 0, 0, 0.12);
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(80, 90, 110, 0.35), transparent 55%),
+    linear-gradient(180deg, #3a404c 0%, #2a3038 100%);
+}
+
+.pdf-host .pdf-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 24px 16px 40px;
+}
+
+.pdf-host .pdf-page {
+  position: relative;
+  background: #fff;
+  box-shadow: var(--docx-page-shadow);
+}
+
+.pdf-host .pdf-page canvas {
+  display: block;
+}
+
+.pdf-host .textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  text-align: initial;
+  opacity: 1;
+}
+
+.pdf-host .textLayer span,
+.pdf-host .textLayer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.pdf-host .textLayer ::selection {
+  background: rgba(68, 114, 196, 0.35);
+}

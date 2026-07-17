@@ -17,10 +17,10 @@
           "light-6","light-7","light-8","light-9","light-10",
         ];
         var stored;
-        try { stored = localStorage.getItem("accenty.crm.theme.v1"); } catch (_) {}
+        try { stored = localStorage.getItem("accenty.crm.theme.v2"); } catch (_) {}
         document.documentElement.setAttribute(
           "data-theme",
-          stored && valid.indexOf(stored) !== -1 ? stored : "dark-5"
+          stored && valid.indexOf(stored) !== -1 ? stored : "light-10"
         );
       })();
     </script>

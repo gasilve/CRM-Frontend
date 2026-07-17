@@ -7,7 +7,7 @@ export default function TopBar() {
   const themeButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <header className="app-topbar sticky top-0 z-20 flex h-[var(--shell-chrome-height)] shrink-0 items-center gap-3 border-b border-[var(--color-line)] bg-[var(--color-ink-0)]/70 px-6 backdrop-blur-xl">
+    <header className="app-topbar relative z-40 flex h-[var(--shell-chrome-height)] shrink-0 items-center gap-3 border-b border-[var(--color-line)] bg-[var(--color-ink-0)] px-6">
       {/* Search */}
       <div className="group relative flex h-10 w-full max-w-[800px] flex-1 items-center gap-3 rounded-[10px] border border-[var(--color-line)] bg-[var(--color-ink-2)]/70 px-3.5 transition-colors focus-within:border-[var(--color-line-2)]">
         <Search size={15} strokeWidth={1.6} className="shrink-0 text-[var(--color-text-lo)]" />
