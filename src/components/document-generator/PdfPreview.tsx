@@ -3,13 +3,12 @@ import { createPortal } from "react-dom";
 import { AlertCircle, CheckSquare, Loader2, Square } from "lucide-react";
 import { GlobalWorkerOptions, getDocument, Util } from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { cn } from "@/lib/cn";
 import type { EditableParagraph } from "@/lib/reports-api";
 
-GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
+// Vite ?url respects base (/admin/) so the worker loads in prod.
+GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 const SCALE = 1.35;
 
