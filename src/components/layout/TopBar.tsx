@@ -1,10 +1,24 @@
-import { Palette, Search } from "lucide-react";
+import { Image, Palette, Search } from "lucide-react";
 import { useRef, useState } from "react";
+import { BackgroundPicker } from "./BackgroundPicker";
 import { ThemePicker } from "./ThemePicker";
 
 export default function TopBar() {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [bgOpen, setBgOpen] = useState(false);
   const themeButtonRef = useRef<HTMLButtonElement>(null);
+  const bgButtonRef = useRef<HTMLButtonElement>(null);
+
+  const chromeActiveStyle = (on: boolean) =>
+    on
+      ? {
+          borderColor: "color-mix(in srgb, var(--color-accent) 55%, var(--color-line))",
+          color: "var(--color-text-hi)",
+          boxShadow:
+            "inset 0 1px 0 var(--color-surface-shine), 0 0 18px -6px var(--color-accent-glow)",
+          background: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
+        }
+      : undefined;
 
   return (
     <header className="app-topbar relative z-40 flex h-[var(--shell-chrome-height)] shrink-0 items-center gap-3 border-b border-[var(--color-line)] bg-[var(--color-ink-0)] px-6">
@@ -25,8 +39,12 @@ export default function TopBar() {
             ref={themeButtonRef}
             aria-label="Choose theme"
             aria-expanded={pickerOpen}
-            onClick={() => setPickerOpen((v) => !v)}
+            onClick={() => {
+              setPickerOpen((v) => !v);
+              setBgOpen(false);
+            }}
             className="grid h-10 w-10 place-items-center rounded-[10px] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)] aria-expanded:border-[var(--color-line-3)] aria-expanded:text-[var(--color-text-hi)]"
+            style={chromeActiveStyle(pickerOpen)}
           >
             <Palette size={16} strokeWidth={1.6} />
           </button>
@@ -34,6 +52,28 @@ export default function TopBar() {
             open={pickerOpen}
             onClose={() => setPickerOpen(false)}
             triggerRef={themeButtonRef}
+          />
+        </div>
+
+        {/* Live background picker */}
+        <div className="relative">
+          <button
+            ref={bgButtonRef}
+            aria-label="Choose background"
+            aria-expanded={bgOpen}
+            onClick={() => {
+              setBgOpen((v) => !v);
+              setPickerOpen(false);
+            }}
+            className="grid h-10 w-10 place-items-center rounded-[10px] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)] aria-expanded:border-[var(--color-line-3)] aria-expanded:text-[var(--color-text-hi)]"
+            style={chromeActiveStyle(bgOpen)}
+          >
+            <Image size={16} strokeWidth={1.6} />
+          </button>
+          <BackgroundPicker
+            open={bgOpen}
+            onClose={() => setBgOpen(false)}
+            triggerRef={bgButtonRef}
           />
         </div>
 

@@ -1,0 +1,396 @@
+/* Full glass HUD — html[data-glass="true"] stacks on any palette.
+ *
+ * IMPORTANT: panel fills use rgb(from … / alpha), NOT color-mix(…, transparent).
+ * Mixing with the `transparent` keyword interpolates toward black and only
+ * changes brightness. Relative-color alpha is real see-through.
+ *
+ * --glass-alpha / --glass-blur are set by ThemeProvider from the opacity slider.
+ */
+
+html[data-glass="true"] {
+  /* Fallbacks until boot script / ThemeProvider write inline values (defaults: opacity 23, blur 13) */
+  --glass-alpha: 0.155;
+  --glass-alpha-strong: 0.275;
+  --glass-accent-alpha: 0.084;
+  --glass-shine-alpha: 0.111;
+  --glass-blur: 13px;
+  --glass-blur-sm: 9px;
+  --glass-saturate: 1.7;
+  --glass-scrim: 46%;
+
+  --glass-tint: rgb(from var(--color-accent) r g b / 0.22);
+  --glass-tint-strong: rgb(from var(--color-accent) r g b / 0.38);
+
+  --glass-fill: rgb(from var(--color-ink-2) r g b / var(--glass-alpha));
+  --glass-fill-strong: rgb(from var(--color-ink-3) r g b / var(--glass-alpha-strong));
+  --glass-edge: color-mix(
+    in srgb,
+    var(--color-accent-2) 42%,
+    rgba(255, 255, 255, 0.2)
+  );
+  --glass-shine: rgb(from var(--color-accent-2) r g b / var(--glass-shine-alpha));
+  --glass-shadow: 0 18px 48px -16px
+    color-mix(in srgb, var(--color-ink-0) 72%, transparent);
+
+  --color-surface-shine: var(--glass-shine);
+  --color-line: color-mix(
+    in srgb,
+    var(--color-accent-2) 24%,
+    rgba(255, 255, 255, 0.08)
+  );
+  --color-line-2: color-mix(
+    in srgb,
+    var(--color-accent-2) 34%,
+    rgba(255, 255, 255, 0.13)
+  );
+  --color-line-3: color-mix(
+    in srgb,
+    var(--color-accent) 40%,
+    rgba(255, 255, 255, 0.18)
+  );
+  --color-backdrop: color-mix(in srgb, var(--color-ink-0) 58%, transparent);
+  --radius-card: 18px;
+  --shadow-alpha: 0.5;
+  --shadow-alpha-heavy: 0.65;
+
+  /* Soft edge + drop — em-scaled so small type stays light */
+  --color-text-hi: #ffffff;
+  --color-text-mid: #ffffff;
+  --color-text-lo: rgba(255, 255, 255, 0.92);
+  --glass-text-outline:
+    -0.018em -0.018em 0 rgba(0, 0, 0, 0.28),
+     0.018em -0.018em 0 rgba(0, 0, 0, 0.28),
+    -0.018em  0.018em 0 rgba(0, 0, 0, 0.28),
+     0.018em  0.018em 0 rgba(0, 0, 0, 0.28),
+     0 0.045em 0.1em rgba(0, 0, 0, 0.42),
+     0 0.02em 0.035em rgba(0, 0, 0, 0.28);
+  --glass-text-stroke: 0;
+}
+
+/* Light palettes: ink is near-white — frost from accent-tinted dark, still true alpha */
+html[data-theme^="light"][data-glass="true"] {
+  --glass-fill: rgb(
+    from color-mix(in srgb, var(--color-accent) 28%, #0a101c)
+      r g b / var(--glass-alpha)
+  );
+  --glass-fill-strong: rgb(
+    from color-mix(in srgb, var(--color-accent) 34%, #0c1220)
+      r g b / var(--glass-alpha-strong)
+  );
+  --color-text-hi: #ffffff;
+  --color-text-mid: #ffffff;
+  --color-text-lo: rgba(255, 255, 255, 0.92);
+}
+
+/* ── Scene: photo + fixed theme scrim (slider does not change this) ── */
+html[data-glass="true"] .atmo-glass-scene {
+  display: block;
+  background:
+    linear-gradient(
+      115deg,
+      color-mix(in srgb, var(--color-ink-0) var(--glass-scrim), transparent) 0%,
+      rgb(from var(--color-accent) r g b / 0.22) 46%,
+      color-mix(in srgb, var(--color-ink-0) var(--glass-scrim), transparent) 100%
+    ),
+    radial-gradient(
+      ellipse 72% 58% at 74% 38%,
+      color-mix(in srgb, var(--color-bg-tint) 85%, var(--color-accent-glow)),
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 18% 78%,
+      var(--glass-tint-strong),
+      transparent 70%
+    ),
+    url("/glass-backdrop.jpg") center / cover no-repeat;
+  z-index: 0;
+}
+
+html:not([data-glass="true"]) .atmo-glass-scene {
+  display: none;
+}
+
+html[data-glass="true"] .atmo-radial,
+html[data-glass="true"] .atmo-noise,
+html[data-glass="true"] .atmo-scanlines,
+html[data-glass="true"] .atmo-sweep {
+  display: none !important;
+}
+
+html[data-glass="true"] .atmo-vignette {
+  background: radial-gradient(
+    ellipse 85% 75% at 50% 45%,
+    transparent 35%,
+    color-mix(in srgb, var(--color-ink-0) 55%, transparent) 100%
+  );
+}
+
+html[data-glass="true"] .surveil-shell {
+  background: transparent !important;
+  padding: 12px;
+  gap: 12px;
+  box-sizing: border-box;
+  color: #ffffff;
+}
+
+/* Per-element outline so em resolves against that node's font-size */
+html[data-glass="true"] .surveil-shell :where(
+  h1, h2, h3, h4, h5, h6,
+  p, span, a, button, label, li, td, th, div,
+  input, textarea, select,
+  .eyebrow, .editorial
+):not(svg):not(svg *) {
+  text-shadow: var(--glass-text-outline);
+  -webkit-text-stroke: var(--glass-text-stroke);
+}
+
+/* Catch hardcoded slate/gray utilities that bypass theme tokens */
+html[data-glass="true"] .text-slate-900,
+html[data-glass="true"] .text-slate-800,
+html[data-glass="true"] .text-slate-700,
+html[data-glass="true"] .text-slate-600,
+html[data-glass="true"] .text-slate-500,
+html[data-glass="true"] .text-slate-400,
+html[data-glass="true"] .text-slate-300,
+html[data-glass="true"] .text-gray-900,
+html[data-glass="true"] .text-gray-800,
+html[data-glass="true"] .text-gray-700,
+html[data-glass="true"] .text-gray-600,
+html[data-glass="true"] .text-gray-500,
+html[data-glass="true"] .text-gray-400,
+html[data-glass="true"] .text-zinc-500,
+html[data-glass="true"] .text-zinc-400,
+html[data-glass="true"] .placeholder\:text-slate-400::placeholder,
+html[data-glass="true"] ::placeholder {
+  color: rgba(255, 255, 255, 0.92) !important;
+  text-shadow: var(--glass-text-outline);
+  -webkit-text-stroke: var(--glass-text-stroke);
+}
+
+html[data-glass="true"] .app-shell-main {
+  background: transparent;
+  /* No overflow:hidden here — it clips the topbar’s 1px top border. */
+  overflow: visible;
+  min-width: 0;
+  gap: 10px;
+}
+
+html[data-glass="true"] .app-main {
+  background: transparent !important;
+}
+
+/*
+ * Widget intro animation uses opacity/transform on .widget-body, which
+ * disables backdrop-filter on child Cards until it ends — reads as
+ * "0 blur, then frost pops in". Skip the intro while glass is on.
+ */
+html[data-glass="true"] .signal-acquired {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+/* Ensure widget chrome picks up frost even if Card mounts late */
+html[data-glass="true"] .widget-body .surface,
+html[data-glass="true"] .widget-frame .surface {
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+}
+
+/* ── Floating sidebar ── */
+html[data-glass="true"] .app-sidebar {
+  align-self: stretch;
+  height: auto !important;
+  border-radius: 22px !important;
+  border: 1px solid var(--glass-edge) !important;
+  border-right: 1px solid var(--glass-edge) !important;
+  background:
+    linear-gradient(
+      165deg,
+      rgb(from var(--color-accent) r g b / var(--glass-accent-alpha)) 0%,
+      transparent 44%
+    ),
+    var(--glass-fill) !important;
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow:
+    inset 0 1px 0 var(--glass-shine),
+    inset 1px 0 0 rgb(from var(--color-accent-2) r g b / 0.2),
+    var(--glass-shadow);
+}
+
+html[data-glass="true"] .app-sidebar a[aria-current="page"] {
+  background: rgb(from var(--color-accent) r g b / 0.32) !important;
+  box-shadow:
+    inset 0 1px 0 rgb(from var(--color-accent-2) r g b / 0.35),
+    0 0 28px -6px var(--color-accent-glow),
+    0 0 0 1px rgb(from var(--color-accent) r g b / 0.45) !important;
+  color: var(--color-text-hi) !important;
+}
+
+html[data-glass="true"] .app-sidebar .surface {
+  background:
+    linear-gradient(
+      160deg,
+      rgb(from var(--color-accent-2) r g b / var(--glass-accent-alpha)),
+      var(--glass-fill-strong)
+    ) !important;
+}
+
+/* ── Top bar — fully rounded floating strip ── */
+html[data-glass="true"] .app-topbar {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(from var(--color-accent) r g b / var(--glass-accent-alpha)),
+      transparent 70%
+    ),
+    var(--glass-fill) !important;
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  /* Explicit all-sides border — Tailwind `border-b` leaves top width at 0
+     until this overrides it. */
+  border: 1px solid var(--glass-edge) !important;
+  border-top-width: 1px !important;
+  box-shadow:
+    inset 0 1px 0 var(--glass-shine),
+    var(--glass-shadow);
+  border-radius: 18px !important;
+}
+
+html[data-glass="true"] .app-topbar > div:first-child,
+html[data-glass="true"] .app-topbar .ml-auto > div:last-child {
+  background: var(--glass-fill-strong) !important;
+  border-color: var(--glass-edge) !important;
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+  box-shadow: inset 0 1px 0 var(--glass-shine);
+}
+
+html[data-glass="true"] .app-topbar > div:first-child {
+  border-radius: 999px !important;
+}
+
+html[data-glass="true"] .app-topbar button[aria-label="Choose theme"],
+html[data-glass="true"] .app-topbar button[aria-label="Choose background"] {
+  background: var(--glass-fill-strong) !important;
+  border-color: var(--glass-edge) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Cards / panels ── */
+html[data-glass="true"] .surface {
+  border-radius: var(--radius-card) !important;
+  background:
+    linear-gradient(
+      145deg,
+      rgb(from var(--color-accent-2) r g b / var(--glass-accent-alpha)) 0%,
+      rgb(from var(--color-ink-2) r g b / var(--glass-alpha)) 55%,
+      rgb(from var(--color-accent) r g b / var(--glass-accent-alpha)) 100%
+    ) !important;
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-edge) !important;
+  box-shadow:
+    inset 0 1px 0 var(--glass-shine),
+    inset 0 -1px 0 rgb(from var(--color-accent) r g b / 0.12),
+    var(--glass-shadow) !important;
+}
+
+html[data-glass="true"] .surface-hover:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent-2) 50%,
+    rgba(255, 255, 255, 0.28)
+  ) !important;
+  box-shadow:
+    inset 0 1px 0 rgb(from var(--color-accent-2) r g b / 0.35),
+    0 22px 48px -14px color-mix(in srgb, var(--color-ink-0) 65%, transparent),
+    0 0 32px -10px var(--color-accent-glow) !important;
+}
+
+html[data-glass="true"] .theme-picker-panel {
+  background:
+    linear-gradient(
+      160deg,
+      rgb(from var(--color-accent) r g b / var(--glass-accent-alpha)),
+      transparent
+    ),
+    var(--glass-fill-strong);
+  backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.8);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.8);
+  border-color: var(--glass-edge) !important;
+  box-shadow:
+    inset 0 1px 0 var(--glass-shine),
+    0 28px 64px -18px color-mix(in srgb, var(--color-ink-0) 80%, transparent);
+}
+
+html[data-theme^="light"][data-glass="true"] .app-sidebar,
+html[data-theme^="light"][data-glass="true"] .app-sidebar .surface {
+  --color-text-hi: #ffffff;
+  --color-text-mid: #ffffff;
+  --color-text-lo: rgba(255, 255, 255, 0.92);
+  --color-line: color-mix(
+    in srgb,
+    var(--color-accent-2) 24%,
+    rgba(255, 255, 255, 0.08)
+  );
+  --color-line-2: color-mix(
+    in srgb,
+    var(--color-accent-2) 34%,
+    rgba(255, 255, 255, 0.13)
+  );
+  --color-line-3: color-mix(
+    in srgb,
+    var(--color-accent) 40%,
+    rgba(255, 255, 255, 0.18)
+  );
+}
+
+/* Opacity slider in theme picker */
+.glass-opacity-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-line-2) 80%, transparent);
+  outline: none;
+}
+.glass-opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(
+    180deg,
+    #fff,
+    color-mix(in srgb, var(--color-accent-2) 40%, #fff)
+  );
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+  box-shadow: 0 0 12px -2px var(--color-accent-glow);
+  cursor: pointer;
+}
+.glass-opacity-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(
+    180deg,
+    #fff,
+    color-mix(in srgb, var(--color-accent-2) 40%, #fff)
+  );
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+  box-shadow: 0 0 12px -2px var(--color-accent-glow);
+  cursor: pointer;
+}
+.glass-opacity-slider:disabled::-webkit-slider-thumb {
+  box-shadow: none;
+  opacity: 0.55;
+}
+.glass-opacity-slider:disabled::-moz-range-thumb {
+  box-shadow: none;
+  opacity: 0.55;
+}

@@ -1,4 +1,5 @@
-﻿/* Theme variable blocks — imported by src/index.css */
+/* Theme variable blocks — imported by src/index.css */
 @import "./classic.css";
 @import "./extended.css";
 @import "./overrides.css";
+@import "./glass.css";

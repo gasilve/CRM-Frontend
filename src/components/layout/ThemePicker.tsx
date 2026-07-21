@@ -1,7 +1,18 @@
 import { useEffect, useRef } from "react";
-import { Check, Moon, Sun } from "lucide-react";
-import { THEMES, useTheme } from "@/contexts/ThemeContext";
+import { Check, Droplets, Moon, Sun } from "lucide-react";
+import {
+  GLASS_BLUR_MAX,
+  GLASS_BLUR_MIN,
+  GLASS_FIRST_BACKGROUND,
+  GLASS_FIRST_THEME,
+  GLASS_OPACITY_MAX,
+  GLASS_OPACITY_MIN,
+  THEMES,
+  consumeGlassFirstEnable,
+  useTheme,
+} from "@/contexts/ThemeContext";
 import type { ThemeId, ThemeMeta } from "@/contexts/ThemeContext";
+import { useBackground } from "@/contexts/BackgroundContext";
 
 type Props = {
   open: boolean;
@@ -11,8 +22,27 @@ type Props = {
 };
 
 export function ThemePicker({ open, onClose, triggerRef }: Props) {
-  const { themeId, setTheme } = useTheme();
+  const {
+    themeId,
+    setTheme,
+    glass,
+    setGlass,
+    glassOpacity,
+    setGlassOpacity,
+    glassBlur,
+    setGlassBlur,
+  } = useTheme();
+  const { setBackground } = useBackground();
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const toggleGlass = () => {
+    const next = !glass;
+    if (next && consumeGlassFirstEnable()) {
+      setTheme(GLASS_FIRST_THEME);
+      setBackground(GLASS_FIRST_BACKGROUND);
+    }
+    setGlass(next);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -43,6 +73,136 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
       role="dialog"
       aria-label="Theme selector"
     >
+      <div className="border-b border-[var(--color-line)] px-3.5 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[var(--color-text-lo)]">
+              <Droplets size={13} strokeWidth={1.8} />
+            </span>
+            <div className="min-w-0">
+              <div
+                className="text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--color-text-hi)]"
+                style={{ fontFamily: "var(--font-sans)" }}
+              >
+                Glass
+              </div>
+              <div
+                className="text-[10px] text-[var(--color-text-lo)]"
+                style={{ fontFamily: "var(--font-sans)" }}
+              >
+                Frosted HUD over a live scene
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={glass}
+            aria-label="Toggle glass theme"
+            onClick={toggleGlass}
+            className="relative h-6 w-11 shrink-0 rounded-full border transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/50"
+            style={{
+              background: glass
+                ? "color-mix(in srgb, var(--color-accent) 55%, transparent)"
+                : "var(--color-ink-3)",
+              borderColor: glass
+                ? "color-mix(in srgb, var(--color-accent) 70%, transparent)"
+                : "var(--color-line-2)",
+              boxShadow: glass
+                ? "inset 0 1px 0 rgba(255,255,255,0.25), 0 0 16px -4px var(--color-accent-glow)"
+                : "inset 0 1px 0 rgba(255,255,255,0.06)",
+            }}
+          >
+            <span
+              className="absolute top-0.5 left-0.5 rounded-full bg-white shadow-sm transition-transform duration-200"
+              style={{
+                width: 18,
+                height: 18,
+                transform: glass ? "translateX(20px)" : "translateX(0)",
+                background: glass
+                  ? "linear-gradient(180deg, #fff, color-mix(in srgb, var(--color-accent-2) 35%, #fff))"
+                  : "#e8eef8",
+              }}
+            />
+          </button>
+        </div>
+
+        <div
+          className="mt-3 space-y-3 transition-opacity duration-150"
+          style={{ opacity: glass ? 1 : 0.38, pointerEvents: glass ? "auto" : "none" }}
+        >
+          <div>
+            <div className="mb-1.5 flex items-center justify-between gap-2 px-0.5">
+              <span
+                className="text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
+                style={{ fontFamily: "var(--font-sans)" }}
+              >
+                Backdrop opacity
+              </span>
+              <span
+                className="tabular-nums text-[10px] text-[var(--color-text-mid)]"
+                style={{ fontFamily: "var(--font-sans)" }}
+              >
+                {glassOpacity}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min={GLASS_OPACITY_MIN}
+              max={GLASS_OPACITY_MAX}
+              step={1}
+              value={glassOpacity}
+              disabled={!glass}
+              aria-label="Backdrop opacity"
+              onChange={(e) => setGlassOpacity(Number(e.target.value))}
+              className="glass-opacity-slider w-full cursor-pointer disabled:cursor-not-allowed"
+            />
+            <div
+              className="mt-1 flex justify-between px-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-lo)]"
+              style={{ fontFamily: "var(--font-sans)" }}
+            >
+              <span>Clear</span>
+              <span>Dense</span>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1.5 flex items-center justify-between gap-2 px-0.5">
+              <span
+                className="text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
+                style={{ fontFamily: "var(--font-sans)" }}
+              >
+                Blur
+              </span>
+              <span
+                className="tabular-nums text-[10px] text-[var(--color-text-mid)]"
+                style={{ fontFamily: "var(--font-sans)" }}
+              >
+                {glassBlur}px
+              </span>
+            </div>
+            <input
+              type="range"
+              min={GLASS_BLUR_MIN}
+              max={GLASS_BLUR_MAX}
+              step={1}
+              value={glassBlur}
+              disabled={!glass}
+              aria-label="Glass blur"
+              onChange={(e) => setGlassBlur(Number(e.target.value))}
+              className="glass-opacity-slider w-full cursor-pointer disabled:cursor-not-allowed"
+            />
+            <div
+              className="mt-1 flex justify-between px-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-lo)]"
+              style={{ fontFamily: "var(--font-sans)" }}
+            >
+              <span>Sharp</span>
+              <span>Frost</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <Section
         label="Dark"
         icon={<Moon size={11} strokeWidth={1.8} />}

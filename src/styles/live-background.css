@@ -1,0 +1,85 @@
+/* Live city cam backdrop (YouTube embed) */
+
+.atmo-live-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #05070e;
+}
+
+.atmo-live-bg iframe {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* Cover viewport; zoom past YouTube letterbox / chrome */
+  width: 100vw;
+  height: 56.25vw;
+  min-height: 100vh;
+  min-width: 177.78vh;
+  border: 0;
+  transform: translate(-50%, -50%) scale(1.35);
+  pointer-events: none;
+}
+
+.atmo-live-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--live-xfade, 1.4s) linear;
+  will-change: opacity;
+}
+
+.atmo-live-video.is-active {
+  opacity: 1;
+}
+
+.atmo-live-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      115deg,
+      color-mix(in srgb, var(--color-ink-0) 55%, transparent) 0%,
+      color-mix(in srgb, var(--color-accent) 12%, transparent) 48%,
+      color-mix(in srgb, var(--color-ink-0) 50%, transparent) 100%
+    ),
+    radial-gradient(
+      ellipse 80% 70% at 50% 40%,
+      transparent 30%,
+      color-mix(in srgb, var(--color-ink-0) 45%, transparent) 100%
+    );
+}
+
+/* When a video scene is active, open the shell so the clip shows (even without glass) */
+html[data-bg]:not([data-bg="static"]) .surveil-shell {
+  background: transparent !important;
+}
+
+html[data-bg]:not([data-bg="static"]) .atmo-radial {
+  opacity: 0.35;
+}
+
+/* When a live cam is active, hide the static glass photo plate */
+html[data-bg]:not([data-bg="static"]) .atmo-glass-scene {
+  background: transparent !important;
+}
+
+/* Live bg works without glass too — tone down CRT noise so video reads */
+html[data-bg]:not([data-bg="static"]) .atmo-noise,
+html[data-bg]:not([data-bg="static"]) .atmo-scanlines,
+html[data-bg]:not([data-bg="static"]) .atmo-sweep {
+  opacity: 0.25;
+}
+
+html[data-bg]:not([data-bg="static"])[data-glass="true"] .atmo-noise,
+html[data-bg]:not([data-bg="static"])[data-glass="true"] .atmo-scanlines,
+html[data-bg]:not([data-bg="static"])[data-glass="true"] .atmo-sweep {
+  display: none !important;
+}

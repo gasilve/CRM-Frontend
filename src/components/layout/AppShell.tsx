@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
+import { LiveBackground } from "./LiveBackground";
 
 const FULL_BLEED_ROUTES = ["/assistant"];
 
@@ -11,6 +12,8 @@ export default function AppShell() {
   return (
     <div className="surveil-shell relative flex h-screen w-full overflow-hidden bg-[var(--color-ink-0)] text-[var(--color-text-hi)]">
       {/* Atmospheric overlays */}
+      <LiveBackground />
+      <div className="atmo atmo-glass-scene" aria-hidden />
       <div className="atmo atmo-radial" aria-hidden />
       <div className="atmo atmo-noise" aria-hidden>
         <svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">

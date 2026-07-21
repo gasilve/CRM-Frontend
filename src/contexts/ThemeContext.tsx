@@ -1,7 +1,7 @@
 import {
   createContext,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useState,
   type ReactNode,
 } from "react";
@@ -82,12 +82,38 @@ export const THEMES: ThemeMeta[] = [
 ];
 
 export const THEME_LS_KEY = "accenty.crm.theme.v2";
+export const GLASS_LS_KEY = "accenty.crm.glass.v1";
+export const GLASS_OPACITY_LS_KEY = "accenty.crm.glass-opacity.v1";
+export const GLASS_BLUR_LS_KEY = "accenty.crm.glass-blur.v1";
+/** Marks that first-enable Tsunami + Night Grid has already been applied. */
+export const GLASS_PRIMED_LS_KEY = "accenty.crm.glass-primed.v2";
 const DEFAULT_THEME: ThemeId = "light-10";
+const DEFAULT_GLASS = false;
+/** Applied the first time glass is turned on. */
+export const GLASS_FIRST_THEME: ThemeId = "dark-16"; // Tsunami
+export const GLASS_FIRST_BACKGROUND = "cities-traffic"; // Night Grid
+
+/** Lower = more of the scene shows through (matches the open/transparent look). */
+export const DEFAULT_GLASS_OPACITY = 23;
+export const GLASS_OPACITY_MIN = 0;
+export const GLASS_OPACITY_MAX = 100;
+/** Backdrop blur in px — default matches a soft frost (avoids 0→blur flash). */
+export const DEFAULT_GLASS_BLUR = 13;
+export const GLASS_BLUR_MIN = 0;
+export const GLASS_BLUR_MAX = 60;
 
 type ThemeCtx = {
   themeId: ThemeId;
   themeMeta: ThemeMeta;
   setTheme: (id: ThemeId) => void;
+  glass: boolean;
+  setGlass: (on: boolean) => void;
+  /** Panel fill density 0–100. Lower = more transparent. */
+  glassOpacity: number;
+  setGlassOpacity: (value: number) => void;
+  /** Frost blur in px (0–60). */
+  glassBlur: number;
+  setGlassBlur: (value: number) => void;
 };
 
 const defaultThemeMeta =
@@ -97,21 +123,135 @@ const ThemeContext = createContext<ThemeCtx>({
   themeId: DEFAULT_THEME,
   themeMeta: defaultThemeMeta,
   setTheme: () => {},
+  glass: DEFAULT_GLASS,
+  setGlass: () => {},
+  glassOpacity: DEFAULT_GLASS_OPACITY,
+  setGlassOpacity: () => {},
+  glassBlur: DEFAULT_GLASS_BLUR,
+  setGlassBlur: () => {},
 });
 
+function clampGlassOpacity(n: number): number {
+  return Math.min(GLASS_OPACITY_MAX, Math.max(GLASS_OPACITY_MIN, Math.round(n)));
+}
+
+function clampGlassBlur(n: number): number {
+  return Math.min(GLASS_BLUR_MAX, Math.max(GLASS_BLUR_MIN, Math.round(n)));
+}
+
+function readStoredTheme(): ThemeId {
+  try {
+    const stored = localStorage.getItem(THEME_LS_KEY) as ThemeId | null;
+    if (stored && THEMES.some((t) => t.id === stored)) return stored;
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_THEME;
+}
+
+function readStoredGlass(): boolean {
+  try {
+    const stored = localStorage.getItem(GLASS_LS_KEY);
+    if (stored === "1" || stored === "true") return true;
+    if (stored === "0" || stored === "false") return false;
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_GLASS;
+}
+
+function readStoredGlassOpacity(): number {
+  try {
+    const stored = localStorage.getItem(GLASS_OPACITY_LS_KEY);
+    if (stored != null) {
+      const n = Number(stored);
+      if (Number.isFinite(n)) return clampGlassOpacity(n);
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_GLASS_OPACITY;
+}
+
+function readStoredGlassBlur(): number {
+  try {
+    const stored = localStorage.getItem(GLASS_BLUR_LS_KEY);
+    if (stored != null) {
+      const n = Number(stored);
+      if (Number.isFinite(n)) return clampGlassBlur(n);
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_GLASS_BLUR;
+}
+
+/**
+ * True only the first time glass is turned on in this browser.
+ * (Do not key off GLASS_LS_KEY — that is written on every mount.)
+ */
+export function consumeGlassFirstEnable(): boolean {
+  try {
+    if (localStorage.getItem(GLASS_PRIMED_LS_KEY) === "1") return false;
+    localStorage.setItem(GLASS_PRIMED_LS_KEY, "1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function applyGlassOpacityCss(opacity: number) {
+  const root = document.documentElement;
+  const t = opacity / GLASS_OPACITY_MAX;
+
+  // True alpha — not color-mix with transparent (that only darkens).
+  const alpha = 0.04 + t * 0.5;
+  const alphaStrong = Math.min(0.72, alpha + 0.12);
+  const accentAlpha = 0.02 + t * 0.28;
+  const shineAlpha = 0.06 + t * 0.22;
+
+  root.style.setProperty("--glass-alpha", alpha.toFixed(3));
+  root.style.setProperty("--glass-alpha-strong", alphaStrong.toFixed(3));
+  root.style.setProperty("--glass-accent-alpha", accentAlpha.toFixed(3));
+  root.style.setProperty("--glass-shine-alpha", shineAlpha.toFixed(3));
+}
+
+function applyGlassBlurCss(blurPx: number) {
+  const root = document.documentElement;
+  const blur = clampGlassBlur(blurPx);
+  const blurSm = Math.max(0, Math.round(blur * 0.7));
+  root.style.setProperty("--glass-blur", `${blur}px`);
+  root.style.setProperty("--glass-blur-sm", `${blurSm}px`);
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [themeId, setThemeId] = useState<ThemeId>(() => {
+  const [themeId, setThemeId] = useState<ThemeId>(readStoredTheme);
+  const [glass, setGlassState] = useState<boolean>(readStoredGlass);
+  const [glassOpacity, setGlassOpacityState] = useState<number>(readStoredGlassOpacity);
+  const [glassBlur, setGlassBlurState] = useState<number>(readStoredGlassBlur);
+
+  // Already-on glass from a prior session: never force Tsunami/Night Grid later.
+  useLayoutEffect(() => {
+    if (!glass) return;
     try {
-      const stored = localStorage.getItem(THEME_LS_KEY) as ThemeId | null;
-      if (stored && THEMES.some((t) => t.id === stored)) return stored;
+      localStorage.setItem(GLASS_PRIMED_LS_KEY, "1");
     } catch {
       /* ignore */
     }
-    return DEFAULT_THEME;
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only seed
+  }, []);
 
-  useEffect(() => {
+  // Keep vars on <html> during render so the first painted frame already has blur
+  // (boot script covers pre-JS; this covers React mount without waiting an effect).
+  if (typeof document !== "undefined") {
     document.documentElement.setAttribute("data-theme", themeId);
+    document.documentElement.setAttribute("data-glass", glass ? "true" : "false");
+    applyGlassOpacityCss(glassOpacity);
+    applyGlassBlurCss(glassBlur);
+  }
+
+  // Persist after commit
+  useLayoutEffect(() => {
     try {
       localStorage.setItem(THEME_LS_KEY, themeId);
     } catch {
@@ -119,10 +259,47 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [themeId]);
 
+  useLayoutEffect(() => {
+    try {
+      localStorage.setItem(GLASS_LS_KEY, glass ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [glass]);
+
+  useLayoutEffect(() => {
+    try {
+      localStorage.setItem(GLASS_OPACITY_LS_KEY, String(glassOpacity));
+    } catch {
+      /* ignore */
+    }
+  }, [glassOpacity]);
+
+  useLayoutEffect(() => {
+    try {
+      localStorage.setItem(GLASS_BLUR_LS_KEY, String(glassBlur));
+    } catch {
+      /* ignore */
+    }
+  }, [glassBlur]);
+
   const themeMeta = THEMES.find((t) => t.id === themeId) ?? THEMES[0];
 
   return (
-    <ThemeContext.Provider value={{ themeId, themeMeta, setTheme: setThemeId }}>
+    <ThemeContext.Provider
+      value={{
+        themeId,
+        themeMeta,
+        setTheme: setThemeId,
+        glass,
+        setGlass: setGlassState,
+        glassOpacity,
+        setGlassOpacity: (value: number) =>
+          setGlassOpacityState(clampGlassOpacity(value)),
+        glassBlur,
+        setGlassBlur: (value: number) => setGlassBlurState(clampGlassBlur(value)),
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );

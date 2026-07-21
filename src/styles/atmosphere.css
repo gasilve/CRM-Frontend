@@ -1,4 +1,4 @@
-﻿/* â”€â”€ Atmospheric background / surveillance stack â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* â”€â”€ Atmospheric background / surveillance stack â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .surveil-shell {
   isolation: isolate;
 }
@@ -93,7 +93,9 @@
   animation: signalAcquire 360ms cubic-bezier(.2,.8,.2,1);
 }
 @keyframes signalAcquire {
-  0%   { opacity: 0.7; transform: translateY(3px) scale(0.996); filter: contrast(1.08); }
+  /* No `filter` — it creates a containing block and disables backdrop-filter
+     on frosted glass children until the animation ends (blur pop-in). */
+  0%   { opacity: 0.7; transform: translateY(3px) scale(0.996); }
   55%  { opacity: 1;   transform: translateY(0)   scale(1); }
-  100% { opacity: 1;   filter: contrast(1); }
+  100% { opacity: 1;   transform: translateY(0)   scale(1); }
 }

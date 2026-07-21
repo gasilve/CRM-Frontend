@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Accenty — CRM</title>
     <link rel="icon" type="image/png" href="/admin/favicon.png" />
-    <!-- Prevent flash of wrong theme: apply data-theme before first paint -->
+    <!-- Prevent flash of wrong theme / glass: apply before first paint -->
     <script>
       (function () {
         var valid = [
@@ -16,12 +16,41 @@
           "light-1","light-2","light-3","light-4","light-5",
           "light-6","light-7","light-8","light-9","light-10",
         ];
-        var stored;
-        try { stored = localStorage.getItem("accenty.crm.theme.v2"); } catch (_) {}
-        document.documentElement.setAttribute(
+        var root = document.documentElement;
+        var theme, glass, opacity, blur, bg;
+        try { theme = localStorage.getItem("accenty.crm.theme.v2"); } catch (_) {}
+        try { glass = localStorage.getItem("accenty.crm.glass.v1"); } catch (_) {}
+        try { opacity = localStorage.getItem("accenty.crm.glass-opacity.v1"); } catch (_) {}
+        try { blur = localStorage.getItem("accenty.crm.glass-blur.v1"); } catch (_) {}
+        try { bg = localStorage.getItem("accenty.crm.background.v3") || localStorage.getItem("accenty.crm.background.v2") || localStorage.getItem("accenty.crm.background.v1"); } catch (_) {}
+
+        root.setAttribute(
           "data-theme",
-          stored && valid.indexOf(stored) !== -1 ? stored : "light-10"
+          theme && valid.indexOf(theme) !== -1 ? theme : "light-10"
         );
+
+        var glassOn = glass === "1" || glass === "true";
+        root.setAttribute("data-glass", glassOn ? "true" : "false");
+
+        root.setAttribute("data-bg", bg && bg.length ? bg : "static");
+
+        var op = Number(opacity);
+        if (!Number.isFinite(op)) op = 23;
+        op = Math.min(100, Math.max(0, Math.round(op)));
+        var t = op / 100;
+        var alpha = 0.04 + t * 0.5;
+        var alphaStrong = Math.min(0.72, alpha + 0.12);
+        root.style.setProperty("--glass-alpha", alpha.toFixed(3));
+        root.style.setProperty("--glass-alpha-strong", alphaStrong.toFixed(3));
+        root.style.setProperty("--glass-accent-alpha", (0.02 + t * 0.28).toFixed(3));
+        root.style.setProperty("--glass-shine-alpha", (0.06 + t * 0.22).toFixed(3));
+
+        var bl = Number(blur);
+        if (!Number.isFinite(bl)) bl = 13;
+        bl = Math.min(60, Math.max(0, Math.round(bl)));
+        var blSm = Math.max(0, Math.round(bl * 0.7));
+        root.style.setProperty("--glass-blur", bl + "px");
+        root.style.setProperty("--glass-blur-sm", blSm + "px");
       })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
