@@ -46,15 +46,35 @@
   background:
     linear-gradient(
       115deg,
-      color-mix(in srgb, var(--color-ink-0) 55%, transparent) 0%,
+      color-mix(
+          in srgb,
+          var(--glass-scene-ink, var(--color-ink-0)) 55%,
+          transparent
+        )
+        0%,
       color-mix(in srgb, var(--color-accent) 12%, transparent) 48%,
-      color-mix(in srgb, var(--color-ink-0) 50%, transparent) 100%
+      color-mix(
+          in srgb,
+          var(--glass-scene-ink, var(--color-ink-0)) 50%,
+          transparent
+        )
+        100%
     ),
     radial-gradient(
       ellipse 80% 70% at 50% 40%,
       transparent 30%,
-      color-mix(in srgb, var(--color-ink-0) 45%, transparent) 100%
+      color-mix(
+          in srgb,
+          var(--glass-scene-ink, var(--color-ink-0)) 45%,
+          transparent
+        )
+        100%
     );
+}
+
+/* Light + glass: body plate is pale — keep it from leaking a white frame */
+html[data-theme^="light"][data-glass="true"] body {
+  background: #060a12;
 }
 
 /* When a video scene is active, open the shell so the clip shows (even without glass) */

@@ -175,10 +175,34 @@ async function postWordPreview(file: File): Promise<ArrayBuffer> {
   return res.arrayBuffer();
 }
 
+async function postCleanDocx(file: File): Promise<Blob> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+
+  const res = await fetch(`${CRM_API_URL}/reports/docx`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!res.ok) {
+    let message = `Clean DOCX render failed (${res.status})`;
+    try {
+      const json = (await res.json()) as ApiEnvelope<unknown>;
+      if (json.message) message = json.message;
+    } catch {
+      /* not JSON */
+    }
+    throw new ApiError(message, res.status);
+  }
+
+  return res.blob();
+}
+
 export const reportsApi = {
   generate: (files: File[]): Promise<Blob> => postDocx(files),
   aiEdit: postAiEdit,
   plainEdit: postPlainEdit,
   paragraphs: postParagraphs,
   wordPreview: postWordPreview,
+  cleanDocx: postCleanDocx,
 };

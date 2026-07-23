@@ -17,6 +17,8 @@ html[data-glass="true"] {
   --glass-blur-sm: 9px;
   --glass-saturate: 1.7;
   --glass-scrim: 46%;
+  /* Scene/vignette wash — must stay dark even on light palettes */
+  --glass-scene-ink: var(--color-ink-0);
 
   --glass-tint: rgb(from var(--color-accent) r g b / 0.22);
   --glass-tint-strong: rgb(from var(--color-accent) r g b / 0.38);
@@ -77,6 +79,25 @@ html[data-theme^="light"][data-glass="true"] {
     from color-mix(in srgb, var(--color-accent) 34%, #0c1220)
       r g b / var(--glass-alpha-strong)
   );
+  /* Prevent white vignette/scrim: light ink-0 must not tint the scene */
+  --glass-scene-ink: color-mix(in srgb, var(--color-accent) 18%, #060a12);
+  --glass-scrim: 50%;
+  /* Light tokens that otherwise spray white into glass chrome */
+  --color-bg-tint: rgb(from var(--color-accent) r g b / 0.14);
+  --color-surface-shine: rgb(from var(--color-accent-2) r g b / 0.16);
+  --color-accent-glow: rgb(from var(--color-accent) r g b / 0.32);
+  --glass-edge: color-mix(
+    in srgb,
+    var(--color-accent-2) 48%,
+    rgba(160, 190, 255, 0.1)
+  );
+  --glass-shine: rgb(from var(--color-accent-2) r g b / 0.16);
+  --glass-shadow: 0 18px 48px -16px rgba(0, 0, 0, 0.55);
+  /* Kill pale extended-theme washes (white topbar / main plate) */
+  --theme-main-bg: transparent;
+  --theme-topbar-bg: transparent;
+  --theme-surface-bg: transparent;
+  --theme-dock-bg: transparent;
   --color-text-hi: #ffffff;
   --color-text-mid: #ffffff;
   --color-text-lo: rgba(255, 255, 255, 0.92);
@@ -88,9 +109,9 @@ html[data-glass="true"] .atmo-glass-scene {
   background:
     linear-gradient(
       115deg,
-      color-mix(in srgb, var(--color-ink-0) var(--glass-scrim), transparent) 0%,
+      color-mix(in srgb, var(--glass-scene-ink) var(--glass-scrim), transparent) 0%,
       rgb(from var(--color-accent) r g b / 0.22) 46%,
-      color-mix(in srgb, var(--color-ink-0) var(--glass-scrim), transparent) 100%
+      color-mix(in srgb, var(--glass-scene-ink) var(--glass-scrim), transparent) 100%
     ),
     radial-gradient(
       ellipse 72% 58% at 74% 38%,
@@ -121,8 +142,39 @@ html[data-glass="true"] .atmo-vignette {
   background: radial-gradient(
     ellipse 85% 75% at 50% 45%,
     transparent 35%,
-    color-mix(in srgb, var(--color-ink-0) 55%, transparent) 100%
+    color-mix(in srgb, var(--glass-scene-ink) 55%, transparent) 100%
   );
+}
+
+/* Beat light-theme vignette override so edges stay dark, not pale */
+html[data-theme^="light"][data-glass="true"] .atmo-vignette {
+  background: radial-gradient(
+    ellipse 85% 75% at 50% 45%,
+    transparent 35%,
+    color-mix(in srgb, var(--glass-scene-ink) 58%, transparent) 100%
+  );
+}
+
+/* Still plate: no pale bg-tint bloom */
+html[data-theme^="light"][data-glass="true"] .atmo-glass-scene {
+  background:
+    linear-gradient(
+      115deg,
+      color-mix(in srgb, var(--glass-scene-ink) var(--glass-scrim), transparent) 0%,
+      rgb(from var(--color-accent) r g b / 0.18) 46%,
+      color-mix(in srgb, var(--glass-scene-ink) var(--glass-scrim), transparent) 100%
+    ),
+    radial-gradient(
+      ellipse 70% 55% at 72% 36%,
+      rgb(from var(--color-accent) r g b / 0.2),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 48% 38% at 18% 78%,
+      rgb(from var(--color-accent-2) r g b / 0.16),
+      transparent 70%
+    ),
+    url("/glass-backdrop.jpg") center / cover no-repeat;
 }
 
 html[data-glass="true"] .surveil-shell {
@@ -299,6 +351,51 @@ html[data-glass="true"] .surface {
     var(--glass-shadow) !important;
 }
 
+/* Light ink-2 is ~white — never use it as the glass card fill */
+html[data-theme^="light"][data-glass="true"] .surface {
+  background:
+    linear-gradient(
+      145deg,
+      rgb(from var(--color-accent-2) r g b / var(--glass-accent-alpha)) 0%,
+      var(--glass-fill) 52%,
+      rgb(from var(--color-accent) r g b / var(--glass-accent-alpha)) 100%
+    ) !important;
+  box-shadow:
+    inset 0 1px 0 rgb(from var(--color-accent-2) r g b / 0.2),
+    inset 0 -1px 0 rgb(from var(--color-accent) r g b / 0.1),
+    var(--glass-shadow) !important;
+}
+
+html[data-theme^="light"][data-glass="true"] .app-topbar {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(from var(--color-accent) r g b / var(--glass-accent-alpha)),
+      transparent 70%
+    ),
+    var(--glass-fill) !important;
+  border-bottom-color: var(--glass-edge) !important;
+}
+
+html[data-theme^="light"][data-glass="true"] .app-sidebar {
+  background:
+    linear-gradient(
+      165deg,
+      rgb(from var(--color-accent) r g b / var(--glass-accent-alpha)) 0%,
+      transparent 44%
+    ),
+    var(--glass-fill) !important;
+  border-right-color: var(--glass-edge) !important;
+}
+
+html[data-theme^="light"][data-glass="true"] .app-topbar > div:first-child,
+html[data-theme^="light"][data-glass="true"] .app-topbar .ml-auto > div:last-child,
+html[data-theme^="light"][data-glass="true"] .app-topbar button[aria-label="Choose theme"],
+html[data-theme^="light"][data-glass="true"] .app-topbar button[aria-label="Choose background"] {
+  background: var(--glass-fill-strong) !important;
+  box-shadow: inset 0 1px 0 rgb(from var(--color-accent-2) r g b / 0.18);
+}
+
 html[data-glass="true"] .surface-hover:hover {
   border-color: color-mix(
     in srgb,
@@ -309,6 +406,18 @@ html[data-glass="true"] .surface-hover:hover {
     inset 0 1px 0 rgb(from var(--color-accent-2) r g b / 0.35),
     0 22px 48px -14px color-mix(in srgb, var(--color-ink-0) 65%, transparent),
     0 0 32px -10px var(--color-accent-glow) !important;
+}
+
+html[data-theme^="light"][data-glass="true"] .surface-hover:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent-2) 55%,
+    transparent
+  ) !important;
+  box-shadow:
+    inset 0 1px 0 rgb(from var(--color-accent-2) r g b / 0.28),
+    0 22px 48px -14px rgba(0, 0, 0, 0.55),
+    0 0 28px -10px var(--color-accent-glow) !important;
 }
 
 html[data-glass="true"] .theme-picker-panel {

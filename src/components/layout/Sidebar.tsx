@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { NavLink } from "react-router-dom";
 import {
@@ -14,6 +14,7 @@ import {
   Settings,
   BotMessageSquare,
   ScrollText,
+  FlaskConical,
   GripVertical,
   Pencil,
   Trash2,
@@ -67,7 +68,7 @@ type SidebarState = {
   }[];
 };
 
-const SIDEBAR_LS_KEY = "accenty.crm.sidebar.layout.v1";
+const SIDEBAR_LS_KEY = "accenty.crm.sidebar.layout.v2";
 
 const DEFAULT_GROUPS: Group[] = [
   {
@@ -94,6 +95,7 @@ const DEFAULT_GROUPS: Group[] = [
     label: "System",
     items: [
       { to: "/documents", label: "Report Generator", icon: ScrollText },
+      { to: "/report-testing", label: "Report Testing", icon: FlaskConical },
       { to: "/assistant", label: "AI Assistant", icon: BotMessageSquare },
       { to: "/settings", label: "Settings", icon: Settings },
     ],
@@ -154,7 +156,9 @@ const readSidebarState = (): SidebarState => {
     const missing = ALL_ITEM_IDS.filter((id) => !seen.has(id));
     if (missing.length > 0) {
       const target =
-        folders.find((folder) => folder.id === "operations") ?? folders[0];
+        folders.find((folder) => folder.id === "system") ??
+        folders.find((folder) => folder.id === "operations") ??
+        folders[0];
       target.itemIds.push(...missing);
     }
 
@@ -498,6 +502,27 @@ function SortableFolder({
 export default function Sidebar() {
   const [sidebarState, setSidebarState] = useState<SidebarState>(readSidebarState);
   const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<string | null>(null);
+
+  // Pick up nav items added after the sidebar state was created (HMR / new routes).
+  useEffect(() => {
+    const seen = new Set(sidebarState.folders.flatMap((f) => f.itemIds));
+    const missing = ALL_ITEM_IDS.filter((id) => !seen.has(id));
+    if (missing.length === 0) return;
+    const next: SidebarState = {
+      folders: sidebarState.folders.map((folder) => ({
+        ...folder,
+        itemIds: [...folder.itemIds],
+      })),
+    };
+    const target =
+      next.folders.find((folder) => folder.id === "system") ??
+      next.folders.find((folder) => folder.id === "operations") ??
+      next.folders[0];
+    if (!target) return;
+    target.itemIds.push(...missing);
+    setSidebarState(next);
+    writeSidebarState(next);
+  }, [sidebarState]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
