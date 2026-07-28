@@ -16,7 +16,7 @@ html[data-glass="true"] {
   --glass-blur: 13px;
   --glass-blur-sm: 9px;
   --glass-saturate: 1.7;
-  --glass-scrim: 46%;
+  --glass-scrim: 54%;
   /* Scene/vignette wash — must stay dark even on light palettes */
   --glass-scene-ink: var(--color-ink-0);
 
@@ -31,8 +31,9 @@ html[data-glass="true"] {
     rgba(255, 255, 255, 0.2)
   );
   --glass-shine: rgb(from var(--color-accent-2) r g b / var(--glass-shine-alpha));
-  --glass-shadow: 0 18px 48px -16px
-    color-mix(in srgb, var(--color-ink-0) 72%, transparent);
+  --glass-shadow:
+    0 10px 28px -10px rgba(0, 0, 0, 0.55),
+    0 24px 56px -16px color-mix(in srgb, var(--color-ink-0) 85%, transparent);
 
   --color-surface-shine: var(--glass-shine);
   --color-line: color-mix(
@@ -52,20 +53,30 @@ html[data-glass="true"] {
   );
   --color-backdrop: color-mix(in srgb, var(--color-ink-0) 58%, transparent);
   --radius-card: 18px;
-  --shadow-alpha: 0.5;
-  --shadow-alpha-heavy: 0.65;
+  --shadow-alpha: 0.62;
+  --shadow-alpha-heavy: 0.78;
 
   /* Soft edge + drop — em-scaled so small type stays light */
   --color-text-hi: #ffffff;
-  --color-text-mid: #ffffff;
-  --color-text-lo: rgba(255, 255, 255, 0.92);
+  --color-text-mid: rgba(255, 255, 255, 0.94);
+  --color-text-lo: rgba(255, 255, 255, 0.84);
+  /* Dark halo + soft blur so white type punches through photo/glass */
   --glass-text-outline:
-    -0.018em -0.018em 0 rgba(0, 0, 0, 0.28),
-     0.018em -0.018em 0 rgba(0, 0, 0, 0.28),
-    -0.018em  0.018em 0 rgba(0, 0, 0, 0.28),
-     0.018em  0.018em 0 rgba(0, 0, 0, 0.28),
-     0 0.045em 0.1em rgba(0, 0, 0, 0.42),
-     0 0.02em 0.035em rgba(0, 0, 0, 0.28);
+    -0.028em -0.028em 0 rgba(0, 0, 0, 0.55),
+     0.028em -0.028em 0 rgba(0, 0, 0, 0.55),
+    -0.028em  0.028em 0 rgba(0, 0, 0, 0.55),
+     0.028em  0.028em 0 rgba(0, 0, 0, 0.55),
+     0 0.04em 0.08em rgba(0, 0, 0, 0.62),
+     0 0.08em 0.18em rgba(0, 0, 0, 0.58),
+     0 0.14em 0.32em rgba(0, 0, 0, 0.42);
+  --glass-text-outline-strong:
+    -0.035em -0.035em 0 rgba(0, 0, 0, 0.65),
+     0.035em -0.035em 0 rgba(0, 0, 0, 0.65),
+    -0.035em  0.035em 0 rgba(0, 0, 0, 0.65),
+     0.035em  0.035em 0 rgba(0, 0, 0, 0.65),
+     0 0.05em 0.1em rgba(0, 0, 0, 0.72),
+     0 0.1em 0.22em rgba(0, 0, 0, 0.65),
+     0 0.18em 0.4em rgba(0, 0, 0, 0.5);
   --glass-text-stroke: 0;
 }
 
@@ -81,7 +92,7 @@ html[data-theme^="light"][data-glass="true"] {
   );
   /* Prevent white vignette/scrim: light ink-0 must not tint the scene */
   --glass-scene-ink: color-mix(in srgb, var(--color-accent) 18%, #060a12);
-  --glass-scrim: 50%;
+  --glass-scrim: 58%;
   /* Light tokens that otherwise spray white into glass chrome */
   --color-bg-tint: rgb(from var(--color-accent) r g b / 0.14);
   --color-surface-shine: rgb(from var(--color-accent-2) r g b / 0.16);
@@ -92,15 +103,52 @@ html[data-theme^="light"][data-glass="true"] {
     rgba(160, 190, 255, 0.1)
   );
   --glass-shine: rgb(from var(--color-accent-2) r g b / 0.16);
-  --glass-shadow: 0 18px 48px -16px rgba(0, 0, 0, 0.55);
+  --glass-shadow:
+    0 10px 28px -10px rgba(0, 0, 0, 0.6),
+    0 24px 56px -14px rgba(0, 0, 0, 0.7);
   /* Kill pale extended-theme washes (white topbar / main plate) */
   --theme-main-bg: transparent;
   --theme-topbar-bg: transparent;
   --theme-surface-bg: transparent;
   --theme-dock-bg: transparent;
+
+  /*
+   * Light themes keep near-white --color-ink-* for solid UI.
+   * Under glass those inks paint nested chips / calendar / cases / report
+   * chrome as paper-white plates — remap to accent-tinted dark frost only
+   * while light + glass are both on. Non-glass light themes unchanged.
+   */
+  --color-ink-0: color-mix(in srgb, var(--color-accent) 14%, #060a12);
+  --color-ink-1: color-mix(in srgb, var(--color-accent) 20%, #0a101c);
+  --color-ink-2: color-mix(in srgb, var(--color-accent) 26%, #0c1220);
+  --color-ink-3: color-mix(in srgb, var(--color-accent) 32%, #101828);
+  --color-ink-4: color-mix(in srgb, var(--color-accent) 38%, #141e30);
+
+  --color-line: color-mix(
+    in srgb,
+    var(--color-accent-2) 24%,
+    rgba(255, 255, 255, 0.08)
+  );
+  --color-line-2: color-mix(
+    in srgb,
+    var(--color-accent-2) 34%,
+    rgba(255, 255, 255, 0.13)
+  );
+  --color-line-3: color-mix(
+    in srgb,
+    var(--color-accent) 40%,
+    rgba(255, 255, 255, 0.18)
+  );
+  --color-accent-soft: rgb(from var(--color-accent) r g b / 0.22);
+  --color-scrollbar: rgba(255, 255, 255, 0.12);
+  --color-scrollbar-hover: rgba(255, 255, 255, 0.22);
+  --color-backdrop: rgba(4, 8, 16, 0.62);
+  --shadow-alpha: 0.55;
+  --shadow-alpha-heavy: 0.72;
+
   --color-text-hi: #ffffff;
-  --color-text-mid: #ffffff;
-  --color-text-lo: rgba(255, 255, 255, 0.92);
+  --color-text-mid: rgba(255, 255, 255, 0.94);
+  --color-text-lo: rgba(255, 255, 255, 0.84);
 }
 
 /* ── Scene: photo + fixed theme scrim (slider does not change this) ── */
@@ -196,6 +244,24 @@ html[data-glass="true"] .surveil-shell :where(
   -webkit-text-stroke: var(--glass-text-stroke);
 }
 
+/* Page titles / editorial display — extra punch over busy backdrop */
+html[data-glass="true"] .surveil-shell :where(h1, h2, .editorial) {
+  text-shadow: var(--glass-text-outline-strong);
+}
+
+/*
+ * Micro type: the em-scaled halo fills the glyph and muddies color
+ * (status pills, captions, mono labels). Prefer clean edges here.
+ */
+html[data-glass="true"] .surveil-shell :where(.pill, .eyebrow, .font-mono),
+html[data-glass="true"] .surveil-shell :where(.pill, .eyebrow) :where(span, a, button, label),
+html[data-glass="true"] .surveil-shell [class*="text-[9"],
+html[data-glass="true"] .surveil-shell [class*="text-[10"],
+html[data-glass="true"] .surveil-shell [class*="text-[11"] {
+  text-shadow: none !important;
+  -webkit-text-stroke: 0 !important;
+}
+
 /* Catch hardcoded slate/gray utilities that bypass theme tokens */
 html[data-glass="true"] .text-slate-900,
 html[data-glass="true"] .text-slate-800,
@@ -246,8 +312,9 @@ html[data-glass="true"] .signal-acquired {
 /* Ensure widget chrome picks up frost even if Card mounts late */
 html[data-glass="true"] .widget-body .surface,
 html[data-glass="true"] .widget-frame .surface {
-  backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+  /* !important: prod LightningCSS may drop the unprefixed twin; beat any utility blur */
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate)) !important;
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate)) !important;
 }
 
 /* ── Floating sidebar ── */
@@ -264,8 +331,8 @@ html[data-glass="true"] .app-sidebar {
       transparent 44%
     ),
     var(--glass-fill) !important;
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) !important;
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) !important;
   box-shadow:
     inset 0 1px 0 var(--glass-shine),
     inset 1px 0 0 rgb(from var(--color-accent-2) r g b / 0.2),
@@ -299,8 +366,8 @@ html[data-glass="true"] .app-topbar {
       transparent 70%
     ),
     var(--glass-fill) !important;
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) !important;
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) !important;
   /* Explicit all-sides border — Tailwind `border-b` leaves top width at 0
      until this overrides it. */
   border: 1px solid var(--glass-edge) !important;
@@ -315,8 +382,8 @@ html[data-glass="true"] .app-topbar > div:first-child,
 html[data-glass="true"] .app-topbar .ml-auto > div:last-child {
   background: var(--glass-fill-strong) !important;
   border-color: var(--glass-edge) !important;
-  backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4) !important;
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4) !important;
   box-shadow: inset 0 1px 0 var(--glass-shine);
 }
 
@@ -328,8 +395,8 @@ html[data-glass="true"] .app-topbar button[aria-label="Choose theme"],
 html[data-glass="true"] .app-topbar button[aria-label="Choose background"] {
   background: var(--glass-fill-strong) !important;
   border-color: var(--glass-edge) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px) !important;
+  backdrop-filter: blur(12px) !important;
 }
 
 /* ── Cards / panels ── */
@@ -342,8 +409,8 @@ html[data-glass="true"] .surface {
       rgb(from var(--color-ink-2) r g b / var(--glass-alpha)) 55%,
       rgb(from var(--color-accent) r g b / var(--glass-accent-alpha)) 100%
     ) !important;
-  backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate)) !important;
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate)) !important;
   border: 1px solid var(--glass-edge) !important;
   box-shadow:
     inset 0 1px 0 var(--glass-shine),
@@ -428,8 +495,8 @@ html[data-glass="true"] .theme-picker-panel {
       transparent
     ),
     var(--glass-fill-strong);
-  backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.8);
-  -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.8);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.8) !important;
+  backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.8) !important;
   border-color: var(--glass-edge) !important;
   box-shadow:
     inset 0 1px 0 var(--glass-shine),

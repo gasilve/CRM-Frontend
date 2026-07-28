@@ -301,7 +301,7 @@ function TableRow({ c, onClick }: { c: InvCase; onClick: () => void }) {
           </div>
           <div>
             <div className="text-[13px] font-medium text-[var(--color-text-hi)]">{c.subject.name}</div>
-            <div className="font-mono text-[10px] text-[var(--color-text-lo)]">{c.id}</div>
+            <div className="font-mono text-[10px] text-[var(--color-text-lo)]">{c.clientFileNum}</div>
           </div>
         </div>
       </td>
@@ -449,7 +449,7 @@ function BoardCard({ c }: { c: InvCase }) {
     <div className="surface surface-hover group rounded-[12px] p-3.5">
       {/* Top row: case ID + status dot */}
       <div className="mb-2.5 flex items-center justify-between">
-        <span className="font-mono text-[10px] text-[var(--color-text-lo)]">{c.id}</span>
+        <span className="font-mono text-[10px] text-[var(--color-text-lo)]">{c.clientFileNum}</span>
         <span
           className="h-2 w-2 rounded-full"
           style={{ background: cfg.dot, boxShadow: `0 0 6px ${cfg.dot}80` }}

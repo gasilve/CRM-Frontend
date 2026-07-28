@@ -130,7 +130,7 @@ function InvestigatorCard({
           <div className="mt-0.5 truncate text-[12px] font-medium text-[var(--color-text-hi)]">
             {currentCase.subject.name}
           </div>
-          <div className="font-mono text-[10px] text-[var(--color-text-lo)]">{currentCase.id} · {currentCase.service}</div>
+          <div className="font-mono text-[10px] text-[var(--color-text-lo)]">{currentCase.clientFileNum} · {currentCase.service}</div>
         </div>
       )}
 
@@ -235,7 +235,7 @@ function InvestigatorDrawer({ inv, onClose }: { inv: Investigator; onClose: () =
                 return (
                   <div key={c.id} className="surface rounded-[10px] p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-[10px] text-[var(--color-text-lo)]">{c.id}</span>
+                      <span className="font-mono text-[10px] text-[var(--color-text-lo)]">{c.clientFileNum}</span>
                       <span
                         className="rounded-full px-2 py-0.5 text-[9.5px] font-medium"
                         style={open

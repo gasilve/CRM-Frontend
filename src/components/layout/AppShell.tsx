@@ -3,7 +3,7 @@ import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import { LiveBackground } from "./LiveBackground";
 
-const FULL_BLEED_ROUTES = ["/assistant"];
+const FULL_BLEED_ROUTES = ["/assistant", "/video"];
 
 export default function AppShell() {
   const { pathname } = useLocation();

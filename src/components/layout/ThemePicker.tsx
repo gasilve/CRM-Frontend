@@ -34,6 +34,7 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
   } = useTheme();
   const { setBackground } = useBackground();
   const panelRef = useRef<HTMLDivElement>(null);
+  const isLight = themeId.startsWith("light");
 
   const toggleGlass = () => {
     const next = !glass;
@@ -104,24 +105,35 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
             style={{
               background: glass
                 ? "color-mix(in srgb, var(--color-accent) 55%, transparent)"
-                : "var(--color-ink-3)",
+                : isLight
+                  ? "color-mix(in srgb, var(--color-ink-0) 18%, #d8dee8)"
+                  : "var(--color-ink-3)",
               borderColor: glass
                 ? "color-mix(in srgb, var(--color-accent) 70%, transparent)"
-                : "var(--color-line-2)",
+                : isLight
+                  ? "color-mix(in srgb, var(--color-ink-0) 32%, transparent)"
+                  : "var(--color-line-2)",
               boxShadow: glass
                 ? "inset 0 1px 0 rgba(255,255,255,0.25), 0 0 16px -4px var(--color-accent-glow)"
-                : "inset 0 1px 0 rgba(255,255,255,0.06)",
+                : isLight
+                  ? "inset 0 1px 0 rgba(255,255,255,0.85), 0 1px 2px rgba(0,0,0,0.14), 0 0 0 1px rgba(0,0,0,0.06)"
+                  : "inset 0 1px 0 rgba(255,255,255,0.06)",
             }}
           >
             <span
-              className="absolute top-0.5 left-0.5 rounded-full bg-white shadow-sm transition-transform duration-200"
+              className="absolute top-0.5 left-0.5 rounded-full shadow-sm transition-transform duration-200"
               style={{
                 width: 18,
                 height: 18,
                 transform: glass ? "translateX(20px)" : "translateX(0)",
                 background: glass
                   ? "linear-gradient(180deg, #fff, color-mix(in srgb, var(--color-accent-2) 35%, #fff))"
-                  : "#e8eef8",
+                  : isLight
+                    ? "#ffffff"
+                    : "#e8eef8",
+                boxShadow: isLight && !glass
+                  ? "0 1px 2px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.08)"
+                  : "0 1px 2px rgba(0,0,0,0.12)",
               }}
             />
           </button>
@@ -134,13 +146,21 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
           <div>
             <div className="mb-1.5 flex items-center justify-between gap-2 px-0.5">
               <span
-                className="text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
+                className={
+                  isLight
+                    ? "text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-mid)]"
+                    : "text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
+                }
                 style={{ fontFamily: "var(--font-sans)" }}
               >
                 Backdrop opacity
               </span>
               <span
-                className="tabular-nums text-[10px] text-[var(--color-text-mid)]"
+                className={
+                  isLight
+                    ? "tabular-nums text-[10px] text-[var(--color-text-hi)]"
+                    : "tabular-nums text-[10px] text-[var(--color-text-mid)]"
+                }
                 style={{ fontFamily: "var(--font-sans)" }}
               >
                 {glassOpacity}%
@@ -158,7 +178,11 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
               className="glass-opacity-slider w-full cursor-pointer disabled:cursor-not-allowed"
             />
             <div
-              className="mt-1 flex justify-between px-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-lo)]"
+              className={
+                isLight
+                  ? "mt-1 flex justify-between px-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-mid)]"
+                  : "mt-1 flex justify-between px-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-lo)]"
+              }
               style={{ fontFamily: "var(--font-sans)" }}
             >
               <span>Clear</span>
@@ -169,13 +193,21 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
           <div>
             <div className="mb-1.5 flex items-center justify-between gap-2 px-0.5">
               <span
-                className="text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
+                className={
+                  isLight
+                    ? "text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-mid)]"
+                    : "text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
+                }
                 style={{ fontFamily: "var(--font-sans)" }}
               >
                 Blur
               </span>
               <span
-                className="tabular-nums text-[10px] text-[var(--color-text-mid)]"
+                className={
+                  isLight
+                    ? "tabular-nums text-[10px] text-[var(--color-text-hi)]"
+                    : "tabular-nums text-[10px] text-[var(--color-text-mid)]"
+                }
                 style={{ fontFamily: "var(--font-sans)" }}
               >
                 {glassBlur}px
@@ -193,7 +225,11 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
               className="glass-opacity-slider w-full cursor-pointer disabled:cursor-not-allowed"
             />
             <div
-              className="mt-1 flex justify-between px-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-lo)]"
+              className={
+                isLight
+                  ? "mt-1 flex justify-between px-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-mid)]"
+                  : "mt-1 flex justify-between px-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-lo)]"
+              }
               style={{ fontFamily: "var(--font-sans)" }}
             >
               <span>Sharp</span>

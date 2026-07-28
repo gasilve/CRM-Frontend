@@ -5,9 +5,12 @@ import { cn } from "@/lib/cn";
 import {
   investigators,
   invCases,
-  timeEntries,
+  timeEntries as seedTimeEntries,
   fieldNotes,
+  GEO_GROUPS,
+  GEO_GROUP_LABELS,
   type FieldNote,
+  type GeoGroup,
   type Investigator,
   type InvStatus,
   type TimeEntry,
@@ -60,11 +63,13 @@ const STATUS_DOT: Record<InvStatus, string> = {
 
 type HourSlot = {
   caseId: string;
+  claim: string;
   subjectFirst: string;
   subjectFull: string;
   location: string;
   entryId: string;
   summary: string;
+  geoGroup: GeoGroup;
 };
 
 type BlockSegment = {
@@ -232,12 +237,13 @@ function parseClockInHour(clockIn?: string): number {
   return h;
 }
 
-function caseMeta(caseId: string): { first: string; full: string } {
+function caseMeta(caseId: string): { first: string; full: string; claim: string } {
   const c = invCases.find((x) => x.id === caseId);
-  if (!c) return { first: caseId, full: caseId };
+  if (!c) return { first: caseId, full: caseId, claim: caseId };
   return {
     first: c.subject.name.split(" ")[0] ?? caseId,
     full: c.subject.name,
+    claim: c.clientFileNum,
   };
 }
 
@@ -271,11 +277,13 @@ function buildHourMap(
       if (map.has(hour)) continue;
       map.set(hour, {
         caseId: entry.caseId,
+        claim: meta.claim,
         subjectFirst: meta.first,
         subjectFull: meta.full,
         location: entry.location,
         entryId: entry.id,
         summary: entry.notes,
+        geoGroup: entry.geoGroup,
       });
     }
     cursor = Math.max(cursor, start + span);
@@ -331,15 +339,34 @@ function hoursLoggedToday(dayEntries: TimeEntry[]): number {
 export default function Calendar() {
   const navigate = useNavigate();
   const [selectedDay, setSelectedDay] = useState(() => startOfDay(TODAY));
+  /** Which regional calendar you're looking at (Todd: one calendar per geo group). */
+  const [calendarGroup, setCalendarGroup] = useState<GeoGroup | "all">("tristate");
+  const [entries, setEntries] = useState<TimeEntry[]>(() =>
+    seedTimeEntries.map((e) => ({ ...e })),
+  );
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   const dayKey = toYmd(selectedDay);
   const isToday = isSameDay(selectedDay, TODAY);
 
+  const assignGroup = (entryId: string, geoGroup: GeoGroup) => {
+    setEntries((prev) =>
+      prev.map((e) => (e.id === entryId ? { ...e, geoGroup } : e)),
+    );
+  };
+
   const rows = useMemo(() => {
-    return investigators.map((inv) => {
-      const dayEntries = timeEntries.filter(
-        (e) => e.investigatorId === inv.id && e.date === dayKey,
+    const roster =
+      calendarGroup === "all"
+        ? investigators
+        : investigators.filter((inv) => inv.geoGroup === calendarGroup);
+
+    return roster.map((inv) => {
+      const dayEntries = entries.filter(
+        (e) =>
+          e.investigatorId === inv.id &&
+          e.date === dayKey &&
+          (calendarGroup === "all" || e.geoGroup === calendarGroup),
       );
       const dayNotes = fieldNotes.filter(
         (n) => n.investigatorId === inv.id && n.date === dayKey,
@@ -351,7 +378,7 @@ export default function Calendar() {
         segments: coalesceSegments(hourMap, dayNotes),
       };
     });
-  }, [dayKey]);
+  }, [dayKey, calendarGroup, entries]);
 
   const availRef = useRef<HTMLDivElement>(null);
   const [availH, setAvailH] = useState(0);
@@ -366,7 +393,7 @@ export default function Calendar() {
     return () => ro.disconnect();
   }, []);
 
-  const visibleRows = Math.min(rows.length, MAX_VISIBLE_ROWS);
+  const visibleRows = Math.min(Math.max(rows.length, 1), MAX_VISIBLE_ROWS);
   /** Sized so 7 rows always fit the available pane (then shrink for fewer). */
   const rowH =
     availH > HEAD_H
@@ -388,6 +415,9 @@ export default function Calendar() {
     }
   };
 
+  const groupLabel =
+    calendarGroup === "all" ? "All groups" : GEO_GROUP_LABELS[calendarGroup];
+
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
@@ -396,8 +426,31 @@ export default function Calendar() {
             Calendar
           </h1>
           <p className="mt-1 font-mono text-[11px] text-[var(--color-text-lo)]">
-            Investigator daily schedule · hour by hour
+            {groupLabel} · investigator daily schedule · hour by hour
           </p>
+        </div>
+
+        <div className="flex flex-col items-end gap-1.5">
+          <label className="font-mono text-[9px] uppercase tracking-widest text-[var(--color-text-lo)]">
+            Calendar group
+          </label>
+          <div className="flex flex-wrap justify-end gap-1">
+            <GroupChip
+              active={calendarGroup === "all"}
+              onClick={() => setCalendarGroup("all")}
+            >
+              All
+            </GroupChip>
+            {GEO_GROUPS.map((g) => (
+              <GroupChip
+                key={g}
+                active={calendarGroup === g}
+                onClick={() => setCalendarGroup(g)}
+              >
+                {GEO_GROUP_LABELS[g]}
+              </GroupChip>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -463,17 +516,26 @@ export default function Calendar() {
       </div>
 
       <div ref={availRef} className="min-h-0 flex-1 overflow-hidden">
-        <div
-          className="surface isolate overflow-hidden p-0"
-          style={{ height: surfaceH, maxHeight: "100%" }}
-        >
-          <DailyHourGrid
-            rows={rows}
-            rowH={rowH}
-            isToday={isToday}
-            onCaseClick={(id) => navigate(`/cases/${id}`)}
-          />
-        </div>
+        {rows.length === 0 ? (
+          <div className="surface flex h-full min-h-[200px] items-center justify-center p-8">
+            <p className="font-mono text-[12px] text-[var(--color-text-lo)]">
+              No investigators on the {groupLabel} calendar.
+            </p>
+          </div>
+        ) : (
+          <div
+            className="surface isolate overflow-hidden p-0"
+            style={{ height: surfaceH, maxHeight: "100%" }}
+          >
+            <DailyHourGrid
+              rows={rows}
+              rowH={rowH}
+              isToday={isToday}
+              onCaseClick={(id) => navigate(`/cases/${id}`)}
+              onAssignGroup={assignGroup}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -486,6 +548,7 @@ function DailyHourGrid({
   rowH,
   isToday,
   onCaseClick,
+  onAssignGroup,
 }: {
   rows: {
     inv: Investigator;
@@ -495,6 +558,7 @@ function DailyHourGrid({
   rowH: number;
   isToday: boolean;
   onCaseClick: (id: string) => void;
+  onAssignGroup: (entryId: string, group: GeoGroup) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   useDragScroll(scrollRef);
@@ -601,6 +665,10 @@ function DailyHourGrid({
                       {inv.status === "off_duty"
                         ? "Off duty"
                         : `${hoursLogged > 0 ? hoursLogged.toFixed(1) : inv.hoursToday}h`}
+                      <span className="text-[var(--color-text-lo)]">·</span>
+                      <span className="truncate text-[var(--color-text-mid)]">
+                        {GEO_GROUP_LABELS[inv.geoGroup]}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -645,30 +713,56 @@ function DailyHourGrid({
                     style={{ minWidth: blockW, height: rowH }}
                   >
                     <div className="relative z-0 h-full w-full overflow-hidden rounded-[8px]">
-                      <button
-                        type="button"
-                        onClick={() => onCaseClick(seg.slot.caseId)}
-                        className="absolute inset-0 flex flex-col justify-start gap-0.5 border border-[var(--color-line-2)] px-2.5 pt-2 text-left transition-opacity hover:brightness-[0.98]"
+                      <div
+                        className="absolute inset-0 flex flex-col justify-start gap-0.5 border border-[var(--color-line-2)] px-2.5 pt-1.5 text-left"
                         style={{
                           backgroundColor:
                             "color-mix(in srgb, var(--color-accent) 16%, var(--color-ink-2))",
                         }}
                       >
-                        <div className="flex min-w-0 items-baseline gap-x-2">
-                          <span className="shrink-0 font-mono text-[10px] font-semibold text-[var(--color-accent-2)]">
-                            {seg.slot.caseId}
-                          </span>
-                          <span className="truncate text-[11px] font-medium text-[var(--color-text-hi)]">
-                            {seg.slot.subjectFull}
-                          </span>
-                          <span className="ml-auto shrink-0 font-mono text-[9px] text-[var(--color-text-lo)]">
+                        <div className="flex min-w-0 items-center gap-x-2">
+                          <button
+                            type="button"
+                            onClick={() => onCaseClick(seg.slot.caseId)}
+                            className="flex min-w-0 flex-1 items-baseline gap-x-2 text-left transition-opacity hover:opacity-90"
+                          >
+                            <span className="shrink-0 font-mono text-[10px] font-semibold text-[var(--color-accent-2)]">
+                              {seg.slot.claim}
+                            </span>
+                            <span className="truncate text-[11px] font-medium text-[var(--color-text-hi)]">
+                              {seg.slot.subjectFull}
+                            </span>
+                          </button>
+                          <span className="shrink-0 font-mono text-[9px] text-[var(--color-text-lo)]">
                             {fmtHour(seg.startHour)}
                             {seg.span > 1
                               ? ` – ${fmtHour(seg.startHour + seg.span - 1)}`
                               : ""}
                           </span>
                         </div>
-                      </button>
+                        <div className="relative z-[1] mt-0.5 flex items-center gap-1.5">
+                          <label className="sr-only" htmlFor={`group-${seg.slot.entryId}`}>
+                            Assign calendar group
+                          </label>
+                          <select
+                            id={`group-${seg.slot.entryId}`}
+                            value={seg.slot.geoGroup}
+                            title="Assign to calendar group"
+                            onClick={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onChange={(e) =>
+                              onAssignGroup(seg.slot.entryId, e.target.value as GeoGroup)
+                            }
+                            className="max-w-[118px] cursor-pointer rounded-[6px] border border-[var(--color-line-2)] bg-[var(--color-ink-1)] px-1.5 py-0.5 font-mono text-[9.5px] text-[var(--color-text-hi)] outline-none hover:border-[var(--color-line-3)] focus:border-[var(--color-accent)]"
+                          >
+                            {GEO_GROUPS.map((g) => (
+                              <option key={g} value={g}>
+                                {GEO_GROUP_LABELS[g]}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
 
                       {/* Timed post-its — fixed size, anchored to their hour */}
                       {seg.notes.map((n) => {
@@ -715,6 +809,31 @@ function DailyHourGrid({
 }
 
 // ─── UI atoms ─────────────────────────────────────────────────────────────────
+
+function GroupChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-[8px] border px-3 py-1.5 text-[11.5px] transition-colors",
+        active
+          ? "border-[color-mix(in_srgb,var(--color-accent)_55%,var(--color-line))] bg-[color-mix(in_srgb,var(--color-accent)_14%,transparent)] text-[var(--color-text-hi)]"
+          : "border-[var(--color-line)] text-[var(--color-text-mid)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
 
 function NavBtn({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (

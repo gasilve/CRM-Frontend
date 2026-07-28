@@ -11,7 +11,7 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Assistant from "./pages/Assistant";
 import DocumentGenerator from "./pages/DocumentGenerator";
-import ReportTesting from "./pages/ReportTesting";
+import VideoPlayer from "./pages/VideoPlayer";
 
 export default function App() {
   return (
@@ -28,7 +28,7 @@ export default function App() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/documents" element={<DocumentGenerator />} />
-        <Route path="/report-testing" element={<ReportTesting />} />
+        <Route path="/video" element={<VideoPlayer />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

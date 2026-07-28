@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { NavLink } from "react-router-dom";
 import {
@@ -14,7 +14,7 @@ import {
   Settings,
   BotMessageSquare,
   ScrollText,
-  FlaskConical,
+  Clapperboard,
   GripVertical,
   Pencil,
   Trash2,
@@ -95,7 +95,7 @@ const DEFAULT_GROUPS: Group[] = [
     label: "System",
     items: [
       { to: "/documents", label: "Report Generator", icon: ScrollText },
-      { to: "/report-testing", label: "Report Testing", icon: FlaskConical },
+      { to: "/video", label: "Case Video", icon: Clapperboard },
       { to: "/assistant", label: "AI Assistant", icon: BotMessageSquare },
       { to: "/settings", label: "Settings", icon: Settings },
     ],
@@ -160,6 +160,12 @@ const readSidebarState = (): SidebarState => {
         folders.find((folder) => folder.id === "operations") ??
         folders[0];
       target.itemIds.push(...missing);
+      // Persist so we don't need a mount effect that re-runs on every drag update.
+      try {
+        localStorage.setItem(SIDEBAR_LS_KEY, JSON.stringify({ folders }));
+      } catch {
+        /* ignore */
+      }
     }
 
     return { folders };
@@ -331,7 +337,7 @@ function SortableItem({
         <SidebarLink item={item} />
         <button
           type="button"
-          className="absolute left-0 top-0 h-full w-9 cursor-grab rounded-[10px] opacity-0 active:cursor-grabbing"
+          className="absolute left-0 top-0 z-10 h-full w-9 cursor-grab rounded-[10px] opacity-0 active:cursor-grabbing group-hover/item:opacity-100"
           aria-label={`Drag ${item.label}`}
           {...attributes}
           {...listeners}
@@ -503,27 +509,6 @@ export default function Sidebar() {
   const [sidebarState, setSidebarState] = useState<SidebarState>(readSidebarState);
   const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<string | null>(null);
 
-  // Pick up nav items added after the sidebar state was created (HMR / new routes).
-  useEffect(() => {
-    const seen = new Set(sidebarState.folders.flatMap((f) => f.itemIds));
-    const missing = ALL_ITEM_IDS.filter((id) => !seen.has(id));
-    if (missing.length === 0) return;
-    const next: SidebarState = {
-      folders: sidebarState.folders.map((folder) => ({
-        ...folder,
-        itemIds: [...folder.itemIds],
-      })),
-    };
-    const target =
-      next.folders.find((folder) => folder.id === "system") ??
-      next.folders.find((folder) => folder.id === "operations") ??
-      next.folders[0];
-    if (!target) return;
-    target.itemIds.push(...missing);
-    setSidebarState(next);
-    writeSidebarState(next);
-  }, [sidebarState]);
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -668,7 +653,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="app-sidebar relative z-10 flex h-full w-[256px] shrink-0 flex-col border-r border-[var(--color-line)] bg-[var(--color-ink-1)]/80 backdrop-blur-xl">
+    <aside className="app-sidebar relative z-10 flex h-full w-[256px] shrink-0 flex-col border-r border-[var(--color-line)] bg-[var(--color-ink-1)]/80">
       {/* Wordmark */}
       <div className="flex h-[var(--shell-chrome-height)] shrink-0 items-center justify-center px-3">
         <img

@@ -411,25 +411,39 @@ export default function DocumentGenerator() {
                   <div>
                     <p className="text-[13px] text-[var(--color-text-mid)]">Generating report…</p>
                     <p className="text-[11px] text-[var(--color-text-lo)] mt-1">
-                      Merging chrono · paraphrasing · filling state template
+                      Merging chrono · AI paraphrase · full document rebuild
                     </p>
                   </div>
                 </div>
               ) : outputFile ? (
                 <>
                   <DocumentPreview file={outputFile} revision={previewRevision} />
-                  <button
-                    type="button"
-                    onClick={() => setEditorOpen(true)}
-                    className={cn(
-                      "absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-tile border px-3 py-1.5 text-[11px] font-medium shadow-lg",
-                      "border-[var(--color-line)] bg-[var(--color-ink-2)]/95 text-[var(--color-text-hi)]",
-                      "hover:border-[var(--color-accent-soft)]",
-                    )}
-                  >
-                    <Sparkles size={12} className="text-[var(--color-accent-2)]" />
-                    Open AI editor
-                  </button>
+                  <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDownload}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-tile border px-3 py-1.5 text-[11px] font-medium shadow-lg",
+                        "border-[var(--color-line)] bg-[var(--color-ink-2)]/95 text-[var(--color-text-hi)]",
+                        "hover:border-[var(--color-line-2)]",
+                      )}
+                    >
+                      <Download size={12} />
+                      Download DOCX
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditorOpen(true)}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-tile border px-3 py-1.5 text-[11px] font-medium shadow-lg",
+                        "border-[var(--color-line)] bg-[var(--color-ink-2)]/95 text-[var(--color-text-hi)]",
+                        "hover:border-[var(--color-accent-soft)]",
+                      )}
+                    >
+                      <Sparkles size={12} className="text-[var(--color-accent-2)]" />
+                      Edit with AI
+                    </button>
+                  </div>
                 </>
               ) : (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-[var(--color-text-lo)]">
@@ -450,21 +464,12 @@ export default function DocumentGenerator() {
                   "disabled:opacity-40 disabled:cursor-not-allowed",
                 )}
               >
-                {generating ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-                Generate report
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditorOpen(true)}
-                disabled={!outputFile || generating}
-                className={cn(
-                  "flex flex-1 items-center justify-center gap-2 rounded-tile border py-2.5 text-[12px] font-medium transition-colors",
-                  "border-[var(--color-accent-soft)] text-[var(--color-text-hi)] hover:bg-[var(--color-accent-soft)]/30",
-                  "disabled:opacity-40 disabled:cursor-not-allowed",
+                {generating ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Sparkles size={14} />
                 )}
-              >
-                <Sparkles size={14} className="text-[var(--color-accent-2)]" />
-                Edit document with AI
+                Generate Reports with AI
               </button>
               <button
                 type="button"
@@ -477,7 +482,7 @@ export default function DocumentGenerator() {
                 )}
               >
                 <Download size={14} />
-                Download document
+                Download Document
               </button>
             </div>
           </div>
