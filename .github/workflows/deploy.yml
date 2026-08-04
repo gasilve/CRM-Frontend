@@ -1,54 +1,16 @@
 name: Deploy Frontend
 
+# Production frontend is Cloudflare Pages on Accenty-AI/CRM-Frontend
+# (Git integration builds on push to prod). This repo's AWS/ECS path is retired.
 on:
-  push:
-    branches: [prod]
-
-env:
-  AWS_REGION: us-east-1
-  ECR_REPOSITORY: accenty-front
-  ECS_CLUSTER: accenty
-  ECS_SERVICE: accenty-front
+  workflow_dispatch:
 
 jobs:
-  deploy:
+  notice:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build and push Docker image
-        env:
-          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Point to Cloudflare Pages repo
         run: |
-          docker build \
-            --platform linux/amd64 \
-            --build-arg VITE_CRM_API_URL=https://crm.api.accenty.ai \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-            .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-      - name: Deploy to ECS
-        continue-on-error: true
-        run: |
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service ${{ env.ECS_SERVICE }} \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
-          echo "ECS deploy triggered (ignored if cluster/service not created yet)"
+          echo "Frontend deploys via Cloudflare Pages from Accenty-AI/CRM-Frontend."
+          echo "Push to that repo's prod branch (or use wrangler pages deploy)."
+          exit 0
