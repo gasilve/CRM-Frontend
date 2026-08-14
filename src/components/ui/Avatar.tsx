@@ -28,7 +28,7 @@ export function Avatar({
   return (
     <div
       className={cn(
-        "inline-flex items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-medium tracking-wider text-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]",
+        "inline-flex items-center justify-center rounded-full bg-gradient-to-br text-[0.625rem] font-medium tracking-wider text-white/90 shadow-[inset_0_0.0625rem_0_rgba(255,255,255,0.2)]",
         grad,
         className,
       )}

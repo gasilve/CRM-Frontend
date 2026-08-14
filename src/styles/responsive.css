@@ -1,0 +1,123 @@
+/**
+ * Layout responsiveness — rem-scaled chrome; reorder / collapse under tablet.
+ * Pair with html font-size ladder in index.css.
+ */
+
+.app-sidebar-backdrop {
+  display: none;
+}
+
+.app-nav-toggle {
+  display: none;
+}
+
+/* ── Tablet & mobile shell ─────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .app-nav-toggle {
+    display: grid;
+  }
+
+  .surveil-shell {
+    flex-direction: column;
+  }
+
+  html[data-glass="true"] .surveil-shell {
+    padding: 0.5rem;
+    gap: 0.5rem;
+  }
+
+  .app-sidebar {
+    position: fixed !important;
+    z-index: 60 !important;
+    top: 0;
+    left: 0;
+    height: 100% !important;
+    width: min(18rem, 86vw) !important;
+    transform: translateX(-105%);
+    transition: transform 220ms ease;
+    box-shadow: 0 0 2.5rem rgba(0, 0, 0, 0.45);
+  }
+
+  html[data-glass="true"] .app-sidebar {
+    height: calc(100% - 1rem) !important;
+    top: 0.5rem;
+    left: 0.5rem;
+    border-radius: var(--radius-card);
+  }
+
+  .app-sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .app-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: var(--color-backdrop);
+    -webkit-backdrop-filter: blur(0.25rem);
+    backdrop-filter: blur(0.25rem);
+  }
+
+  .app-shell-main {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app-main {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    padding-top: 1rem !important;
+    padding-bottom: 1.25rem !important;
+  }
+
+  .app-topbar {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .case-detail-hint {
+    display: none;
+  }
+
+  /* Dense page titles */
+  .editorial {
+    font-size: clamp(1.55rem, 4.2vw, 2.25rem) !important;
+  }
+
+  /* Dashboard / case grids: allow horizontal scroll instead of crushing */
+  .grid-stack {
+    min-width: 0;
+  }
+
+  /* ClientSources-style fixed label columns collapse in narrow widgets */
+  .widget-sources-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-main {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .app-topbar {
+    gap: 0.5rem;
+  }
+
+  /* Calendar: allow horizontal scroll for the day grid */
+  .calendar-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Case subject meta: keep claim / DOB readable */
+  .case-subject-actions {
+    width: 100%;
+  }
+
+  .case-subject-actions > * {
+    flex: 1 1 auto;
+  }
+}

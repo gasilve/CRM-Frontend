@@ -49,7 +49,7 @@ export type ThemeMeta = {
 };
 
 export const THEMES: ThemeMeta[] = [
-  { id: "dark-5",  name: "Ruby",  mode: "dark",  bg: "#1E0000", accent: "#d40000" },
+  { id: "dark-5",  name: "True Cognition",  mode: "dark",  bg: "#0a0a0a", accent: "#00adef" },
   { id: "dark-1",  name: "Midnight", mode: "dark",  bg: "#0d1220", accent: "#4a7fff" },
   { id: "dark-3",  name: "Abyss",    mode: "dark",  bg: "#091614", accent: "#2dd4bf" },
   { id: "dark-4",  name: "Ember",    mode: "dark",  bg: "#1c1409", accent: "#f59e0b" },
@@ -220,8 +220,9 @@ function applyGlassBlurCss(blurPx: number) {
   const root = document.documentElement;
   const blur = clampGlassBlur(blurPx);
   const blurSm = Math.max(0, Math.round(blur * 0.7));
-  root.style.setProperty("--glass-blur", `${blur}px`);
-  root.style.setProperty("--glass-blur-sm", `${blurSm}px`);
+  // Design blur values are authored as px @ 16px root; emit rem so they scale.
+  root.style.setProperty("--glass-blur", `${blur / 16}rem`);
+  root.style.setProperty("--glass-blur-sm", `${blurSm / 16}rem`);
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

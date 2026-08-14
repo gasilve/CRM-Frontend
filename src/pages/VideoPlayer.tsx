@@ -137,10 +137,10 @@ export default function VideoPlayer() {
     return (
       <div className="video-player-page video-player-empty">
         <div className="vp-case-chrome">
-          <h1 className="editorial text-[36px] leading-none text-[var(--color-text-hi)]">
+          <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">
             Case Video
           </h1>
-          <p className="mt-2 font-mono text-[11px] text-[var(--color-text-lo)]">
+          <p className="mt-2 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
             No case evidence video yet.
           </p>
         </div>
@@ -159,7 +159,7 @@ export default function VideoPlayer() {
         actions={
           <Link
             to={`/cases/${caseRecord.id}`}
-            className="inline-flex items-center gap-1.5 rounded-[10px] border border-[var(--color-line)] px-3 py-1.5 text-[11.5px] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+            className="inline-flex items-center gap-1.5 rounded-[0.625rem] border border-[var(--color-line)] px-3 py-1.5 text-[0.71875rem] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
           >
             <FolderOpen size={13} strokeWidth={1.8} />
             Open case

@@ -41,7 +41,7 @@ export function CardHeader({
     <div className={cn("mb-4 flex items-start justify-between gap-4", className)}>
       <div>
         {eyebrow && <div className="eyebrow mb-1.5">{eyebrow}</div>}
-        <h3 className="font-display text-[20px] font-light italic tracking-[-0.01em] text-[var(--color-text-hi)]">
+        <h3 className="font-display text-[1.25rem] font-light italic tracking-[-0.01em] text-[var(--color-text-hi)]">
           {title}
         </h3>
       </div>

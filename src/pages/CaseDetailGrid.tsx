@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { GridStack, type GridStackNode, type GridStackOptions } from "gridstack";
+import { designPx } from "@/lib/rem";
 import {
   CASE_CELL_HEIGHT,
   CASE_COLUMNS,
@@ -124,12 +125,12 @@ function CaseDetailGridInner({
       }
     }
     hostEl.innerHTML = "";
-    hostEl.classList.add("grid-stack", "min-h-[480px]", "dashboard-edit");
+    hostEl.classList.add("grid-stack", "min-h-[30rem]", "dashboard-edit");
 
     const opts: GridStackOptions = {
       column: CASE_COLUMNS,
-      cellHeight: CASE_CELL_HEIGHT,
-      margin: CASE_GRID_MARGIN,
+      cellHeight: designPx(CASE_CELL_HEIGHT),
+      margin: designPx(CASE_GRID_MARGIN),
       float: true,
       animate: true,
       disableResize: false,
@@ -143,6 +144,14 @@ function CaseDetailGridInner({
 
     const widgets = layoutToCaseGridWidgets(layoutRef.current);
     if (widgets.length > 0) grid.load(widgets);
+
+    const syncCellMetrics = () => {
+      const g = gridInstanceRef.current;
+      if (!g) return;
+      g.cellHeight(designPx(CASE_CELL_HEIGHT));
+      g.margin(designPx(CASE_GRID_MARGIN));
+    };
+    window.addEventListener("resize", syncCellMetrics);
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -198,6 +207,7 @@ function CaseDetailGridInner({
 
     return () => {
       cancelled = true;
+      window.removeEventListener("resize", syncCellMetrics);
       document.body.classList.remove("dashboard-widget-dragging");
       try {
         grid.off("change");

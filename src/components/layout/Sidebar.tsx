@@ -1,21 +1,25 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NavLink } from "react-router-dom";
 import {
   Check,
+  CircleUserRound,
   Plus,
+  Image,
   LayoutDashboard,
   Users2,
   FolderOpen,
   CalendarDays,
-  Building2,
-  FileText,
-  BarChart3,
+  CalendarClock,
+  Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
   BotMessageSquare,
   ScrollText,
   Clapperboard,
   GripVertical,
+  LogOut,
   Pencil,
   Trash2,
   X,
@@ -43,8 +47,12 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/cn";
+import { BackgroundPicker } from "./BackgroundPicker";
+import { ThemePicker } from "./ThemePicker";
 import { ConfirmModal } from "@/components/dashboard/ConfirmModal";
 import { invCases, investigators } from "@/lib/mock-data";
+import { useAuth } from "@/contexts/AuthContext";
+import { getInitials, formatRoleList } from "@/lib/format";
 import accentyLogo from "@/assets/branding/accenty-logo.png";
 
 // Live badge counts — swap with API data later
@@ -70,6 +78,11 @@ type SidebarState = {
 
 const SIDEBAR_LS_KEY = "accenty.crm.sidebar.layout.v2";
 
+// Nav items only meaningful for staff (admin/investigator) — hidden for plain "user" accounts.
+const STAFF_ONLY_ITEMS = new Set(["/cases", "/schedule", "/investigators", "/calendar", "/video"]);
+// Cases/scheduling are admin-only until investigators get assigned casework — no point showing them an empty list.
+const ADMIN_ONLY_ITEMS = new Set(["/cases", "/schedule"]);
+
 const DEFAULT_GROUPS: Group[] = [
   {
     id: "operations",
@@ -77,17 +90,9 @@ const DEFAULT_GROUPS: Group[] = [
     items: [
       { to: "/",              label: "Dashboard",    icon: LayoutDashboard },
       { to: "/cases",         label: "Cases",        icon: FolderOpen,   badge: openCases },
+      { to: "/schedule",      label: "Scheduling",   icon: CalendarClock },
       { to: "/investigators", label: "Investigators",icon: Users2,        badge: clockedIn > 0 ? `${clockedIn} live` : undefined },
       { to: "/calendar",      label: "Calendar",     icon: CalendarDays },
-    ],
-  },
-  {
-    id: "business",
-    label: "Business",
-    items: [
-      { to: "/clients",  label: "Clients",  icon: Building2 },
-      { to: "/billing",  label: "Billing",  icon: FileText },
-      { to: "/reports",  label: "Reports",  icon: BarChart3 },
     ],
   },
   {
@@ -97,6 +102,7 @@ const DEFAULT_GROUPS: Group[] = [
       { to: "/documents", label: "Report Generator", icon: ScrollText },
       { to: "/video", label: "Case Video", icon: Clapperboard },
       { to: "/assistant", label: "AI Assistant", icon: BotMessageSquare },
+      { to: "/profile", label: "Profile", icon: CircleUserRound },
       { to: "/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -123,7 +129,7 @@ const readSidebarState = (): SidebarState => {
     if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.folders)) {
       return DEFAULT_SIDEBAR_STATE;
     }
-    const folders = parsed.folders
+    const parsedFolders = parsed.folders
       .filter(
         (x): x is { id: string; label: string; itemIds: string[] } =>
           !!x &&
@@ -135,11 +141,14 @@ const readSidebarState = (): SidebarState => {
       .map((folder) => ({
         id: folder.id,
         label: folder.label,
-        // Keep empty folders — user may have cleared or just created them.
         itemIds: folder.itemIds.filter(
           (itemId): itemId is string => typeof itemId === "string" && !!ITEM_MAP[itemId],
         ),
       }));
+
+    // Drop folders that lost all their items (e.g. a removed feature like
+    // Billing) so we don't render stale empty sections after reload.
+    const folders = parsedFolders.filter((folder) => folder.itemIds.length > 0);
 
     // Trust saved folders as-is (including deleted defaults). Only place
     // brand-new nav items that aren't in any folder yet.
@@ -257,10 +266,16 @@ const moveItemBetweenFolders = (
   return next;
 };
 
-function SidebarLink({ item }: { item: Item }) {
+function SidebarLink({
+  item,
+  onNavigate,
+}: {
+  item: Item;
+  onNavigate?: () => void;
+}) {
   const Icon = item.icon;
   const base =
-    "group relative flex items-center gap-3 rounded-[10px] px-3 py-2 text-[13px] font-medium transition-colors";
+    "group relative flex items-center gap-3 rounded-[0.625rem] px-3 py-2 text-[0.8125rem] font-medium transition-colors";
 
   if (item.disabled) {
     return (
@@ -275,11 +290,12 @@ function SidebarLink({ item }: { item: Item }) {
     <NavLink
       to={item.to}
       end={item.to === "/"}
+      onClick={() => onNavigate?.()}
       className={({ isActive }) =>
         cn(
           base,
           isActive
-            ? "bg-[var(--color-accent-soft)] text-[var(--color-text-hi)] shadow-[inset_0_0_0_1px_var(--color-accent-soft)]"
+            ? "bg-[var(--color-accent-soft)] text-[var(--color-text-hi)] shadow-[inset_0_0_0_0.0625rem_var(--color-accent-soft)]"
             : "text-[var(--color-text-mid)] hover:bg-white/[0.025] hover:text-[var(--color-text-hi)]",
         )
       }
@@ -288,8 +304,8 @@ function SidebarLink({ item }: { item: Item }) {
         <>
           {isActive && (
             <span
-              className="pointer-events-none absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r bg-[var(--color-accent)]"
-              style={{ boxShadow: "0 0 10px color-mix(in srgb, var(--color-accent) 70%, transparent)" }}
+              className="pointer-events-none absolute left-0 top-1/2 h-5 w-[0.125rem] -translate-y-1/2 rounded-r bg-[var(--color-accent)]"
+              style={{ boxShadow: "0 0 0.625rem color-mix(in srgb, var(--color-accent) 70%, transparent)" }}
             />
           )}
           <Icon
@@ -301,7 +317,7 @@ function SidebarLink({ item }: { item: Item }) {
           {item.badge !== undefined && (
             <span
               className={cn(
-                "rounded-full border px-1.5 py-0.5 font-mono text-[9px] tracking-wider",
+                "rounded-full border px-1.5 py-0.5 font-mono text-[0.5625rem] tracking-wider",
                 isActive
                   ? "border-[var(--color-accent-soft)] text-[var(--color-accent-2)]"
                   : "border-[var(--color-line-2)] text-[var(--color-text-lo)]",
@@ -319,9 +335,11 @@ function SidebarLink({ item }: { item: Item }) {
 function SortableItem({
   itemId,
   item,
+  onNavigate,
 }: {
   itemId: string;
   item: Item;
+  onNavigate?: () => void;
 }) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: `item:${itemId}`,
@@ -334,10 +352,10 @@ function SortableItem({
       className={cn("group/item", isDragging && "opacity-40")}
     >
       <div className="relative">
-        <SidebarLink item={item} />
+        <SidebarLink item={item} onNavigate={onNavigate} />
         <button
           type="button"
-          className="absolute left-0 top-0 z-10 h-full w-9 cursor-grab rounded-[10px] opacity-0 active:cursor-grabbing group-hover/item:opacity-100"
+          className="absolute left-0 top-0 z-10 h-full w-9 cursor-grab rounded-[0.625rem] opacity-0 active:cursor-grabbing group-hover/item:opacity-100"
           aria-label={`Drag ${item.label}`}
           {...attributes}
           {...listeners}
@@ -387,12 +405,14 @@ function SortableFolder({
   onRename,
   onDelete,
   canDelete,
+  onNavigate,
 }: {
   group: Group;
   index: number;
   onRename: (id: string, label: string) => void;
   onDelete: (id: string) => void;
   canDelete: boolean;
+  onNavigate?: () => void;
 }) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: `folder:${group.id}`,
@@ -442,7 +462,7 @@ function SortableFolder({
                 if (e.key === "Escape") cancel();
               }}
               autoFocus
-              className="h-6 flex-1 rounded border border-[var(--color-line-2)] bg-[var(--color-ink-2)] px-2 text-[10px] font-medium uppercase tracking-[0.24em] text-slate-900 outline-none placeholder:text-slate-400 focus:border-[var(--color-accent)]"
+              className="h-6 flex-1 rounded border border-[var(--color-line-2)] bg-[var(--color-ink-2)] px-2 text-[0.625rem] font-medium uppercase tracking-[0.24em] text-slate-900 outline-none placeholder:text-slate-400 focus:border-[var(--color-accent)]"
             />
             <button
               type="button"
@@ -463,7 +483,7 @@ function SortableFolder({
           </>
         ) : (
           <>
-            <div className="flex-1 px-1 text-[9px] font-medium uppercase tracking-[0.32em] text-[var(--color-text-lo)]">
+            <div className="flex-1 px-1 text-[0.5625rem] font-medium uppercase tracking-[0.32em] text-[var(--color-text-lo)]">
               {group.label}
             </div>
             <button
@@ -493,11 +513,11 @@ function SortableFolder({
       <FolderBodyDropTarget folderId={group.id}>
         <SortableContext items={group.items.map((it) => `item:${it.to}`)} strategy={verticalListSortingStrategy}>
           {group.items.map((it) => (
-            <SortableItem key={it.to} itemId={it.to} item={it} />
+            <SortableItem key={it.to} itemId={it.to} item={it} onNavigate={onNavigate} />
           ))}
         </SortableContext>
         {group.items.length === 0 && (
-          <div className="px-2 py-1 text-[10px] text-[var(--color-text-lo)]/80">Drop tabs here</div>
+          <div className="px-2 py-1 text-[0.625rem] text-[var(--color-text-lo)]/80">Drop tabs here</div>
         )}
         <FolderDropZone folderId={group.id} />
       </FolderBodyDropTarget>
@@ -505,23 +525,45 @@ function SortableFolder({
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({
+  open = false,
+  collapsed = false,
+  onToggleCollapsed,
+  onNavigate,
+}: {
+  open?: boolean;
+  /** Desktop-only: collapse the sidebar to a slim icon rail. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+  onNavigate?: () => void;
+}) {
   const [sidebarState, setSidebarState] = useState<SidebarState>(readSidebarState);
   const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<string | null>(null);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [bgOpen, setBgOpen] = useState(false);
+  const themeButtonRef = useRef<HTMLButtonElement>(null);
+  const bgButtonRef = useRef<HTMLButtonElement>(null);
+  const { user, roles, logout } = useAuth();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  const isAdmin = roles.includes("admin");
+  const isStaff = isAdmin || roles.includes("investigator");
+
   const groups = useMemo(() => {
-    return sidebarState.folders
-      .map((folder) => ({
-        id: folder.id,
-        label: folder.label,
-        items: folder.itemIds.map((itemId) => ITEM_MAP[itemId]).filter(Boolean),
-      }));
-  }, [sidebarState]);
+    return sidebarState.folders.map((folder) => ({
+      id: folder.id,
+      label: folder.label,
+      items: folder.itemIds
+        .map((itemId) => ITEM_MAP[itemId])
+        .filter(Boolean)
+        .filter((item) => isStaff || !STAFF_ONLY_ITEMS.has(item.to))
+        .filter((item) => isAdmin || !ADMIN_ONLY_ITEMS.has(item.to)),
+    }));
+  }, [sidebarState, isStaff, isAdmin]);
 
   const updateState = (next: SidebarState) => {
     setSidebarState(next);
@@ -652,15 +694,91 @@ export default function Sidebar() {
     setConfirmDeleteFolderId(null);
   };
 
+  const flatItems = groups.flatMap((g) => g.items);
+
   return (
-    <aside className="app-sidebar relative z-10 flex h-full w-[256px] shrink-0 flex-col border-r border-[var(--color-line)] bg-[var(--color-ink-1)]/80">
+    <>
+      {/* Collapsed icon rail (desktop only) */}
+      {collapsed && (
+        <aside className="relative z-30 hidden h-full w-[3.25rem] shrink-0 flex-col items-center border-r border-[var(--color-line)] bg-[var(--color-ink-1)]/80 py-3 lg:flex">
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            title="Expand sidebar"
+            aria-label="Expand sidebar"
+            className="grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+          >
+            <PanelLeftOpen size={15} strokeWidth={1.7} />
+          </button>
+          <div className="hairline mx-auto my-3 w-7 opacity-60" />
+          <nav className="flex flex-1 flex-col items-center gap-1 overflow-y-auto">
+            {flatItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === "/"}
+                  title={item.label}
+                  className={({ isActive }) =>
+                    cn(
+                      "grid h-9 w-9 place-items-center rounded-[0.625rem] transition-colors",
+                      isActive
+                        ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]"
+                        : "text-[var(--color-text-mid)] hover:bg-white/[0.03] hover:text-[var(--color-text-hi)]",
+                    )
+                  }
+                >
+                  <Icon size={16} strokeWidth={1.6} />
+                </NavLink>
+              );
+            })}
+          </nav>
+          <NavLink
+            to="/profile"
+            className="mt-2 grid h-8 w-8 shrink-0 place-items-center rounded-full text-[0.625rem] font-medium text-white"
+            title={user ? `${user.name} — open profile` : "Open profile"}
+            style={{ background: "linear-gradient(135deg, var(--color-operator-from), var(--color-operator-to))" }}
+          >
+            {user ? getInitials(user.name) : "--"}
+          </NavLink>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            aria-label="Sign out"
+            title="Sign out"
+            className="mt-1.5 rounded-[0.5rem] p-1.5 text-[var(--color-text-lo)] transition-colors hover:bg-white/[0.05] hover:text-[var(--color-neg)]"
+          >
+            <LogOut size={14} />
+          </button>
+        </aside>
+      )}
+
+      <aside
+        className={cn(
+          "app-sidebar relative z-30 flex h-full w-[16rem] shrink-0 flex-col border-r border-[var(--color-line)] bg-[var(--color-ink-1)]/80",
+          open && "is-open",
+          collapsed && "lg:hidden",
+        )}
+      >
       {/* Wordmark */}
-      <div className="flex h-[var(--shell-chrome-height)] shrink-0 items-center justify-center px-3">
+      <div className="relative flex h-[var(--shell-chrome-height)] shrink-0 items-center justify-center px-3">
         <img
           src={accentyLogo}
           alt="Accenty AI"
-          className="h-[4.875rem] w-auto max-w-[258px] object-contain"
+          className="h-[4.875rem] w-auto max-w-[16.125rem] object-contain"
         />
+        {onToggleCollapsed && (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+            className="absolute right-2 top-2 hidden rounded-[0.5rem] p-1.5 text-[var(--color-text-lo)] transition-colors hover:bg-white/[0.05] hover:text-[var(--color-text-hi)] lg:block"
+          >
+            <PanelLeftClose size={15} strokeWidth={1.7} />
+          </button>
+        )}
       </div>
 
       <div className="hairline mx-3 mb-2 opacity-60" />
@@ -681,6 +799,7 @@ export default function Sidebar() {
                 onRename={renameFolder}
                 onDelete={setConfirmDeleteFolderId}
                 canDelete={groups.length > 1}
+                onNavigate={onNavigate}
               />
             ))}
           </SortableContext>
@@ -688,30 +807,88 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={addFolder}
-          className="mt-auto flex w-full items-center gap-1.5 rounded-[10px] px-2 py-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-text-lo)] hover:bg-white/[0.03] hover:text-[var(--color-text-mid)]"
+          className="mt-auto flex w-full items-center gap-1.5 rounded-[0.625rem] px-2 py-1.5 text-[0.625rem] font-medium uppercase tracking-[0.18em] text-[var(--color-text-lo)] hover:bg-white/[0.03] hover:text-[var(--color-text-mid)]"
         >
           <Plus size={12} />
           Add folder
         </button>
       </nav>
 
-      {/* Footer */}
-      <div className="m-3 mt-2">
+      {/* Footer: appearance controls + user */}
+      <div className="relative m-3 mt-2">
         <div className="surface p-3">
-          <div className="eyebrow mb-1">Operator</div>
-          <div className="flex items-center gap-2.5">
+          <NavLink
+            to="/profile"
+            onClick={() => onNavigate?.()}
+            title="Open your profile"
+            className="-m-1 flex items-center gap-2.5 rounded-[0.625rem] p-1 transition-colors hover:bg-white/[0.03]"
+          >
             <div
-              className="grid h-8 w-8 place-items-center rounded-full text-[10px] font-medium text-white"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[0.625rem] font-medium text-white"
               style={{ background: "linear-gradient(135deg, var(--color-operator-from), var(--color-operator-to))" }}
             >
-              TM
+              {user ? getInitials(user.name) : "--"}
             </div>
-            <div className="leading-tight">
-              <div className="text-[12.5px] font-medium text-[var(--color-text-hi)]">Todd Montgomery</div>
-              <div className="text-[10.5px] text-[var(--color-text-lo)]">President</div>
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="truncate text-[0.78125rem] font-medium text-[var(--color-text-hi)]">
+                {user?.name ?? "—"}
+              </div>
+              <div className="truncate text-[0.65625rem] text-[var(--color-text-lo)]">{formatRoleList(roles)}</div>
             </div>
+          </NavLink>
+          <div className="mt-2.5 flex items-center gap-1.5 border-t border-[var(--color-line)] pt-2.5">
+            <button
+              ref={themeButtonRef}
+              type="button"
+              aria-label="Choose theme"
+              title="Theme"
+              aria-expanded={themeOpen}
+              onClick={() => {
+                setThemeOpen((v) => !v);
+                setBgOpen(false);
+              }}
+              className="grid h-7 w-7 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)] aria-expanded:border-[var(--color-line-3)] aria-expanded:text-[var(--color-text-hi)]"
+            >
+              <Palette size={13} strokeWidth={1.6} />
+            </button>
+            <button
+              ref={bgButtonRef}
+              type="button"
+              aria-label="Choose background"
+              title="Background"
+              aria-expanded={bgOpen}
+              onClick={() => {
+                setBgOpen((v) => !v);
+                setThemeOpen(false);
+              }}
+              className="grid h-7 w-7 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)] aria-expanded:border-[var(--color-line-3)] aria-expanded:text-[var(--color-text-hi)]"
+            >
+              <Image size={13} strokeWidth={1.6} />
+            </button>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              aria-label="Sign out"
+              title="Sign out"
+              className="ml-auto flex items-center gap-1.5 rounded-[0.5rem] px-2 py-1.5 text-[0.65625rem] text-[var(--color-text-lo)] transition-colors hover:bg-white/[0.05] hover:text-[var(--color-neg)]"
+            >
+              <LogOut size={13} />
+              Sign out
+            </button>
           </div>
         </div>
+        <ThemePicker
+          open={themeOpen}
+          onClose={() => setThemeOpen(false)}
+          triggerRef={themeButtonRef}
+          align="top-start"
+        />
+        <BackgroundPicker
+          open={bgOpen}
+          onClose={() => setBgOpen(false)}
+          triggerRef={bgButtonRef}
+          align="top-start"
+        />
       </div>
 
       {typeof document !== "undefined" &&
@@ -737,6 +914,7 @@ export default function Sidebar() {
           />,
           document.body,
         )}
-    </aside>
+      </aside>
+    </>
   );
 }

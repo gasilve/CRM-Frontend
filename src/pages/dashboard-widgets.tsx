@@ -20,6 +20,7 @@ import { TaskBoard } from "./widgets/TaskBoard";
 import { InvestigatorsList } from "./widgets/InvestigatorsList";
 import { SystemLog } from "./widgets/SystemLog";
 import { SignalHealth } from "./widgets/SignalHealth";
+import { designPx } from "@/lib/rem";
 
 export type WidgetId =
   | "revenue-pipeline"
@@ -178,13 +179,14 @@ const GRID_CONTENT_INSET = 6;
  * Pass `actualGridWidth` (the live `.grid-stack` clientWidth) for accuracy.
  */
 export function dockWidgetNativePixels(def: WidgetDef, actualGridWidth?: number) {
-  const colUnit = (actualGridWidth ?? DOCK_REF_GRID_W) / COLUMNS;
-  const outerW = Math.round(def.defaultW * colUnit - GRID_MARGIN);
-  const outerH = Math.round(
-    def.defaultH * CELL_HEIGHT + (def.defaultH - 1) * GRID_MARGIN,
-  );
-  const nativeW = Math.max(outerW - GRID_CONTENT_INSET * 2, 80);
-  const nativeH = Math.max(outerH - GRID_CONTENT_INSET * 2, 56);
+  const margin = designPx(GRID_MARGIN);
+  const cellH = designPx(CELL_HEIGHT);
+  const inset = designPx(GRID_CONTENT_INSET);
+  const colUnit = (actualGridWidth ?? designPx(DOCK_REF_GRID_W)) / COLUMNS;
+  const outerW = Math.round(def.defaultW * colUnit - margin);
+  const outerH = Math.round(def.defaultH * cellH + (def.defaultH - 1) * margin);
+  const nativeW = Math.max(outerW - inset * 2, designPx(80));
+  const nativeH = Math.max(outerH - inset * 2, designPx(56));
   return { nativeW, nativeH };
 }
 
@@ -198,13 +200,13 @@ export function dockWidgetNativePixels(def: WidgetDef, actualGridWidth?: number)
  */
 export function dockPreviewDimensions(def: WidgetDef, actualGridWidth?: number) {
   const { w, h } = widgetFootprint(def);
-  const colPx = (actualGridWidth ?? DOCK_REF_GRID_W) / COLUMNS; // real col width
-  const rowPx = CELL_HEIGHT; // fixed row height
+  const colPx = (actualGridWidth ?? designPx(DOCK_REF_GRID_W)) / COLUMNS;
+  const rowPx = designPx(CELL_HEIGHT);
 
   let frameW = w * colPx;
   let frameH = h * rowPx;
-  const maxW = 220;
-  const maxH = 155;
+  const maxW = designPx(220);
+  const maxH = designPx(155);
   const fit = Math.min(1, maxW / frameW, maxH / frameH);
   frameW = Math.round(frameW * fit);
   frameH = Math.round(frameH * fit);

@@ -234,10 +234,10 @@ export default function DocumentGenerator() {
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="editorial text-[36px] leading-none text-[var(--color-text-hi)]">
+          <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">
             Report Generator
           </h1>
-          <p className="mt-1 text-[13px] text-[var(--color-text-lo)]">
+          <p className="mt-1 text-[0.8125rem] text-[var(--color-text-lo)]">
             Add your .docx files, then generate the report
           </p>
         </div>
@@ -245,7 +245,7 @@ export default function DocumentGenerator() {
           type="button"
           onClick={() => setRulesOpen(true)}
           className={cn(
-            "shrink-0 flex items-center gap-2 rounded-tile border px-4 py-2.5 text-[13px] font-medium transition-colors",
+            "shrink-0 flex items-center gap-2 rounded-tile border px-4 py-2.5 text-[0.8125rem] font-medium transition-colors",
             "border-[var(--color-line-2)] bg-[var(--color-ink-2)] text-[var(--color-text-mid)]",
             "hover:border-[var(--color-accent-soft)] hover:text-[var(--color-text-hi)]",
           )}
@@ -253,7 +253,7 @@ export default function DocumentGenerator() {
           <Lightbulb size={15} className="text-[var(--color-accent-2)]" />
           Style rules & prompt
           {ruleCount > 0 && (
-            <span className="rounded-full bg-[var(--color-warn)]/15 px-1.5 py-0.5 text-[10px] font-mono text-[var(--color-warn)]">
+            <span className="rounded-full bg-[var(--color-warn)]/15 px-1.5 py-0.5 text-[0.625rem] font-mono text-[var(--color-warn)]">
               {ruleCount}
             </span>
           )}
@@ -261,7 +261,7 @@ export default function DocumentGenerator() {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-[10px] bg-[rgba(248,113,113,0.08)] border border-[rgba(248,113,113,0.25)] px-4 py-3 text-[var(--color-neg)] text-sm">
+        <div className="flex items-start gap-2 rounded-[0.625rem] bg-[rgba(248,113,113,0.08)] border border-[rgba(248,113,113,0.25)] px-4 py-3 text-[var(--color-neg)] text-sm">
           <AlertCircle size={15} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
@@ -273,7 +273,7 @@ export default function DocumentGenerator() {
           <div className="px-5 py-4 border-b border-[var(--color-line)] flex items-center justify-between gap-3">
             <div>
               <div className="eyebrow mb-1">Source</div>
-              <h2 className="text-[15px] font-medium text-[var(--color-text-hi)]">
+              <h2 className="text-[0.9375rem] font-medium text-[var(--color-text-hi)]">
                 Documents{uploads.length > 0 ? ` (${uploads.length}/${MAX_FILES})` : ""}
               </h2>
             </div>
@@ -282,7 +282,7 @@ export default function DocumentGenerator() {
               onClick={clearAll}
               disabled={uploads.length === 0}
               className={cn(
-                "shrink-0 flex items-center gap-1.5 rounded-tile border border-[var(--color-line)] px-3 py-1.5 text-[11px] transition-colors",
+                "shrink-0 flex items-center gap-1.5 rounded-tile border border-[var(--color-line)] px-3 py-1.5 text-[0.6875rem] transition-colors",
                 uploads.length === 0
                   ? "invisible"
                   : "text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]",
@@ -304,7 +304,7 @@ export default function DocumentGenerator() {
           >
             <div ref={containerRef} className="relative flex-1 min-h-0 w-full">
               {uploads.length === 0 && (
-                <p className="pointer-events-none absolute inset-x-0 bottom-1 z-10 text-center text-[11px] text-[var(--color-text-lo)]">
+                <p className="pointer-events-none absolute inset-x-0 bottom-1 z-10 text-center text-[0.6875rem] text-[var(--color-text-lo)]">
                   Drop files here · max {MAX_FILE_MB} MB each
                 </p>
               )}
@@ -336,10 +336,10 @@ export default function DocumentGenerator() {
                               strokeWidth={1.4}
                               className="shrink-0 text-[var(--color-accent-2)]"
                             />
-                            <span className="line-clamp-3 text-[11px] font-medium leading-snug text-[var(--color-text-hi)] px-1">
+                            <span className="line-clamp-3 text-[0.6875rem] font-medium leading-snug text-[var(--color-text-hi)] px-1">
                               {shortName(upload.file.name)}
                             </span>
-                            <span className="text-[10px] font-mono text-[var(--color-text-lo)]">
+                            <span className="text-[0.625rem] font-mono text-[var(--color-text-lo)]">
                               {formatBytes(upload.file.size)}
                             </span>
                           </div>
@@ -373,7 +373,7 @@ export default function DocumentGenerator() {
                         )}
                       >
                         <Plus size={20} className="text-[var(--color-text-lo)]" />
-                        <span className="text-[10px] text-[var(--color-text-lo)]">Add .docx</span>
+                        <span className="text-[0.625rem] text-[var(--color-text-lo)]">Add .docx</span>
                       </button>
                     );
                   })}
@@ -387,13 +387,13 @@ export default function DocumentGenerator() {
         <section className="surface flex min-h-0 flex-col overflow-hidden">
           <div className="px-5 py-4 border-b border-[var(--color-line)]">
             <div className="eyebrow mb-1">Output</div>
-            <h2 className="text-[15px] font-medium text-[var(--color-text-hi)]">Generated report</h2>
+            <h2 className="text-[0.9375rem] font-medium text-[var(--color-text-hi)]">Generated report</h2>
           </div>
 
           <div className="flex flex-1 min-h-0 flex-col p-5 gap-3">
             {ruleCount > 0 && (
-              <div className="rounded-[10px] border border-[var(--color-line)] bg-[var(--color-ink-1)]/50 px-3 py-2.5 flex justify-end">
-                <span className="shrink-0 rounded-full border border-[var(--color-warn)]/30 bg-[var(--color-warn)]/10 px-2 py-0.5 text-[10px] font-mono text-[var(--color-warn)]">
+              <div className="rounded-[0.625rem] border border-[var(--color-line)] bg-[var(--color-ink-1)]/50 px-3 py-2.5 flex justify-end">
+                <span className="shrink-0 rounded-full border border-[var(--color-warn)]/30 bg-[var(--color-warn)]/10 px-2 py-0.5 text-[0.625rem] font-mono text-[var(--color-warn)]">
                   {ruleCount} style rules active
                 </span>
               </div>
@@ -401,7 +401,7 @@ export default function DocumentGenerator() {
 
             <div
               className={cn(
-                "relative flex flex-1 min-h-[360px] overflow-hidden rounded-[10px] border border-[var(--color-line)]",
+                "relative flex flex-1 min-h-[22.5rem] overflow-hidden rounded-[0.625rem] border border-[var(--color-line)]",
                 !outputFile && !generating && "bg-[var(--color-ink-1)]/40",
               )}
             >
@@ -409,8 +409,8 @@ export default function DocumentGenerator() {
                 <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
                   <Loader2 size={28} className="animate-spin text-[var(--color-accent)]" />
                   <div>
-                    <p className="text-[13px] text-[var(--color-text-mid)]">Generating report…</p>
-                    <p className="text-[11px] text-[var(--color-text-lo)] mt-1">
+                    <p className="text-[0.8125rem] text-[var(--color-text-mid)]">Generating report…</p>
+                    <p className="text-[0.6875rem] text-[var(--color-text-lo)] mt-1">
                       Merging chrono · AI paraphrase · full document rebuild
                     </p>
                   </div>
@@ -423,7 +423,7 @@ export default function DocumentGenerator() {
                       type="button"
                       onClick={handleDownload}
                       className={cn(
-                        "flex items-center gap-1.5 rounded-tile border px-3 py-1.5 text-[11px] font-medium shadow-lg",
+                        "flex items-center gap-1.5 rounded-tile border px-3 py-1.5 text-[0.6875rem] font-medium shadow-lg",
                         "border-[var(--color-line)] bg-[var(--color-ink-2)]/95 text-[var(--color-text-hi)]",
                         "hover:border-[var(--color-line-2)]",
                       )}
@@ -435,7 +435,7 @@ export default function DocumentGenerator() {
                       type="button"
                       onClick={() => setEditorOpen(true)}
                       className={cn(
-                        "flex items-center gap-1.5 rounded-tile border px-3 py-1.5 text-[11px] font-medium shadow-lg",
+                        "flex items-center gap-1.5 rounded-tile border px-3 py-1.5 text-[0.6875rem] font-medium shadow-lg",
                         "border-[var(--color-line)] bg-[var(--color-ink-2)]/95 text-[var(--color-text-hi)]",
                         "hover:border-[var(--color-accent-soft)]",
                       )}
@@ -448,7 +448,7 @@ export default function DocumentGenerator() {
               ) : (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-[var(--color-text-lo)]">
                   <FileText size={32} strokeWidth={1.2} />
-                  <p className="text-[13px]">Word report will appear here after you generate</p>
+                  <p className="text-[0.8125rem]">Word report will appear here after you generate</p>
                 </div>
               )}
             </div>
@@ -459,7 +459,7 @@ export default function DocumentGenerator() {
                 onClick={() => void runGenerate()}
                 disabled={!uploads.length || generating}
                 className={cn(
-                  "flex flex-[2] items-center justify-center gap-2 rounded-tile py-2.5 text-[12px] font-medium transition-opacity",
+                  "flex flex-[2] items-center justify-center gap-2 rounded-tile py-2.5 text-[0.75rem] font-medium transition-opacity",
                   "bg-[var(--color-accent)] text-white hover:opacity-90",
                   "disabled:opacity-40 disabled:cursor-not-allowed",
                 )}
@@ -476,7 +476,7 @@ export default function DocumentGenerator() {
                 onClick={handleDownload}
                 disabled={!outputFile || generating}
                 className={cn(
-                  "flex flex-1 items-center justify-center gap-2 rounded-tile border py-2.5 text-[12px] font-medium transition-colors",
+                  "flex flex-1 items-center justify-center gap-2 rounded-tile border py-2.5 text-[0.75rem] font-medium transition-colors",
                   "border-[var(--color-line)] text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)] hover:border-[var(--color-line-2)]",
                   "disabled:opacity-40 disabled:cursor-not-allowed",
                 )}

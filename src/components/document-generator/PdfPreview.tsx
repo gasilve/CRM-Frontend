@@ -210,7 +210,7 @@ export default function PdfPreview({
     <div className={cn("relative min-h-0 flex-1 overflow-auto pdf-host", className)}>
       {loading && pagesReady === 0 && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/20">
-          <div className="flex items-center gap-2 rounded-tile border border-[var(--color-line)] bg-[var(--color-ink-2)] px-3 py-2 text-[12px] text-[var(--color-text-mid)]">
+          <div className="flex items-center gap-2 rounded-tile border border-[var(--color-line)] bg-[var(--color-ink-2)] px-3 py-2 text-[0.75rem] text-[var(--color-text-mid)]">
             <Loader2 size={14} className="animate-spin" />
             Rendering preview…
             {pageCount > 0 ? ` (${pageCount} pages)` : ""}
@@ -218,7 +218,7 @@ export default function PdfPreview({
         </div>
       )}
       {error && (
-        <div className="absolute inset-x-4 top-4 z-10 flex items-start gap-2 rounded-tile border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.1)] px-3 py-2 text-[12px] text-[var(--color-neg)]">
+        <div className="absolute inset-x-4 top-4 z-10 flex items-start gap-2 rounded-tile border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.1)] px-3 py-2 text-[0.75rem] text-[var(--color-neg)]">
           <AlertCircle size={14} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>

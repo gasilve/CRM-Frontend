@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { GridStack, type GridStackNode, type GridStackOptions } from "gridstack";
+import { designPx } from "@/lib/rem";
 import {
   canPlaceAtY,
   clampY,
@@ -170,12 +171,12 @@ function DashboardGridInner({
     }
     hostEl.innerHTML = "";
 
-    hostEl.classList.add("grid-stack", "min-h-[480px]", "dashboard-edit");
+    hostEl.classList.add("grid-stack", "min-h-[30rem]", "dashboard-edit");
 
     const opts: GridStackOptions = {
       column: COLUMNS,
-      cellHeight: CELL_HEIGHT,
-      margin: GRID_MARGIN,
+      cellHeight: designPx(CELL_HEIGHT),
+      margin: designPx(GRID_MARGIN),
       float: true,
       animate: true,
       acceptWidgets: ".dock-carousel-item",
@@ -198,6 +199,14 @@ function DashboardGridInner({
     grid.engine.maxRow = gridMaxRow(
       enforceLayoutRowRules(layoutRef.current),
     );
+
+    const syncCellMetrics = () => {
+      const g = gridInstanceRef.current;
+      if (!g) return;
+      g.cellHeight(designPx(CELL_HEIGHT));
+      g.margin(designPx(GRID_MARGIN));
+    };
+    window.addEventListener("resize", syncCellMetrics);
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -433,6 +442,7 @@ function DashboardGridInner({
     return () => {
       cancelled = true;
       initSettledRef.current = false;
+      window.removeEventListener("resize", syncCellMetrics);
       document.body.classList.remove("dashboard-widget-dragging");
       document.removeEventListener("contextmenu", onCancelDragPointer, true);
       hostEl.removeEventListener("dragstart", onNativeDragStart);
@@ -455,7 +465,7 @@ function DashboardGridInner({
   }, [mountKey]);
 
   return (
-    <div ref={hostRef} key={mountKey} className="grid-stack min-h-[480px]" />
+    <div ref={hostRef} key={mountKey} className="grid-stack min-h-[30rem]" />
   );
 }
 

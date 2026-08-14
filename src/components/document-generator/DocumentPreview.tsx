@@ -87,7 +87,7 @@ export default function DocumentPreview({
     return (
       <div
         className={cn(
-          "flex min-h-0 flex-1 items-center justify-center gap-2 text-[12px] text-[var(--color-text-mid)]",
+          "flex min-h-0 flex-1 items-center justify-center gap-2 text-[0.75rem] text-[var(--color-text-mid)]",
           className,
         )}
       >
@@ -101,7 +101,7 @@ export default function DocumentPreview({
     return (
       <div className={cn("relative min-h-0 flex-1 flex flex-col", className)}>
         {refreshing ? (
-          <div className="pointer-events-none absolute right-3 top-3 z-30 flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-[var(--color-ink-2)]/95 px-3 py-1.5 text-[11px] text-[var(--color-text-mid)] shadow">
+          <div className="pointer-events-none absolute right-3 top-3 z-30 flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-[var(--color-ink-2)]/95 px-3 py-1.5 text-[0.6875rem] text-[var(--color-text-mid)] shadow">
             <Loader2 size={12} className="animate-spin" />
             Updating preview…
           </div>
@@ -121,7 +121,7 @@ export default function DocumentPreview({
   return (
     <div className={cn("relative min-h-0 flex-1 flex flex-col", className)}>
       {notice ? (
-        <div className="flex items-start gap-2 border-b border-[var(--color-line)] bg-[rgba(251,191,36,0.08)] px-3 py-2 text-[11px] text-[var(--color-text-mid)]">
+        <div className="flex items-start gap-2 border-b border-[var(--color-line)] bg-[rgba(251,191,36,0.08)] px-3 py-2 text-[0.6875rem] text-[var(--color-text-mid)]">
           <AlertCircle size={14} className="mt-0.5 shrink-0 text-amber-400" />
           <span>
             {notice} Word-cloud (Graph) or LibreOffice preview is unavailable on
@@ -132,7 +132,7 @@ export default function DocumentPreview({
       <DocxPreview file={file} revision={revision} className="min-h-0 flex-1" />
       {paragraphs.length > 0 && onSelectParagraph ? (
         <div className="border-t border-[var(--color-line)] p-2">
-          <p className="mb-1 text-[10px] text-[var(--color-text-lo)]">
+          <p className="mb-1 text-[0.625rem] text-[var(--color-text-lo)]">
             PDF anchors unavailable — pick a paragraph:
           </p>
           <div className="flex flex-wrap gap-1">
@@ -142,7 +142,7 @@ export default function DocumentPreview({
                 type="button"
                 onClick={() => onSelectParagraph(p.id)}
                 className={cn(
-                  "rounded-md border px-2 py-1 text-[10px]",
+                  "rounded-md border px-2 py-1 text-[0.625rem]",
                   activeId === p.id
                     ? "border-sky-500 bg-sky-500/20 text-[var(--color-text-hi)]"
                     : "border-[var(--color-line)] text-[var(--color-text-mid)]",

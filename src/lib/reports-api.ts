@@ -27,6 +27,7 @@ function buildFormData(files: File[]): FormData {
 async function postDocx(files: File[]): Promise<Blob> {
   const res = await fetch(`${CRM_API_URL}/reports/generate`, {
     method: "POST",
+    credentials: "include",
     body: buildFormData(files),
   });
 
@@ -105,6 +106,7 @@ async function postAiEdit(
 
   const res = await fetch(`${CRM_API_URL}/reports/ai-edit`, {
     method: "POST",
+    credentials: "include",
     body: form,
   });
 
@@ -123,6 +125,7 @@ async function postPlainEdit(
 
   const res = await fetch(`${CRM_API_URL}/reports/plain-edit`, {
     method: "POST",
+    credentials: "include",
     body: form,
   });
 
@@ -135,6 +138,7 @@ async function postParagraphs(file: File): Promise<EditableParagraph[]> {
 
   const res = await fetch(`${CRM_API_URL}/reports/paragraphs`, {
     method: "POST",
+    credentials: "include",
     body: form,
   });
 
@@ -158,6 +162,7 @@ async function postWordPreview(file: File): Promise<ArrayBuffer> {
 
   const res = await fetch(`${CRM_API_URL}/reports/word-preview`, {
     method: "POST",
+    credentials: "include",
     body: form,
   });
 
@@ -175,34 +180,10 @@ async function postWordPreview(file: File): Promise<ArrayBuffer> {
   return res.arrayBuffer();
 }
 
-async function postCleanDocx(file: File): Promise<Blob> {
-  const form = new FormData();
-  form.append("file", file, file.name);
-
-  const res = await fetch(`${CRM_API_URL}/reports/docx`, {
-    method: "POST",
-    body: form,
-  });
-
-  if (!res.ok) {
-    let message = `Clean DOCX render failed (${res.status})`;
-    try {
-      const json = (await res.json()) as ApiEnvelope<unknown>;
-      if (json.message) message = json.message;
-    } catch {
-      /* not JSON */
-    }
-    throw new ApiError(message, res.status);
-  }
-
-  return res.blob();
-}
-
 export const reportsApi = {
   generate: (files: File[]): Promise<Blob> => postDocx(files),
   aiEdit: postAiEdit,
   plainEdit: postPlainEdit,
   paragraphs: postParagraphs,
   wordPreview: postWordPreview,
-  cleanDocx: postCleanDocx,
 };

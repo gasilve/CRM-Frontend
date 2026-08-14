@@ -131,7 +131,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
     <>
       <div
         className={cn(
-          "fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px] transition-opacity duration-200",
+          "fixed inset-0 z-40 bg-black/50 backdrop-blur-[0.125rem] transition-opacity duration-200",
           open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
         )}
         onClick={onClose}
@@ -140,7 +140,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
 
       <aside
         className={cn(
-          "fixed top-0 right-0 z-50 flex h-full w-[min(440px,92vw)] flex-col",
+          "fixed top-0 right-0 z-50 flex h-full w-[min(27.5rem,92vw)] flex-col",
           "border-l border-[var(--color-line)] bg-[var(--color-ink-1)] shadow-2xl",
           "transition-transform duration-250 ease-out",
           open ? "translate-x-0" : "translate-x-full",
@@ -151,12 +151,12 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
       >
         <div className="flex items-start justify-between gap-3 border-b border-[var(--color-line)] px-5 py-4">
           <div className="flex gap-2.5">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[0.625rem] bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]">
               <Lightbulb size={17} strokeWidth={1.6} />
             </div>
             <div>
-              <h2 className="text-[15px] font-medium text-[var(--color-text-hi)]">Report agent</h2>
-              <p className="text-[11.5px] leading-snug text-[var(--color-text-lo)] mt-0.5 max-w-[280px]">
+              <h2 className="text-[0.9375rem] font-medium text-[var(--color-text-hi)]">Report agent</h2>
+              <p className="text-[0.71875rem] leading-snug text-[var(--color-text-lo)] mt-0.5 max-w-[17.5rem]">
                 View the AI prompt and manage standing style rules for every conversion.
               </p>
             </div>
@@ -164,7 +164,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-[8px] p-2 text-[var(--color-text-lo)] hover:bg-white/5 hover:text-[var(--color-text-hi)] transition-colors"
+            className="shrink-0 rounded-[0.5rem] p-2 text-[var(--color-text-lo)] hover:bg-white/5 hover:text-[var(--color-text-hi)] transition-colors"
             aria-label="Close"
           >
             <X size={18} />
@@ -183,7 +183,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
               type="button"
               onClick={() => setTab(id)}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-2.5 text-[12px] font-medium border-b-2 -mb-px transition-colors",
+                "flex items-center gap-1.5 px-3 py-2.5 text-[0.75rem] font-medium border-b-2 -mb-px transition-colors",
                 tab === id
                   ? "border-[var(--color-accent)] text-[var(--color-text-hi)]"
                   : "border-transparent text-[var(--color-text-lo)] hover:text-[var(--color-text-mid)]",
@@ -192,7 +192,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
               <Icon size={13} />
               {label}
               {id === "rules" && rules.length > 0 && (
-                <span className="rounded-full bg-[var(--color-warn)]/15 px-1.5 text-[10px] font-mono text-[var(--color-warn)]">
+                <span className="rounded-full bg-[var(--color-warn)]/15 px-1.5 text-[0.625rem] font-mono text-[var(--color-warn)]">
                   {rules.length}
                 </span>
               )}
@@ -201,7 +201,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
         </div>
 
         {error && (
-          <div className="mx-5 mt-3 rounded-[8px] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.08)] px-3 py-2 text-[12px] text-[var(--color-neg)]">
+          <div className="mx-5 mt-3 rounded-[0.5rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.08)] px-3 py-2 text-[0.75rem] text-[var(--color-neg)]">
             {error}
           </div>
         )}
@@ -214,27 +214,27 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
         ) : tab === "prompt" ? (
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
             <div>
-              <p className="text-[12px] font-medium text-[var(--color-text-hi)] mb-1">System prompt</p>
-              <p className="text-[11px] text-[var(--color-text-lo)] mb-2 leading-snug">
+              <p className="text-[0.75rem] font-medium text-[var(--color-text-hi)] mb-1">System prompt</p>
+              <p className="text-[0.6875rem] text-[var(--color-text-lo)] mb-2 leading-snug">
                 Base instructions the agent follows when paraphrasing surveillance notes. Style rules
                 are appended automatically at generation time.
               </p>
               <pre
                 className={cn(
-                  "whitespace-pre-wrap rounded-[10px] border border-[var(--color-line)]",
-                  "bg-[var(--color-ink-2)] text-[11px] leading-relaxed text-[var(--color-text-mid)] p-3.5",
-                  "max-h-[min(52vh,420px)] overflow-y-auto font-mono",
+                  "whitespace-pre-wrap rounded-[0.625rem] border border-[var(--color-line)]",
+                  "bg-[var(--color-ink-2)] text-[0.6875rem] leading-relaxed text-[var(--color-text-mid)] p-3.5",
+                  "max-h-[min(52vh,26.25rem)] overflow-y-auto font-mono",
                 )}
               >
                 {prompt?.systemPrompt ?? "—"}
               </pre>
             </div>
             <div>
-              <p className="text-[12px] font-medium text-[var(--color-text-hi)] mb-1">User prompt template</p>
+              <p className="text-[0.75rem] font-medium text-[var(--color-text-hi)] mb-1">User prompt template</p>
               <pre
                 className={cn(
-                  "whitespace-pre-wrap rounded-[10px] border border-[var(--color-line)]",
-                  "bg-[var(--color-ink-2)] text-[11px] leading-relaxed text-[var(--color-text-mid)] p-3.5",
+                  "whitespace-pre-wrap rounded-[0.625rem] border border-[var(--color-line)]",
+                  "bg-[var(--color-ink-2)] text-[0.6875rem] leading-relaxed text-[var(--color-text-mid)] p-3.5",
                   "font-mono",
                 )}
               >
@@ -246,7 +246,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
           <>
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
               {rules.length === 0 && (
-                <p className="text-[12px] text-[var(--color-text-lo)] text-center py-8">
+                <p className="text-[0.75rem] text-[var(--color-text-lo)] text-center py-8">
                   No rules yet. Add one below.
                 </p>
               )}
@@ -255,13 +255,13 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
                 return (
                   <div
                     key={rule.id}
-                    className="rounded-[12px] border border-[var(--color-line)] bg-[var(--color-ink-2)] p-3.5"
+                    className="rounded-[0.75rem] border border-[var(--color-line)] bg-[var(--color-ink-2)] p-3.5"
                   >
                     <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="font-mono text-[10px] tracking-wider text-[var(--color-accent-2)]">
+                      <span className="font-mono text-[0.625rem] tracking-wider text-[var(--color-accent-2)]">
                         {rule.code}
                       </span>
-                      <span className="text-[10px] text-[var(--color-text-lo)]">{rule.createdAt}</span>
+                      <span className="text-[0.625rem] text-[var(--color-text-lo)]">{rule.createdAt}</span>
                     </div>
 
                     {isEditing ? (
@@ -271,13 +271,13 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
                         rows={4}
                         autoFocus
                         className={cn(
-                          "w-full resize-y rounded-[8px] border border-[var(--color-line)]",
-                          "bg-[var(--color-ink-1)] text-[var(--color-text-hi)] text-[12.5px] leading-relaxed p-2.5",
+                          "w-full resize-y rounded-[0.5rem] border border-[var(--color-line)]",
+                          "bg-[var(--color-ink-1)] text-[var(--color-text-hi)] text-[0.78125rem] leading-relaxed p-2.5",
                           "focus:outline-none focus:border-[var(--color-accent)] transition-colors",
                         )}
                       />
                     ) : (
-                      <p className="text-[12.5px] leading-relaxed text-[var(--color-text-mid)]">{rule.text}</p>
+                      <p className="text-[0.78125rem] leading-relaxed text-[var(--color-text-mid)]">{rule.text}</p>
                     )}
 
                     <div className="mt-2.5 flex items-center gap-3">
@@ -287,7 +287,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
                             type="button"
                             onClick={() => void saveEdit(rule.id)}
                             disabled={!editDraft.trim() || saving}
-                            className="flex items-center gap-1 text-[11px] text-[var(--color-accent-2)] hover:text-[var(--color-text-hi)] disabled:opacity-40 transition-colors"
+                            className="flex items-center gap-1 text-[0.6875rem] text-[var(--color-accent-2)] hover:text-[var(--color-text-hi)] disabled:opacity-40 transition-colors"
                           >
                             <Check size={12} />
                             Save
@@ -295,7 +295,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
                           <button
                             type="button"
                             onClick={cancelEdit}
-                            className="text-[11px] text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)] transition-colors"
+                            className="text-[0.6875rem] text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)] transition-colors"
                           >
                             Cancel
                           </button>
@@ -306,7 +306,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
                             type="button"
                             onClick={() => startEdit(rule)}
                             disabled={saving}
-                            className="flex items-center gap-1 text-[11px] text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)] disabled:opacity-40 transition-colors"
+                            className="flex items-center gap-1 text-[0.6875rem] text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)] disabled:opacity-40 transition-colors"
                           >
                             <Pencil size={11} />
                             Edit
@@ -316,7 +316,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
                             type="button"
                             onClick={() => void removeRule(rule.id)}
                             disabled={saving}
-                            className="text-[11px] text-[var(--color-text-lo)] hover:text-[var(--color-neg)] disabled:opacity-40 transition-colors"
+                            className="text-[0.6875rem] text-[var(--color-text-lo)] hover:text-[var(--color-neg)] disabled:opacity-40 transition-colors"
                           >
                             Remove
                           </button>
@@ -330,10 +330,10 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
 
             <div className="border-t border-[var(--color-line)] px-5 py-4 space-y-3">
               <div>
-                <p className="text-[13px] font-medium text-[var(--color-text-hi)]">
+                <p className="text-[0.8125rem] font-medium text-[var(--color-text-hi)]">
                   Suggest a style rule
                 </p>
-                <p className="text-[11px] text-[var(--color-text-lo)] mt-0.5 leading-snug">
+                <p className="text-[0.6875rem] text-[var(--color-text-lo)] mt-0.5 leading-snug">
                   Describe a formatting preference. It is saved and applied on every report generation.
                 </p>
               </div>
@@ -342,8 +342,8 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
                 onChange={(e) => setFeedback(e.target.value)}
                 placeholder="e.g. Keep venue names verbatim. Bold each day's date range."
                 className={cn(
-                  "w-full min-h-[100px] max-h-[220px] resize-y rounded-[12px] border border-[var(--color-line)]",
-                  "bg-[var(--color-ink-2)] text-[var(--color-text-hi)] text-[13px] leading-relaxed p-3.5",
+                  "w-full min-h-[6.25rem] max-h-[13.75rem] resize-y rounded-[0.75rem] border border-[var(--color-line)]",
+                  "bg-[var(--color-ink-2)] text-[var(--color-text-hi)] text-[0.8125rem] leading-relaxed p-3.5",
                   "placeholder:text-[var(--color-text-lo)] focus:outline-none focus:border-[var(--color-accent)] transition-colors",
                 )}
               />

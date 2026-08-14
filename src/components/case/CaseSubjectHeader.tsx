@@ -7,6 +7,9 @@ import type { Subject } from "@/lib/mock-data";
 type CaseSubjectHeaderProps = {
   subject: Subject;
   claimNumber: string;
+  aliases?: string[];
+  /** Hide the claim-number / DOB / birthday meta row (case detail wants only widgets below the name). */
+  showMeta?: boolean;
   actions?: ReactNode;
   className?: string;
 };
@@ -14,6 +17,8 @@ type CaseSubjectHeaderProps = {
 export function CaseSubjectHeader({
   subject,
   claimNumber,
+  aliases,
+  showMeta = true,
   actions,
   className,
 }: CaseSubjectHeaderProps) {
@@ -27,12 +32,18 @@ export function CaseSubjectHeader({
       )}
     >
       <div className="min-w-0">
-        <h1 className="editorial text-[36px] leading-none text-[var(--color-text-hi)]">
+        <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">
           {subject.name}
         </h1>
 
+        {aliases && aliases.length > 0 && (
+          <div className="mt-1 text-[0.75rem] text-[var(--color-text-lo)]">
+            AKA: {aliases.join(" · ")}
+          </div>
+        )}
+
         {hasAddress && (
-          <div className="mt-2.5 flex items-start gap-1.5 text-[13px] text-[var(--color-text-mid)]">
+          <div className="mt-2.5 flex items-start gap-1.5 text-[0.8125rem] text-[var(--color-text-mid)]">
             <MapPin
               size={14}
               strokeWidth={1.7}
@@ -47,7 +58,7 @@ export function CaseSubjectHeader({
               )}
               {[subject.city, subject.state].filter(Boolean).join(", ")}
               {subject.zip && (
-                <span className="ml-1.5 font-mono text-[12px] text-[var(--color-text-mid)]">
+                <span className="ml-1.5 font-mono text-[0.75rem] text-[var(--color-text-mid)]">
                   {subject.zip}
                 </span>
               )}
@@ -55,8 +66,9 @@ export function CaseSubjectHeader({
           </div>
         )}
 
+        {showMeta && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[12px] tracking-wide text-[var(--color-accent-2)]">
+          <span className="font-mono text-[0.75rem] tracking-wide text-[var(--color-accent-2)]">
             {claimNumber}
           </span>
           {subject.dob && (
@@ -64,20 +76,21 @@ export function CaseSubjectHeader({
               <span className="text-[var(--color-text-lo)]" aria-hidden>
                 ·
               </span>
-              <span className="font-mono text-[12px] text-[var(--color-text-mid)]">
+              <span className="font-mono text-[0.75rem] text-[var(--color-text-mid)]">
                 {formatDob(subject.dob)}
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--color-line-2)] bg-[var(--color-ink-2)]/60 px-2.5 py-0.5 text-[10.5px] text-[var(--color-text-mid)]">
+              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--color-line-2)] bg-[var(--color-ink-2)]/60 px-2.5 py-0.5 text-[0.65625rem] text-[var(--color-text-mid)]">
                 <Cake size={11} strokeWidth={1.8} className="text-[var(--color-accent-2)]" />
                 {birthdayCountdownLabel(subject.dob)}
               </span>
             </>
           )}
         </div>
+        )}
       </div>
 
       {actions ? (
-        <div className="flex flex-wrap items-center gap-2">{actions}</div>
+        <div className="case-subject-actions flex flex-wrap items-center gap-2">{actions}</div>
       ) : null}
     </div>
   );

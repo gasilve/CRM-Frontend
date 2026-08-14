@@ -1,0 +1,7 @@
+# Cloudflare Pages — mirror nginx /admin/ rewrite (Vite base is /admin/)
+/ /admin/ 302
+/admin /admin/ 302
+/admin/assets/* /assets/:splat 200
+/admin/*.mjs /:splat 200
+/admin/ /index.html 200
+/admin/* /index.html 200

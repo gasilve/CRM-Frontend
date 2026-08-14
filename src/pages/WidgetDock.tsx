@@ -9,6 +9,7 @@ import {
   type WidgetId,
 } from "./dashboard-widgets";
 import type { DashboardGridHandle } from "./DashboardGrid";
+import { designPx } from "@/lib/rem";
 
 const MAGNET_RADIUS = 140;
 const MAX_LIFT = 52;
@@ -193,7 +194,7 @@ export default function WidgetDock({
     itemRefs.current.forEach((el) => {
       if (!el) return;
       if (clientX === null) {
-        el.style.setProperty("--dock-lift", "0px");
+        el.style.setProperty("--dock-lift", "0");
         el.style.setProperty("--dock-scale", "1");
         el.style.setProperty("--dock-z", "1");
         return;
@@ -201,7 +202,7 @@ export default function WidgetDock({
       const rect = el.getBoundingClientRect();
       const center = rect.left + rect.width / 2;
       const dist = Math.abs(clientX - center);
-      const t = Math.max(0, 1 - dist / MAGNET_RADIUS);
+      const t = Math.max(0, 1 - dist / designPx(MAGNET_RADIUS));
       const eased = t * t * (3 - 2 * t);
       let scale = 1 + eased * MAX_SCALE;
 
@@ -217,7 +218,7 @@ export default function WidgetDock({
         }
       }
 
-      el.style.setProperty("--dock-lift", `${-eased * MAX_LIFT}px`);
+      el.style.setProperty("--dock-lift", `${-eased * designPx(MAX_LIFT)}px`);
       el.style.setProperty("--dock-scale", `${scale}`);
       el.style.setProperty("--dock-z", `${Math.round(10 + eased * 40)}`);
     });
@@ -278,7 +279,7 @@ export default function WidgetDock({
           if (maxScroll > 0) {
             scrollOffsetRef.current = Math.max(
               0,
-              Math.min(maxScroll, scrollOffsetRef.current + dir * EDGE_SCROLL_SPEED),
+              Math.min(maxScroll, scrollOffsetRef.current + dir * designPx(EDGE_SCROLL_SPEED)),
             );
             strip.style.transform = `translateX(${-scrollOffsetRef.current}px)`;
           }
@@ -302,8 +303,8 @@ export default function WidgetDock({
         edgeScrollDirRef.current = 0;
         return;
       }
-      if (e.clientX <= laneRect.left + EDGE_SCROLL_ZONE) edgeScrollDirRef.current = -1;
-      else if (e.clientX >= laneRect.right - EDGE_SCROLL_ZONE) edgeScrollDirRef.current = 1;
+      if (e.clientX <= laneRect.left + designPx(EDGE_SCROLL_ZONE)) edgeScrollDirRef.current = -1;
+      else if (e.clientX >= laneRect.right - designPx(EDGE_SCROLL_ZONE)) edgeScrollDirRef.current = 1;
       else edgeScrollDirRef.current = 0;
     };
 

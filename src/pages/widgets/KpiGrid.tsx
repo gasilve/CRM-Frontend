@@ -37,7 +37,7 @@ function Spark({ data, positive }: { data: number[]; positive: boolean }) {
         strokeWidth={1.4}
         strokeLinecap="round"
         strokeLinejoin="round"
-        style={{ filter: `drop-shadow(0 0 4px ${stroke}66)` }}
+        style={{ filter: `drop-shadow(0 0 0.25rem ${stroke}66)` }}
       />
     </svg>
   );
@@ -52,18 +52,18 @@ export function KpiGrid() {
           return (
             <div
               key={k.label}
-              className="surface-hover relative flex flex-col justify-between rounded-[10px] border border-[var(--color-line)] bg-[var(--color-ink-1)]/40 p-4"
+              className="surface-hover relative flex flex-col justify-between rounded-[0.625rem] border border-[var(--color-line)] bg-[var(--color-ink-1)]/40 p-4"
             >
-              <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-lo)]">
+              <div className="text-[0.625rem] font-medium uppercase tracking-wider text-[var(--color-text-lo)]">
                 {k.label}
               </div>
               <div className="flex items-end justify-between gap-2">
                 <div className="flex items-baseline gap-0.5">
-                  <span className="font-mono text-[26px] font-medium leading-none text-[var(--color-text-hi)]">
+                  <span className="font-mono text-[1.625rem] font-medium leading-none text-[var(--color-text-hi)]">
                     {k.value}
                   </span>
                   {k.unit && (
-                    <span className="font-mono text-[14px] text-[var(--color-text-mid)]">
+                    <span className="font-mono text-[0.875rem] text-[var(--color-text-mid)]">
                       {k.unit}
                     </span>
                   )}
@@ -79,7 +79,7 @@ export function KpiGrid() {
                   )}
                   {Math.abs(k.delta).toFixed(1)}%
                 </Pill>
-                <span className="text-[10.5px] text-[var(--color-text-lo)]">
+                <span className="text-[0.65625rem] text-[var(--color-text-lo)]">
                   vs. last month
                 </span>
               </div>

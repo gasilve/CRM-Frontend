@@ -25,11 +25,11 @@ export function RevenuePipeline() {
 
       <div className="mb-4 flex items-end gap-6">
         <div>
-          <div className="mb-1 text-[10px] uppercase tracking-wider text-[var(--color-text-lo)]">
+          <div className="mb-1 text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
             Closed ARR · trailing 12mo
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="font-mono text-[34px] font-medium leading-none text-[var(--color-text-hi)]">
+            <span className="font-mono text-[2.125rem] font-medium leading-none text-[var(--color-text-hi)]">
               ${(last.revenue / 1).toFixed(0)}k
             </span>
             <Pill variant={delta >= 0 ? "pos" : "neg"}>
@@ -38,10 +38,10 @@ export function RevenuePipeline() {
           </div>
         </div>
         <div className="ml-auto">
-          <div className="mb-1 text-[10px] uppercase tracking-wider text-[var(--color-text-lo)]">
+          <div className="mb-1 text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
             Active pipeline
           </div>
-          <div className="font-mono text-[20px] text-[var(--color-text-mid)]">
+          <div className="font-mono text-[1.25rem] text-[var(--color-text-mid)]">
             ${last.pipeline}k
           </div>
         </div>
@@ -85,7 +85,7 @@ export function RevenuePipeline() {
               cursor={{ stroke: "rgba(74,127,255,0.4)", strokeWidth: 1 }}
               contentStyle={{
                 background: "#0d1220",
-                border: "1px solid rgba(232,238,248,0.14)",
+                border: "0.0625rem solid rgba(232,238,248,0.14)",
                 borderRadius: 10,
                 fontSize: 12,
                 fontFamily: "JetBrains Mono",
@@ -117,10 +117,10 @@ export function RevenuePipeline() {
 
 function Legend({ dot, label }: { dot: string; label: string }) {
   return (
-    <div className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-mid)]">
+    <div className="flex items-center gap-1.5 text-[0.6875rem] text-[var(--color-text-mid)]">
       <span
         className="h-1.5 w-1.5 rounded-full"
-        style={{ background: dot, boxShadow: `0 0 8px ${dot}` }}
+        style={{ background: dot, boxShadow: `0 0 0.5rem ${dot}` }}
       />
       {label}
     </div>

@@ -20,7 +20,7 @@
     color: var(--color-text-hi);
     font-family: var(--font-sans);
     font-weight: 400;
-    font-size: 14px;
+    font-size: 0.875rem;
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -44,21 +44,21 @@
   }
 
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 0.625rem;
+    height: 0.625rem;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
     background: var(--color-scrollbar);
-    border-radius: 999px;
-    border: 2px solid transparent;
+    border-radius: 62.4375rem;
+    border: 0.125rem solid transparent;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
     background: var(--color-scrollbar-hover);
     background-clip: padding-box;
-    border: 2px solid transparent;
+    border: 0.125rem solid transparent;
   }
 }

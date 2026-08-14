@@ -121,7 +121,7 @@ export default function Dashboard() {
   return (
     <div className="relative pb-28">
       <div className="page-header mb-4">
-        <h1 className="page-title editorial text-[36px] leading-none text-[var(--color-text-hi)]">
+        <h1 className="page-title editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">
           Dashboard
         </h1>
       </div>
@@ -132,10 +132,10 @@ export default function Dashboard() {
             className="pointer-events-none absolute inset-x-0 top-0 flex flex-col items-center justify-center gap-1 text-center"
             style={{ height: 480 }}
           >
-            <p className="editorial text-[20px] text-[var(--color-text-mid)]">
+            <p className="editorial text-[1.25rem] text-[var(--color-text-mid)]">
               Empty dashboard
             </p>
-            <p className="text-[13px] text-[var(--color-text-lo)]">
+            <p className="text-[0.8125rem] text-[var(--color-text-lo)]">
               Use the + button below to add widgets.
             </p>
           </div>

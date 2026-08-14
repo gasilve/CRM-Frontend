@@ -482,7 +482,7 @@ export interface EvidencePhoto {
 }
 
 /** Stable Unsplash animal stills — swap for real case assets later. */
-const ANIMAL_STILLS = [
+export const ANIMAL_STILLS = [
   {
     url: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=800&h=800&fit=crop",
     label: "Cat — front",
@@ -509,10 +509,16 @@ const ANIMAL_STILLS = [
   },
 ] as const;
 
-function hashCaseId(caseId: string): number {
+export function hashCaseId(caseId: string): number {
   let h = 0;
   for (let i = 0; i < caseId.length; i++) h = (h * 31 + caseId.charCodeAt(i)) >>> 0;
   return h;
+}
+
+/** Deterministic placeholder photo for a real case/subject id — swap for a real upload later. */
+export function placeholderPhotoFor(seed: string, index = 0): string {
+  const h = hashCaseId(seed);
+  return ANIMAL_STILLS[(h + index * 3) % ANIMAL_STILLS.length].url;
 }
 
 /** 4–5 stills per case, deterministic from case id (placeholders). */

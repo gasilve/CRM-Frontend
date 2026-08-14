@@ -36,17 +36,17 @@ export function InvestigatorsList() {
               />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[12.5px] font-medium text-[var(--color-text-hi)]">
+              <div className="truncate text-[0.78125rem] font-medium text-[var(--color-text-hi)]">
                 {inv.name}
               </div>
-              <div className="truncate font-mono text-[10.5px] text-[var(--color-text-lo)]">
+              <div className="truncate font-mono text-[0.65625rem] text-[var(--color-text-lo)]">
                 {inv.totalCasesOpen} open case{inv.totalCasesOpen !== 1 ? "s" : ""}
                 {inv.location ? ` · ${inv.location}` : ""}
               </div>
             </div>
             <div className="text-right">
               <div
-                className="mb-0.5 rounded-full px-2 py-0.5 text-[9px] font-medium"
+                className="mb-0.5 rounded-full px-2 py-0.5 text-[0.5625rem] font-medium"
                 style={{
                   color: DOT[inv.status],
                   background: `${DOT[inv.status]}22`,
@@ -54,7 +54,7 @@ export function InvestigatorsList() {
               >
                 {STATUS_LABEL[inv.status]}
               </div>
-              <div className="font-mono text-[9.5px] text-[var(--color-text-lo)]">
+              <div className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
                 {inv.hoursToday > 0 ? `${inv.hoursToday.toFixed(1)}h today` : inv.id}
               </div>
             </div>

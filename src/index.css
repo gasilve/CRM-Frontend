@@ -11,23 +11,96 @@
 @import "./styles/assistant.css";
 @import "./styles/video-player.css";
 @import "./styles/docx-preview.css";
+@import "./styles/responsive.css";
 
+/* Root rem scale — 1920 design = 16px. Laptops step down; ≤1023 jumps to mobile base. */
+html {
+  font-size: 16px;
+}
 
-
-@media (max-width: 1860px) { html { font-size: 15.5px; } }
-@media (max-width: 1800px) { html { font-size: 14.2px; } }
-@media (max-width: 1740px) { html { font-size: 13.9px; } }
-@media (max-width: 1680px) { html { font-size: 13.6px; } }
-@media (max-width: 1620px) { html { font-size: 13.3px; } }
-@media (max-width: 1580px) { html { font-size: 13.1px; } }
-@media (max-width: 1520px) { html { font-size: 12.9px; } }
-@media (max-width: 1460px) { html { font-size: 12.7px; } }
-@media (max-width: 1400px) { html { font-size: 12.3px; } }
-@media (max-width: 1340px) { html { font-size: 12px; } }
-@media (max-width: 1280px) { html { font-size: 11.2px; } }
-@media (max-width: 1220px) { html { font-size: 10.8px; } }
-@media (max-width: 1160px) { html { font-size: 10.3px; } }
-@media (max-width: 1120px) { html { font-size: 9.5px; } }
-@media (max-width: 1060px) { html { font-size: 9.3px; } }
-@media (max-width: 1000px) { html { font-size: 9.1px; } }
-@media (max-width: 1023px) { html { font-size: 16.8px; } }
+@media (max-width: 1860px) {
+  html {
+    font-size: 15.5px;
+  }
+}
+@media (max-width: 1800px) {
+  html {
+    font-size: 14.2px;
+  }
+}
+@media (max-width: 1740px) {
+  html {
+    font-size: 13.9px;
+  }
+}
+@media (max-width: 1680px) {
+  html {
+    font-size: 13.6px;
+  }
+}
+@media (max-width: 1620px) {
+  html {
+    font-size: 13.3px;
+  }
+}
+@media (max-width: 1580px) {
+  html {
+    font-size: 13.1px;
+  }
+}
+@media (max-width: 1520px) {
+  html {
+    font-size: 12.9px;
+  }
+}
+@media (max-width: 1460px) {
+  html {
+    font-size: 12.7px;
+  }
+}
+@media (max-width: 1400px) {
+  html {
+    font-size: 12.3px;
+  }
+}
+@media (max-width: 1340px) {
+  html {
+    font-size: 12px;
+  }
+}
+@media (max-width: 1280px) {
+  html {
+    font-size: 11.2px;
+  }
+}
+@media (max-width: 1220px) {
+  html {
+    font-size: 10.8px;
+  }
+}
+@media (max-width: 1160px) {
+  html {
+    font-size: 10.3px;
+  }
+}
+@media (max-width: 1120px) {
+  html {
+    font-size: 9.5px;
+  }
+}
+@media (max-width: 1060px) {
+  html {
+    font-size: 9.3px;
+  }
+}
+@media (max-width: 1000px) {
+  html {
+    font-size: 9.1px;
+  }
+}
+/* Tablet / mobile: restore readable root so rem layouts don't go tiny */
+@media (max-width: 1023px) {
+  html {
+    font-size: 16.8px;
+  }
+}

@@ -16,7 +16,7 @@ export function TaskBoard() {
   return (
     <Card className="flex flex-col">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-[11px]">
+        <div className="flex items-center gap-2 text-[0.6875rem]">
           <span className="font-mono text-[var(--color-text-hi)]">{remaining}</span>
           <span className="text-[var(--color-text-mid)]">remaining</span>
         </div>
@@ -39,7 +39,7 @@ export function TaskBoard() {
               type="button"
               onClick={() => toggle(t.id)}
               className={
-                "relative grid h-4 w-4 shrink-0 place-items-center rounded-[5px] border transition-colors " +
+                "relative grid h-4 w-4 shrink-0 place-items-center rounded-[0.3125rem] border transition-colors " +
                 (t.done
                   ? "border-[var(--color-accent)] bg-[var(--color-accent)]/30"
                   : "border-[var(--color-line-2)] hover:border-[var(--color-line-3)]")
@@ -56,7 +56,7 @@ export function TaskBoard() {
             </button>
             <span
               className={
-                "flex-1 text-[12.5px] " +
+                "flex-1 text-[0.78125rem] " +
                 (t.done
                   ? "text-[var(--color-text-lo)] line-through decoration-[var(--color-text-lo)]"
                   : "text-[var(--color-text-hi)]")

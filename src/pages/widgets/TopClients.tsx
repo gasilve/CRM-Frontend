@@ -26,7 +26,7 @@ function MicroSpark({ seed }: { seed: number }) {
         strokeWidth={1.4}
         strokeLinecap="round"
         strokeLinejoin="round"
-        style={{ filter: "drop-shadow(0 0 4px rgba(74,127,255,0.45))" }}
+        style={{ filter: "drop-shadow(0 0 0.25rem rgba(74,127,255,0.45))" }}
       />
     </svg>
   );
@@ -47,20 +47,20 @@ export function TopClients() {
             key={c.id}
             className="flex items-center gap-3 border-b border-[var(--color-line)] py-2.5 last:border-b-0"
           >
-            <span className="w-5 font-mono text-[10.5px] text-[var(--color-text-lo)]">
+            <span className="w-5 font-mono text-[0.65625rem] text-[var(--color-text-lo)]">
               {String(i + 1).padStart(2, "0")}
             </span>
             <Avatar initials={c.name.split(" ").map((w) => w[0]).slice(0, 2).join("")} size={30} />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[12.5px] font-medium text-[var(--color-text-hi)]">
+              <div className="truncate text-[0.78125rem] font-medium text-[var(--color-text-hi)]">
                 {c.company}
               </div>
-              <div className="truncate text-[11px] text-[var(--color-text-lo)]">
+              <div className="truncate text-[0.6875rem] text-[var(--color-text-lo)]">
                 {c.name} · {c.segment}
               </div>
             </div>
             <MicroSpark seed={c.id.charCodeAt(c.id.length - 1)} />
-            <div className="w-[80px] text-right font-mono text-[13px] text-[var(--color-text-hi)]">
+            <div className="w-[5rem] text-right font-mono text-[0.8125rem] text-[var(--color-text-hi)]">
               {fmtCurrency(c.arr)}
             </div>
           </li>

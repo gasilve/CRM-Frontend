@@ -14,9 +14,11 @@ type Props = {
   open: boolean;
   onClose: () => void;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
+  /** Where the panel opens relative to the trigger (default: below, right-aligned). */
+  align?: "bottom-end" | "top-start";
 };
 
-export function BackgroundPicker({ open, onClose, triggerRef }: Props) {
+export function BackgroundPicker({ open, onClose, triggerRef, align = "bottom-end" }: Props) {
   const { backgroundId, backgroundMeta, setBackground } = useBackground();
   const { glass } = useTheme();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -67,7 +69,9 @@ export function BackgroundPicker({ open, onClose, triggerRef }: Props) {
   return (
     <div
       ref={panelRef}
-      className="theme-picker-panel absolute right-0 top-full z-50 mt-2 w-[26rem] overflow-hidden rounded-[14px] border border-[var(--color-line-2)] bg-[var(--color-ink-1)] shadow-[0_20px_48px_-12px_rgba(0,0,0,var(--shadow-alpha-heavy))]"
+      className={`theme-picker-panel absolute z-50 w-[26rem] overflow-hidden rounded-[0.875rem] border border-[var(--color-line-2)] bg-[var(--color-ink-1)] shadow-[0_1.25rem_3rem_-0.75rem_rgba(0,0,0,var(--shadow-alpha-heavy))] ${
+        align === "top-start" ? "bottom-full left-0 mb-2" : "right-0 top-full mt-2"
+      }`}
       role="dialog"
       aria-label="Background selector"
     >
@@ -78,13 +82,13 @@ export function BackgroundPicker({ open, onClose, triggerRef }: Props) {
           </span>
           <div>
             <div
-              className="text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--color-text-hi)]"
+              className="text-[0.6875rem] font-medium uppercase tracking-[0.22em] text-[var(--color-text-hi)]"
               style={{ fontFamily: "var(--font-sans)" }}
             >
               Scene background
             </div>
             <div
-              className="text-[10px] text-[var(--color-text-lo)]"
+              className="text-[0.625rem] text-[var(--color-text-lo)]"
               style={{ fontFamily: "var(--font-sans)" }}
             >
               1080p Mixkit CDN loops · Cities has 20
@@ -100,7 +104,7 @@ export function BackgroundPicker({ open, onClose, triggerRef }: Props) {
                 key={c.id}
                 type="button"
                 onClick={() => setCategory(c.id)}
-                className="rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.14em] transition-colors"
+                className="rounded-full border px-2.5 py-1 text-[0.625rem] font-medium uppercase tracking-[0.14em] transition-colors"
                 style={{
                   fontFamily: "var(--font-sans)",
                   borderColor: active
@@ -133,7 +137,7 @@ export function BackgroundPicker({ open, onClose, triggerRef }: Props) {
 
       <div className="px-3 pb-1 pt-2">
         <div
-          className="mb-2 text-[9px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
+          className="mb-2 text-[0.5625rem] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
           style={{ fontFamily: "var(--font-sans)" }}
         >
           {BACKGROUND_CATEGORIES.find((c) => c.id === category)?.blurb}
@@ -151,7 +155,7 @@ export function BackgroundPicker({ open, onClose, triggerRef }: Props) {
       </div>
 
       <div
-        className="border-t border-[var(--color-line)] px-3.5 py-2.5 text-[9px] leading-relaxed text-[var(--color-text-lo)]"
+        className="border-t border-[var(--color-line)] px-3.5 py-2.5 text-[0.5625rem] leading-relaxed text-[var(--color-text-lo)]"
         style={{ fontFamily: "var(--font-sans)" }}
       >
         Royalty-free Mixkit MP4s loaded by URL (not stored in the repo). Muted,
@@ -182,15 +186,15 @@ function BgSwatch({
       title={`${bg.name} — ${bg.subtitle}`}
       className={
         wide
-          ? "group flex w-full overflow-hidden rounded-[12px] border text-left outline-none transition-transform duration-100 hover:scale-[1.01] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/50"
-          : "group flex flex-col overflow-hidden rounded-[12px] border text-left outline-none transition-transform duration-100 hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/50"
+          ? "group flex w-full overflow-hidden rounded-[0.75rem] border text-left outline-none transition-transform duration-100 hover:scale-[1.01] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/50"
+          : "group flex flex-col overflow-hidden rounded-[0.75rem] border text-left outline-none transition-transform duration-100 hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/50"
       }
       style={{
         borderColor: active
           ? "color-mix(in srgb, var(--color-accent) 70%, transparent)"
           : "var(--color-line)",
         boxShadow: active
-          ? "0 0 0 2px color-mix(in srgb, var(--color-accent) 28%, transparent)"
+          ? "0 0 0 0.125rem color-mix(in srgb, var(--color-accent) 28%, transparent)"
           : undefined,
       }}
     >
@@ -235,7 +239,7 @@ function BgSwatch({
           />
         )}
         {bg.videoSrc && (
-          <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-wider text-white backdrop-blur-sm">
+          <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.5rem] font-medium uppercase tracking-wider text-white backdrop-blur-sm">
             1080p
           </span>
         )}
@@ -253,13 +257,13 @@ function BgSwatch({
         />
         <div className="min-w-0">
           <div
-            className="truncate text-[11px] font-medium text-[var(--color-text-hi)]"
+            className="truncate text-[0.6875rem] font-medium text-[var(--color-text-hi)]"
             style={{ fontFamily: "var(--font-sans)" }}
           >
             {bg.name}
           </div>
           <div
-            className="truncate text-[9px] text-[var(--color-text-lo)]"
+            className="truncate text-[0.5625rem] text-[var(--color-text-lo)]"
             style={{ fontFamily: "var(--font-sans)" }}
           >
             {bg.subtitle}

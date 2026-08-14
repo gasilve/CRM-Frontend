@@ -14,15 +14,15 @@ export function SignalHealth() {
         {METRICS.map((m) => (
           <div
             key={m.label}
-            className="rounded-[10px] border border-[var(--color-line)] bg-[var(--color-ink-1)]/60 p-3"
+            className="rounded-[0.625rem] border border-[var(--color-line)] bg-[var(--color-ink-1)]/60 p-3"
           >
-            <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-lo)]">
+            <div className="text-[0.625rem] font-medium uppercase tracking-wider text-[var(--color-text-lo)]">
               {m.label}
             </div>
-            <div className="font-mono text-[18px] text-[var(--color-text-hi)]">
+            <div className="font-mono text-[1.125rem] text-[var(--color-text-hi)]">
               {m.value}
             </div>
-            <div className="font-mono text-[10.5px] text-[var(--color-text-lo)]">
+            <div className="font-mono text-[0.65625rem] text-[var(--color-text-lo)]">
               {m.trend}
             </div>
           </div>

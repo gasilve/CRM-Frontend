@@ -19,9 +19,11 @@ type Props = {
   onClose: () => void;
   /** Ref to the trigger button — excluded from outside-click detection */
   triggerRef: React.RefObject<HTMLButtonElement | null>;
+  /** Where the panel opens relative to the trigger (default: below, right-aligned). */
+  align?: "bottom-end" | "top-start";
 };
 
-export function ThemePicker({ open, onClose, triggerRef }: Props) {
+export function ThemePicker({ open, onClose, triggerRef, align = "bottom-end" }: Props) {
   const {
     themeId,
     setTheme,
@@ -70,7 +72,9 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
   return (
     <div
       ref={panelRef}
-      className="theme-picker-panel absolute right-0 top-full z-50 mt-2 w-[28rem] overflow-hidden rounded-[14px] border border-[var(--color-line-2)] bg-[var(--color-ink-1)] shadow-[0_20px_48px_-12px_rgba(0,0,0,var(--shadow-alpha-heavy))]"
+      className={`theme-picker-panel absolute z-50 w-[28rem] overflow-hidden rounded-[0.875rem] border border-[var(--color-line-2)] bg-[var(--color-ink-1)] shadow-[0_1.25rem_3rem_-0.75rem_rgba(0,0,0,var(--shadow-alpha-heavy))] ${
+        align === "top-start" ? "bottom-full left-0 mb-2" : "right-0 top-full mt-2"
+      }`}
       role="dialog"
       aria-label="Theme selector"
     >
@@ -82,13 +86,13 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
             </span>
             <div className="min-w-0">
               <div
-                className="text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--color-text-hi)]"
+                className="text-[0.6875rem] font-medium uppercase tracking-[0.22em] text-[var(--color-text-hi)]"
                 style={{ fontFamily: "var(--font-sans)" }}
               >
                 Glass
               </div>
               <div
-                className="text-[10px] text-[var(--color-text-lo)]"
+                className="text-[0.625rem] text-[var(--color-text-lo)]"
                 style={{ fontFamily: "var(--font-sans)" }}
               >
                 Frosted HUD over a live scene
@@ -114,26 +118,26 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
                   ? "color-mix(in srgb, var(--color-ink-0) 32%, transparent)"
                   : "var(--color-line-2)",
               boxShadow: glass
-                ? "inset 0 1px 0 rgba(255,255,255,0.25), 0 0 16px -4px var(--color-accent-glow)"
+                ? "inset 0 0.0625rem 0 rgba(255,255,255,0.25), 0 0 1rem -0.25rem var(--color-accent-glow)"
                 : isLight
-                  ? "inset 0 1px 0 rgba(255,255,255,0.85), 0 1px 2px rgba(0,0,0,0.14), 0 0 0 1px rgba(0,0,0,0.06)"
-                  : "inset 0 1px 0 rgba(255,255,255,0.06)",
+                  ? "inset 0 0.0625rem 0 rgba(255,255,255,0.85), 0 0.0625rem 0.125rem rgba(0,0,0,0.14), 0 0 0 0.0625rem rgba(0,0,0,0.06)"
+                  : "inset 0 0.0625rem 0 rgba(255,255,255,0.06)",
             }}
           >
             <span
               className="absolute top-0.5 left-0.5 rounded-full shadow-sm transition-transform duration-200"
               style={{
-                width: 18,
-                height: 18,
-                transform: glass ? "translateX(20px)" : "translateX(0)",
+                width: "1.125rem",
+                height: "1.125rem",
+                transform: glass ? "translateX(1.25rem)" : "translateX(0)",
                 background: glass
                   ? "linear-gradient(180deg, #fff, color-mix(in srgb, var(--color-accent-2) 35%, #fff))"
                   : isLight
                     ? "#ffffff"
                     : "#e8eef8",
                 boxShadow: isLight && !glass
-                  ? "0 1px 2px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.08)"
-                  : "0 1px 2px rgba(0,0,0,0.12)",
+                  ? "0 0.0625rem 0.125rem rgba(0,0,0,0.2), 0 0 0 0.0625rem rgba(0,0,0,0.08)"
+                  : "0 0.0625rem 0.125rem rgba(0,0,0,0.12)",
               }}
             />
           </button>
@@ -148,8 +152,8 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
               <span
                 className={
                   isLight
-                    ? "text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-mid)]"
-                    : "text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
+                    ? "text-[0.625rem] font-medium uppercase tracking-[0.2em] text-[var(--color-text-mid)]"
+                    : "text-[0.625rem] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
                 }
                 style={{ fontFamily: "var(--font-sans)" }}
               >
@@ -158,8 +162,8 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
               <span
                 className={
                   isLight
-                    ? "tabular-nums text-[10px] text-[var(--color-text-hi)]"
-                    : "tabular-nums text-[10px] text-[var(--color-text-mid)]"
+                    ? "tabular-nums text-[0.625rem] text-[var(--color-text-hi)]"
+                    : "tabular-nums text-[0.625rem] text-[var(--color-text-mid)]"
                 }
                 style={{ fontFamily: "var(--font-sans)" }}
               >
@@ -180,8 +184,8 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
             <div
               className={
                 isLight
-                  ? "mt-1 flex justify-between px-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-mid)]"
-                  : "mt-1 flex justify-between px-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-lo)]"
+                  ? "mt-1 flex justify-between px-0.5 text-[0.5625rem] uppercase tracking-[0.16em] text-[var(--color-text-mid)]"
+                  : "mt-1 flex justify-between px-0.5 text-[0.5625rem] uppercase tracking-[0.16em] text-[var(--color-text-lo)]"
               }
               style={{ fontFamily: "var(--font-sans)" }}
             >
@@ -195,8 +199,8 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
               <span
                 className={
                   isLight
-                    ? "text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-mid)]"
-                    : "text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
+                    ? "text-[0.625rem] font-medium uppercase tracking-[0.2em] text-[var(--color-text-mid)]"
+                    : "text-[0.625rem] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
                 }
                 style={{ fontFamily: "var(--font-sans)" }}
               >
@@ -205,8 +209,8 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
               <span
                 className={
                   isLight
-                    ? "tabular-nums text-[10px] text-[var(--color-text-hi)]"
-                    : "tabular-nums text-[10px] text-[var(--color-text-mid)]"
+                    ? "tabular-nums text-[0.625rem] text-[var(--color-text-hi)]"
+                    : "tabular-nums text-[0.625rem] text-[var(--color-text-mid)]"
                 }
                 style={{ fontFamily: "var(--font-sans)" }}
               >
@@ -227,8 +231,8 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
             <div
               className={
                 isLight
-                  ? "mt-1 flex justify-between px-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-mid)]"
-                  : "mt-1 flex justify-between px-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-lo)]"
+                  ? "mt-1 flex justify-between px-0.5 text-[0.5625rem] uppercase tracking-[0.16em] text-[var(--color-text-mid)]"
+                  : "mt-1 flex justify-between px-0.5 text-[0.5625rem] uppercase tracking-[0.16em] text-[var(--color-text-lo)]"
               }
               style={{ fontFamily: "var(--font-sans)" }}
             >
@@ -246,7 +250,7 @@ export function ThemePicker({ open, onClose, triggerRef }: Props) {
         current={themeId}
         onPick={pick}
       />
-      <div className="mx-3 h-px bg-[var(--color-line)]" />
+      <div className="mx-3 h-[0.0625rem] bg-[var(--color-line)]" />
       <Section
         label="Light"
         icon={<Sun size={11} strokeWidth={1.8} />}
@@ -276,7 +280,7 @@ function Section({
       <div className="mb-2.5 flex items-center gap-1.5 px-1">
         <span className="text-[var(--color-text-lo)]">{icon}</span>
         <span
-          className="text-[10px] font-medium uppercase tracking-[0.28em] text-[var(--color-text-lo)]"
+          className="text-[0.625rem] font-medium uppercase tracking-[0.28em] text-[var(--color-text-lo)]"
           style={{ fontFamily: "var(--font-sans)" }}
         >
           {label}
@@ -312,15 +316,15 @@ function Swatch({
       className="group flex flex-col items-center gap-1.5 outline-none"
     >
       <div
-        className="relative h-10 w-10 rounded-[10px] transition-transform duration-100 group-hover:scale-105 group-focus-visible:ring-2"
+        className="relative h-10 w-10 rounded-[0.625rem] transition-transform duration-100 group-hover:scale-105 group-focus-visible:ring-2"
         style={{
           background: theme.bg,
           border: active
-            ? `2px solid ${theme.accent}`
-            : "1px solid rgba(128,128,128,0.2)",
+            ? `0.125rem solid ${theme.accent}`
+            : "0.0625rem solid rgba(128,128,128,0.2)",
           boxShadow: active
-            ? `0 0 0 3px ${theme.accent}28, 0 4px 12px -4px rgba(0,0,0,0.4)`
-            : "0 2px 6px -2px rgba(0,0,0,0.25)",
+            ? `0 0 0 0.1875rem ${theme.accent}28, 0 0.25rem 0.75rem -0.25rem rgba(0,0,0,0.4)`
+            : "0 0.125rem 0.375rem -0.125rem rgba(0,0,0,0.25)",
         }}
       >
         {/* accent dot */}
@@ -339,7 +343,7 @@ function Swatch({
         )}
       </div>
       <span
-        className="text-[9px] font-medium uppercase tracking-wide text-[var(--color-text-lo)]"
+        className="text-[0.5625rem] font-medium uppercase tracking-wide text-[var(--color-text-lo)]"
         style={{ fontFamily: "var(--font-sans)" }}
       >
         {theme.name}

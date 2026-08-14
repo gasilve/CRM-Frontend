@@ -1,34 +1,33 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  Calendar,
-  Clock,
-  FileText,
-  Tag,
-  User,
-  Briefcase,
+  User, Briefcase, Tag, MapPin, Car, Users2, ScrollText,
 } from "lucide-react";
-import type { InvCase, Investigator, TimeEntry } from "@/lib/mock-data";
+import type { CaseDetail } from "@/lib/crm-api";
 import {
+  AddressesMapPanel,
+  AssignmentPanel,
   CaseInfoPanel,
-  InvestigatorsPanel,
-  NotesPanel,
-  SubjectDetailsPanel,
+  ClientAdjusterPanel,
+  DescriptionPanel,
+  IdentityPanel,
   SubjectPhotoPanel,
   TagsPanel,
-  TimelinePanel,
-  TimeLogPanel,
+  VehiclesPanel,
+  WorkPanel,
 } from "./case-detail-panels";
 
 export type CasePanelId =
   | "subject-photo"
-  | "subject-details"
-  | "timeline"
+  | "identity"
+  | "work"
+  | "client-adjuster"
   | "case-info"
   | "tags"
-  | "investigators"
-  | "time-log"
-  | "notes";
+  | "assignment"
+  | "addresses-map"
+  | "vehicles"
+  | "description";
 
 export type CaseLayoutItem = {
   id: CasePanelId;
@@ -39,9 +38,11 @@ export type CaseLayoutItem = {
 };
 
 export type CasePanelCtx = {
-  case: InvCase;
-  investigators: Investigator[];
-  timeEntries: TimeEntry[];
+  case: CaseDetail;
+  isAdmin: boolean;
+  currentUserId: string;
+  investigatorOptions: { id: string; name: string }[];
+  onRefresh: () => void;
 };
 
 export type CasePanelDef = {
@@ -50,113 +51,85 @@ export type CasePanelDef = {
   icon: LucideIcon;
   minH: number;
   minW: number;
-  defaultW: number;
-  defaultH: number;
   render: (ctx: CasePanelCtx) => ReactNode;
 };
 
 export const CASE_PANELS: Record<CasePanelId, CasePanelDef> = {
   "subject-photo": {
-    id: "subject-photo",
-    label: "Photo",
-    icon: User,
-    minH: 5,
-    minW: 2,
-    defaultW: 3,
-    defaultH: 6,
-    render: (ctx) => <SubjectPhotoPanel c={ctx.case} />,
+    id: "subject-photo", label: "Photo", icon: User,
+    minH: 4, minW: 2,
+    render: (ctx) => <SubjectPhotoPanel ctx={ctx} />,
   },
-  "subject-details": {
-    id: "subject-details",
-    label: "Subject",
-    icon: User,
-    minH: 2,
-    minW: 2,
-    defaultW: 3,
-    defaultH: 4,
-    render: (ctx) => <SubjectDetailsPanel c={ctx.case} />,
+  identity: {
+    id: "identity", label: "Identity", icon: User,
+    minH: 3, minW: 2,
+    render: (ctx) => <IdentityPanel ctx={ctx} />,
   },
-  timeline: {
-    id: "timeline",
-    label: "Timeline",
-    icon: Calendar,
-    minH: 2,
-    minW: 3,
-    defaultW: 6,
-    defaultH: 2,
-    render: (ctx) => <TimelinePanel c={ctx.case} />,
+  work: {
+    id: "work", label: "Work", icon: Briefcase,
+    minH: 3, minW: 2,
+    render: (ctx) => <WorkPanel ctx={ctx} />,
+  },
+  "client-adjuster": {
+    id: "client-adjuster", label: "Client", icon: Briefcase,
+    minH: 3, minW: 2,
+    render: (ctx) => <ClientAdjusterPanel ctx={ctx} />,
   },
   "case-info": {
-    id: "case-info",
-    label: "Case info",
-    icon: Briefcase,
-    minH: 2,
-    minW: 2,
-    defaultW: 3,
-    defaultH: 3,
-    render: (ctx) => <CaseInfoPanel c={ctx.case} />,
+    id: "case-info", label: "Assignment details", icon: Briefcase,
+    minH: 3, minW: 3,
+    render: (ctx) => <CaseInfoPanel ctx={ctx} />,
   },
   tags: {
-    id: "tags",
-    label: "Tags",
-    icon: Tag,
-    minH: 2,
-    minW: 2,
-    defaultW: 3,
-    defaultH: 2,
-    render: (ctx) => <TagsPanel c={ctx.case} />,
+    id: "tags", label: "Tags", icon: Tag,
+    minH: 2, minW: 2,
+    render: (ctx) => <TagsPanel ctx={ctx} />,
   },
-  investigators: {
-    id: "investigators",
-    label: "Investigators",
-    icon: User,
-    minH: 2,
-    minW: 2,
-    defaultW: 3,
-    defaultH: 3,
-    render: (ctx) => (
-      <InvestigatorsPanel investigators={ctx.investigators} />
-    ),
+  assignment: {
+    id: "assignment", label: "Assignment", icon: Users2,
+    minH: 2, minW: 2,
+    render: (ctx) => <AssignmentPanel ctx={ctx} />,
   },
-  "time-log": {
-    id: "time-log",
-    label: "Time log",
-    icon: Clock,
-    minH: 2,
-    minW: 3,
-    defaultW: 6,
-    defaultH: 4,
-    render: (ctx) => <TimeLogPanel entries={ctx.timeEntries} />,
+  "addresses-map": {
+    id: "addresses-map", label: "Addresses & map", icon: MapPin,
+    minH: 4, minW: 2,
+    render: (ctx) => <AddressesMapPanel ctx={ctx} />,
   },
-  notes: {
-    id: "notes",
-    label: "Notes",
-    icon: FileText,
-    minH: 2,
-    minW: 3,
-    defaultW: 6,
-    defaultH: 2,
-    render: (ctx) => <NotesPanel c={ctx.case} />,
+  vehicles: {
+    id: "vehicles", label: "Vehicles", icon: Car,
+    minH: 3, minW: 3,
+    render: (ctx) => <VehiclesPanel ctx={ctx} />,
+  },
+  description: {
+    id: "description", label: "Description", icon: ScrollText,
+    minH: 2, minW: 2,
+    render: (ctx) => <DescriptionPanel ctx={ctx} />,
   },
 };
 
 export const CASE_PANEL_LIST = Object.values(CASE_PANELS);
 
-export const CASE_DEFAULT_LAYOUT: CaseLayoutItem[] = [
-  { id: "subject-photo", x: 0, y: 0, w: 3, h: 6 },
-  { id: "subject-details", x: 3, y: 0, w: 3, h: 4 },
-  { id: "timeline", x: 6, y: 0, w: 6, h: 2 },
-  { id: "case-info", x: 6, y: 2, w: 3, h: 3 },
-  { id: "tags", x: 9, y: 2, w: 3, h: 2 },
-  { id: "investigators", x: 9, y: 4, w: 3, h: 3 },
-  { id: "time-log", x: 0, y: 6, w: 6, h: 4 },
-  { id: "notes", x: 6, y: 5, w: 3, h: 3 },
-];
-
-export const CASE_LS_KEY = "accenty.crm.case-detail.layout.v2";
 export const CASE_COLUMNS = 12;
+/** Design px at 1920 — convert with designPx() when configuring GridStack. */
 export const CASE_CELL_HEIGHT = 84;
 export const CASE_GRID_MARGIN = 8;
+
+/** All widgets live on one page (grid grows vertically); the activity journal
+ * is a fixed folder section below the grid, not a widget. */
+export const CASE_DEFAULT_LAYOUT: CaseLayoutItem[] = [
+  { id: "case-info",       x: 0, y: 0, w: 6, h: 3 },
+  { id: "identity",        x: 0, y: 3, w: 3, h: 3 },
+  { id: "work",            x: 3, y: 3, w: 3, h: 3 },
+  { id: "addresses-map",   x: 6, y: 0, w: 3, h: 6 },
+  { id: "subject-photo",   x: 9, y: 0, w: 3, h: 6 },
+  { id: "assignment",      x: 0, y: 6, w: 3, h: 3 },
+  { id: "client-adjuster", x: 3, y: 6, w: 3, h: 3 },
+  { id: "tags",            x: 6, y: 6, w: 3, h: 3 },
+  { id: "description",     x: 9, y: 6, w: 3, h: 3 },
+  { id: "vehicles",        x: 0, y: 9, w: 12, h: 3 },
+];
+
+export const CASE_LS_KEY = "accenty.crm.case-detail.layout.v5";
 
 export function normalizeCaseLayout(items: CaseLayoutItem[]): CaseLayoutItem[] {
   const seen = new Set<CasePanelId>();
@@ -166,29 +139,19 @@ export function normalizeCaseLayout(items: CaseLayoutItem[]): CaseLayoutItem[] {
     if (!CASE_PANELS[raw.id] || seen.has(raw.id)) continue;
     seen.add(raw.id);
     const def = CASE_PANELS[raw.id];
-    const w = Number.isFinite(raw.w)
-      ? Math.max(def.minW, Math.min(CASE_COLUMNS, Math.floor(raw.w)))
-      : def.defaultW;
-    const h = Number.isFinite(raw.h)
-      ? Math.max(def.minH, Math.floor(raw.h))
-      : def.defaultH;
-    const x = Number.isFinite(raw.x)
-      ? Math.max(0, Math.min(CASE_COLUMNS - w, Math.floor(raw.x)))
-      : 0;
+    const w = Number.isFinite(raw.w) ? Math.max(def.minW, Math.min(CASE_COLUMNS, Math.floor(raw.w))) : def.minW;
+    const h = Number.isFinite(raw.h) ? Math.max(def.minH, Math.floor(raw.h)) : def.minH;
+    const x = Number.isFinite(raw.x) ? Math.max(0, Math.min(CASE_COLUMNS - w, Math.floor(raw.x))) : 0;
     const y = Number.isFinite(raw.y) ? Math.max(0, Math.floor(raw.y)) : 0;
     out.push({ id: raw.id, x, y, w, h });
   }
 
-  // Ensure every known panel exists (new panels after upgrades)
+  // Panels missing from the saved layout get appended at the bottom in their default size.
   for (const def of CASE_PANEL_LIST) {
     if (seen.has(def.id)) continue;
-    out.push({
-      id: def.id,
-      x: 0,
-      y: out.reduce((m, i) => Math.max(m, i.y + i.h), 0),
-      w: def.defaultW,
-      h: def.defaultH,
-    });
+    const fallback = CASE_DEFAULT_LAYOUT.find((i) => i.id === def.id);
+    const bottom = out.reduce((m, i) => Math.max(m, i.y + i.h), 0);
+    out.push({ id: def.id, x: 0, y: bottom, w: fallback?.w ?? def.minW, h: fallback?.h ?? def.minH });
   }
 
   return out;
@@ -206,17 +169,17 @@ export function loadCaseLayout(): CaseLayoutItem[] {
   }
 }
 
+export function saveCaseLayout(items: CaseLayoutItem[]): void {
+  try {
+    localStorage.setItem(CASE_LS_KEY, JSON.stringify(items));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function layoutToCaseGridWidgets(items: CaseLayoutItem[]) {
   return normalizeCaseLayout(items).map((item) => {
     const def = CASE_PANELS[item.id];
-    return {
-      id: item.id,
-      x: item.x,
-      y: item.y,
-      w: item.w,
-      h: item.h,
-      minW: def.minW,
-      minH: def.minH,
-    };
+    return { id: item.id, x: item.x, y: item.y, w: item.w, h: item.h, minW: def.minW, minH: def.minH };
   });
 }

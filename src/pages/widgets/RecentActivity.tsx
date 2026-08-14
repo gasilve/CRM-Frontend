@@ -24,11 +24,11 @@ export function RecentActivity() {
             >
               <Avatar initials={a.whoInitials} size={26} />
               <div className="min-w-0 flex-1">
-                <div className="text-[12.5px] text-[var(--color-text-hi)]">
+                <div className="text-[0.78125rem] text-[var(--color-text-hi)]">
                   <span className="font-medium">{a.who}</span>{" "}
                   <span className="text-[var(--color-text-mid)]">{a.text}</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[10.5px] uppercase tracking-wider text-[var(--color-text-lo)]">
+                <div className="flex items-center gap-1.5 text-[0.65625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
                   <Icon size={10} strokeWidth={1.8} />
                   <span>{a.type}</span>
                   <span className="opacity-50">·</span>

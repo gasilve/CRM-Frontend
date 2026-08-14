@@ -1,4 +1,4 @@
-﻿/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    COMPONENTS
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 @layer components {
@@ -6,7 +6,7 @@
     font-family: var(--font-eyebrow);
     text-transform: uppercase;
     letter-spacing: 0.32em;
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 500;
     color: var(--color-text-mid);
   }
@@ -23,11 +23,11 @@
     background:
       linear-gradient(180deg, var(--color-surface-shine), rgba(255, 255, 255, 0) 60%),
       var(--color-ink-2);
-    border: 1px solid var(--color-line);
+    border: 0.0625rem solid var(--color-line);
     border-radius: var(--radius-card);
     box-shadow:
-      inset 0 1px 0 var(--color-surface-shine),
-      0 12px 32px -16px rgba(0, 0, 0, var(--shadow-alpha));
+      inset 0 0.0625rem 0 var(--color-surface-shine),
+      0 0.75rem 2rem -1rem rgba(0, 0, 0, var(--shadow-alpha));
   }
 
   .surface-hover {
@@ -38,34 +38,34 @@
   }
   .surface-hover:hover {
     border-color: var(--color-line-2);
-    transform: translateY(-1px);
+    transform: translateY(-0.0625rem);
     /* Chromatic aberration â€” intentional design detail, stays fixed */
     text-shadow:
-      -0.22px 0 rgba(255, 42, 119, 0.45),
-      0.22px 0 rgba(37, 211, 255, 0.45);
+      -0.01375rem 0 rgba(255, 42, 119, 0.45),
+      0.01375rem 0 rgba(37, 211, 255, 0.45);
     box-shadow:
-      inset 0 1px 0 var(--color-surface-shine),
-      0 18px 40px -14px rgba(0, 0, 0, var(--shadow-alpha-heavy)),
-      0 0 24px -10px var(--color-accent-glow);
+      inset 0 0.0625rem 0 var(--color-surface-shine),
+      0 1.125rem 2.5rem -0.875rem rgba(0, 0, 0, var(--shadow-alpha-heavy)),
+      0 0 1.5rem -0.625rem var(--color-accent-glow);
   }
 
   .hairline {
     background: linear-gradient(90deg, transparent, var(--color-line-2), transparent);
-    height: 1px;
+    height: 0.0625rem;
     width: 100%;
   }
 
   .pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 11px;
+    gap: 0.375rem;
+    padding: 0.1875rem 0.625rem;
+    border-radius: 62.4375rem;
+    font-size: 0.6875rem;
     line-height: 1;
     font-weight: 500;
     letter-spacing: 0.04em;
-    border: 1px solid var(--color-line-2);
+    border: 0.0625rem solid var(--color-line-2);
     background: color-mix(in srgb, var(--color-ink-2) 60%, transparent);
   }
   .pill-pos {
@@ -92,7 +92,31 @@
   .focus-ring {
     outline: none;
     box-shadow:
-      0 0 0 1px var(--color-line-2),
-      0 0 0 3px var(--color-accent-soft);
+      0 0 0 0.0625rem var(--color-line-2),
+      0 0 0 0.1875rem var(--color-accent-soft);
   }
+
+  /* Auth cards — stronger definition on light themes where ink-2 ≈ white */
+  .auth-surface {
+    border-color: var(--color-line-2);
+    box-shadow:
+      inset 0 0.0625rem 0 var(--color-surface-shine),
+      0 1rem 2.5rem -0.75rem rgba(0, 0, 0, var(--shadow-alpha-heavy));
+  }
+}
+
+html[data-theme^="light"] .auth-surface {
+  border-color: var(--color-line-3);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.72) 55%),
+    var(--color-ink-2);
+  box-shadow:
+    inset 0 0.0625rem 0 rgba(255, 255, 255, 0.9),
+    0 1.25rem 3rem -1rem rgba(15, 23, 64, 0.18),
+    0 0 0 0.0625rem color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+html[data-theme^="light"] .auth-input {
+  background: var(--color-ink-3);
+  border-color: var(--color-line-3);
 }

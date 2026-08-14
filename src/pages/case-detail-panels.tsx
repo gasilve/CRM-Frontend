@@ -1,102 +1,86 @@
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { Columns2, MapPin, User } from "lucide-react";
 import {
-  evidencePhotosForCase,
-  SERVICE_LABELS,
-  TAG_COLORS,
-  type CaseStatus,
-  type InvCase,
-  type Investigator,
-  type TimeEntry,
-} from "@/lib/mock-data";
+  Columns2, MapPin, User, Plus, X, Loader2, Car, ShieldQuestion, StickyNote,
+  ImagePlus, ScanFace, Search, Trash2, UserPlus,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
+import { getInitials } from "@/lib/format";
+import { SERVICE_LABELS, TAG_COLORS, placeholderPhotoFor, type InvTag } from "@/lib/mock-data";
+import {
+  casesApi,
+  geocodeApi,
+  type CaseDetail,
+  type CaseStatus,
+  type CaseDayEntry,
+  type CaseDayEntryType,
+} from "@/lib/crm-api";
 import { ImageComparisonModal } from "@/components/case/ImageComparisonModal";
+import { CaseMap } from "@/components/case/CaseMap";
+import type { CasePanelCtx } from "./case-detail-widgets";
 
-const STATUS_CONFIG: Record<
-  CaseStatus,
-  { label: string; dot: string; pill: string; text: string }
-> = {
+const STATUS_CONFIG: Record<CaseStatus, { label: string; dot: string; pill: string; text: string }> = {
   open: { label: "Open", dot: "#4ade80", pill: "rgba(74,222,128,0.15)", text: "#4ade80" },
-  suspended: {
-    label: "Suspended",
-    dot: "#f59e0b",
-    pill: "rgba(245,158,11,0.15)",
-    text: "#f59e0b",
-  },
-  closed: {
-    label: "Closed",
-    dot: "#5b6680",
-    pill: "rgba(91,102,128,0.15)",
-    text: "#7a8499",
-  },
+  suspended: { label: "Suspended", dot: "#f59e0b", pill: "rgba(245,158,11,0.15)", text: "#f59e0b" },
+  closed: { label: "Closed", dot: "#5b6680", pill: "rgba(91,102,128,0.15)", text: "#7a8499" },
 };
 
-export function Field({
-  label,
-  value,
-  mono = true,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
+export function Field({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <div className="mb-0.5 font-mono text-[9px] uppercase tracking-wider text-[var(--color-text-lo)]">
-        {label}
-      </div>
-      <div
-        className={
-          mono
-            ? "font-mono text-[11.5px] text-[var(--color-text-hi)]"
-            : "text-[12.5px] text-[var(--color-text-hi)]"
-        }
-      >
+      <div className="mb-0.5 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">{label}</div>
+      <div className={mono ? "font-mono text-[0.71875rem] text-[var(--color-text-hi)]" : "text-[0.78125rem] text-[var(--color-text-hi)]"}>
         {value}
       </div>
     </div>
   );
 }
 
-function PanelShell({
-  title,
-  icon,
-  children,
-  className,
-}: {
-  title: string;
-  icon?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}) {
+function PanelShell({ title, icon, children, className, action }: { title: string; icon?: ReactNode; children: ReactNode; className?: string; action?: ReactNode }) {
   return (
     <div className={cn("surface flex h-full min-h-0 flex-col overflow-hidden", className)}>
       <div className="eyebrow shrink-0 border-b border-[var(--color-line)] px-4 py-2.5 flex items-center gap-2">
         {icon}
         {title}
+        {action && <span className="ml-auto normal-case tracking-normal">{action}</span>}
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-4">{children}</div>
     </div>
   );
 }
 
-export function SubjectPhotoPanel({ c }: { c: InvCase }) {
+const fmtDate = (iso: string | null | undefined): string =>
+  iso ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
+
+const maskSsn = (ssn: string | null): string => {
+  if (!ssn) return "—";
+  const digits = ssn.replace(/\D/g, "");
+  return digits.length >= 4 ? `•••-••-${digits.slice(-4)}` : ssn;
+};
+
+// ─── Subject photo ──────────────────────────────────────────────────────────
+
+export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
+  const photoEntries = useMemo(
+    () => c.days.flatMap((d) => d.entries.filter((e) => e.type === "photo_person")),
+    [c.days],
+  );
+
   const photos = useMemo(() => {
-    const base = evidencePhotosForCase(c.id);
-    if (!c.subject.photoUrl) return base;
+    const primaryUrl = c.subjectPhotoUrl ?? placeholderPhotoFor(c.id);
     return [
-      {
-        id: `${c.id}-primary`,
+      { id: `${c.id}-primary`, caseId: c.id, url: primaryUrl, label: "Subject primary", kind: "primary" as const, capturedAt: c.dateOpened },
+      ...photoEntries.map((e) => ({
+        id: e.id,
         caseId: c.id,
-        url: c.subject.photoUrl,
-        label: "Subject primary",
-        kind: "primary" as const,
-        capturedAt: c.dateOpened,
-      },
-      ...base,
+        url: e.photoUrl ?? placeholderPhotoFor(e.id),
+        label: e.body || "Field photo",
+        kind: "surveillance" as const,
+        capturedAt: e.createdAt,
+      })),
     ];
-  }, [c]);
+  }, [c, photoEntries]);
 
   const primary = photos[0];
   const gallery = photos.slice(1);
@@ -111,26 +95,13 @@ export function SubjectPhotoPanel({ c }: { c: InvCase }) {
   return (
     <PanelShell title="Subject photo" icon={<User size={11} strokeWidth={1.8} />}>
       <div className="flex h-full min-h-0 flex-col gap-3">
-        <div className="relative min-h-[120px] flex-1 overflow-hidden rounded-[10px] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]">
-          {primary ? (
-            <img
-              src={primary.url}
-              alt={primary.label}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full min-h-[120px] flex-col items-center justify-center gap-2">
-              <User size={28} strokeWidth={1.2} className="text-[var(--color-text-lo)]" />
-              <span className="font-mono text-[9px] tracking-wider text-[var(--color-text-lo)]">
-                NO PHOTO
-              </span>
-            </div>
-          )}
+        <div className="relative min-h-[7.5rem] flex-1 overflow-hidden rounded-[0.625rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]">
+          <img src={primary.url} alt={primary.label} className="h-full w-full object-cover" />
         </div>
 
         {gallery.length > 0 && (
           <div>
-            <div className="mb-1.5 font-mono text-[9px] uppercase tracking-wider text-[var(--color-text-lo)]">
+            <div className="mb-1.5 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
               Other photos · {gallery.length}
             </div>
             <div className="flex gap-1.5 overflow-x-auto pb-0.5">
@@ -138,15 +109,11 @@ export function SubjectPhotoPanel({ c }: { c: InvCase }) {
                 <button
                   key={p.id}
                   type="button"
-                  title={`${p.label} · ${p.capturedAt}`}
+                  title={`${p.label} · ${fmtDate(p.capturedAt)}`}
                   onClick={() => openCompare(p.id)}
-                  className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[8px] border border-[var(--color-line-2)] bg-[var(--color-ink-2)] transition-opacity hover:opacity-90"
+                  className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-2)] transition-opacity hover:opacity-90"
                 >
-                  <img
-                    src={p.url}
-                    alt={p.label}
-                    className="h-full w-full object-cover"
-                  />
+                  <img src={p.url} alt={p.label} className="h-full w-full object-cover" />
                 </button>
               ))}
             </div>
@@ -158,7 +125,7 @@ export function SubjectPhotoPanel({ c }: { c: InvCase }) {
           onClick={() => openCompare()}
           disabled={photos.length < 2}
           className={cn(
-            "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[10px] border px-3 py-2 text-[11.5px] font-medium transition-colors",
+            "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[0.625rem] border px-3 py-2 text-[0.71875rem] font-medium transition-colors",
             photos.length < 2
               ? "cursor-not-allowed border-[var(--color-line)] text-[var(--color-text-lo)] opacity-50"
               : "border-[var(--color-line-2)] bg-[var(--color-ink-2)] text-[var(--color-text-mid)] hover:border-[var(--color-line-3)] hover:text-[var(--color-text-hi)]",
@@ -174,38 +141,41 @@ export function SubjectPhotoPanel({ c }: { c: InvCase }) {
         photos={photos}
         uploadedId={uploadedId}
         subjectOnFileId={photos[0]?.id}
-        subjectName={c.subject.name}
-        caseReference={c.clientFileNum}
+        subjectName={c.subjectName}
+        caseReference={c.claimNumber ?? c.caseNumber}
         onClose={() => setCompareOpen(false)}
       />
     </PanelShell>
   );
 }
 
-export function SubjectDetailsPanel({ c }: { c: InvCase }) {
-  const s = c.subject;
+// ─── Identity / Work ────────────────────────────────────────────────────────
+
+export function IdentityPanel({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
   return (
-    <PanelShell title="Subject" icon={<User size={11} strokeWidth={1.8} />}>
+    <PanelShell title="Identity" icon={<User size={11} strokeWidth={1.8} />}>
       <div className="space-y-2.5">
-        <Field label="Full Name" value={s.name} mono={false} />
-        {s.dob && <Field label="Date of Birth" value={s.dob} />}
-        {s.address && <Field label="Street" value={s.address} mono={false} />}
-        {(s.city || s.state) && (
-          <Field
-            label="City / State"
-            value={[s.city, s.state].filter(Boolean).join(", ")}
-            mono={false}
-          />
-        )}
-        {s.zip && <Field label="ZIP" value={s.zip} />}
-        {s.description && (
+        {c.subjectAliases.length > 0 && (
           <div>
-            <div className="mb-1 font-mono text-[9px] uppercase tracking-wider text-[var(--color-text-lo)]">
-              Description
+            <div className="mb-1 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">AKA</div>
+            <div className="flex flex-wrap gap-1">
+              {c.subjectAliases.map((a) => (
+                <span key={a} className="rounded-full border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-0.5 text-[0.65625rem] text-[var(--color-text-mid)]">
+                  {a}
+                </span>
+              ))}
             </div>
-            <div className="text-[11.5px] leading-relaxed text-[var(--color-text-mid)]">
-              {s.description}
-            </div>
+          </div>
+        )}
+        <Field label="Date of birth" value={fmtDate(c.subjectDob)} />
+        <Field label="SSN" value={maskSsn(c.subjectSsn)} />
+        <Field label="Driver license" value={c.subjectDriverLicense ?? "—"} />
+        {c.subjectLanguage && <Field label="Language" value={c.subjectLanguage} mono={false} />}
+        {c.subjectDescription && (
+          <div>
+            <div className="mb-1 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">Description</div>
+            <div className="text-[0.71875rem] leading-relaxed text-[var(--color-text-mid)]">{c.subjectDescription}</div>
           </div>
         )}
       </div>
@@ -213,103 +183,114 @@ export function SubjectDetailsPanel({ c }: { c: InvCase }) {
   );
 }
 
-export function TimelinePanel({ c }: { c: InvCase }) {
+export function WorkPanel({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
   return (
-    <PanelShell title="Case timeline">
-      <div className="flex h-full items-center gap-0 px-1">
-        <TimelineSegment label="Opened" date={c.dateOpened} color="#4a7fff" active />
-        <div className="h-px flex-1 bg-[var(--color-line-2)]" />
-        {c.status === "suspended" && (
-          <>
-            <TimelineSegment label="Suspended" date="—" color="#f59e0b" active />
-            <div className="h-px flex-1 border-t border-dashed border-[var(--color-line-2)]" />
-          </>
-        )}
-        <TimelineSegment
-          label={c.status === "closed" ? "Closed" : "In Progress"}
-          date={c.dateClosed ?? "Ongoing"}
-          color={c.status === "closed" ? "#5b6680" : "#4ade80"}
-          active={c.status !== "open"}
-          dim={c.status === "open"}
-        />
+    <PanelShell title="Work" icon={<UserPlus size={11} strokeWidth={1.8} />}>
+      <div className="space-y-2.5">
+        <Field label="Job title" value={c.subjectJobTitle ?? "—"} mono={false} />
+        <Field label="Employer" value={c.subjectEmployer ?? "—"} mono={false} />
+        {c.subjectEmployerAddress && <Field label="Employer address" value={c.subjectEmployerAddress} mono={false} />}
+        <Field label="Status" value={c.subjectWorkStatus ?? "—"} mono={false} />
       </div>
     </PanelShell>
   );
 }
 
-function TimelineSegment({
-  label,
-  date,
-  color,
-  active,
-  dim,
-}: {
-  label: string;
-  date: string;
-  color: string;
-  active?: boolean;
-  dim?: boolean;
-}) {
+// ─── Client / Adjuster ──────────────────────────────────────────────────────
+
+export function ClientAdjusterPanel({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
   return (
-    <div className={cn("flex flex-col items-center gap-1", dim && "opacity-35")}>
-      <div
-        className="h-2.5 w-2.5 rounded-full"
-        style={{
-          background: active ? color : "var(--color-line-2)",
-          boxShadow: active ? `0 0 8px ${color}80` : "none",
-        }}
-      />
-      <div className="font-mono text-[9.5px] text-[var(--color-text-mid)]">{label}</div>
-      <div className="font-mono text-[9px] text-[var(--color-text-lo)]">{date}</div>
-    </div>
+    <PanelShell title="Client & adjuster">
+      <div className="space-y-2.5">
+        <Field label="Client" value={c.client?.company ?? "—"} mono={false} />
+        <Field label="Claim #" value={c.claimNumber ?? "—"} />
+        {c.policyNumber && <Field label="Policy #" value={c.policyNumber} />}
+        <Field label="Adjuster" value={c.adjusterName ?? "—"} mono={false} />
+        {c.adjusterEmail && <Field label="Adjuster email" value={c.adjusterEmail} />}
+      </div>
+    </PanelShell>
   );
 }
 
-export function CaseInfoPanel({ c }: { c: InvCase }) {
+// ─── Case info ──────────────────────────────────────────────────────────────
+
+export function CaseInfoPanel({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
   const cfg = STATUS_CONFIG[c.status];
+  const [saving, setSaving] = useState(false);
+
+  const changeStatus = async (status: CaseStatus) => {
+    if (status === c.status) return;
+    setSaving(true);
+    try {
+      await casesApi.update(c.id, { status });
+      ctx.onRefresh();
+    } catch {
+      /* surfaced via page-level reload on next refresh */
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const primaryAddress = c.addresses.find((a) => a.isPrimary) ?? c.addresses[0];
+  const city = [primaryAddress?.city, primaryAddress?.state ?? c.state].filter(Boolean).join(", ");
+
   return (
-    <PanelShell title="Case info">
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <Field label="Status" value={cfg.label} mono={false} />
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-medium"
+    <PanelShell
+      title="Assignment details"
+      action={
+        ctx.isAdmin ? (
+          <select
+            value={c.status}
+            disabled={saving}
+            onChange={(e) => changeStatus(e.target.value as CaseStatus)}
+            className="rounded-full border-0 px-2.5 py-1 text-[0.65625rem] font-medium focus:outline-none"
             style={{ background: cfg.pill, color: cfg.text }}
           >
+            {(Object.keys(STATUS_CONFIG) as CaseStatus[]).map((s) => (
+              <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
+            ))}
+          </select>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.65625rem] font-medium" style={{ background: cfg.pill, color: cfg.text }}>
             <span className="h-1.5 w-1.5 rounded-full" style={{ background: cfg.dot }} />
             {cfg.label}
           </span>
+        )
+      }
+    >
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+        <div className="space-y-3">
+          <Field label="Client" value={c.client?.company ?? "—"} mono={false} />
+          <Field label="City" value={city || "—"} mono={false} />
+          <Field label="Start time" value={c.startTime ?? "—"} />
+          <Field label="Adjuster" value={c.adjusterName ?? "—"} mono={false} />
+          <Field label="Date of injury" value={fmtDate(c.dateOfInjury)} />
         </div>
-        <Field label="Claim number" value={c.clientFileNum} />
-        <Field label="Client" value={c.client} mono={false} />
-        <Field label="Service" value={SERVICE_LABELS[c.service]} mono={false} />
-        <Field label="State" value={c.state} />
-        <Field label="Date Opened" value={c.dateOpened} />
-        {c.dateClosed && <Field label="Date Closed" value={c.dateClosed} />}
-        <Field label="Days Open" value={String(c.daysOpen)} />
-        {c.budget != null && (
-          <Field
-            label="Budget"
-            value={`${c.hoursLogged?.toFixed(1) ?? "0"} / ${c.budget} hrs`}
-          />
-        )}
+        <div className="space-y-3">
+          <Field label="Claim #" value={c.claimNumber ?? "—"} />
+          <Field label="Policy #" value={c.policyNumber ?? "—"} />
+          <Field label="Due date" value={fmtDate(c.dueDate)} />
+          <Field label="Days" value={c.daysAllotted != null ? String(c.daysAllotted) : "—"} />
+          <Field label="Service" value={SERVICE_LABELS[c.service]} mono={false} />
+        </div>
       </div>
     </PanelShell>
   );
 }
 
-export function TagsPanel({ c }: { c: InvCase }) {
+export function TagsPanel({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
   return (
     <PanelShell title="Tags">
       <div className="flex flex-wrap gap-2">
+        {c.tags.length === 0 && <span className="font-mono text-[0.71875rem] text-[var(--color-text-lo)]">No tags.</span>}
         {c.tags.map((tag) => {
-          const col = TAG_COLORS[tag];
+          const col = TAG_COLORS[tag as InvTag];
           return (
-            <span
-              key={tag}
-              className="rounded-full px-3 py-1 text-[11px] font-medium tracking-wide"
-              style={{ background: col.bg, color: col.text }}
-            >
+            <span key={tag} className="rounded-full px-3 py-1 text-[0.6875rem] font-medium tracking-wide" style={col ? { background: col.bg, color: col.text } : { background: "var(--color-ink-3)", color: "var(--color-text-mid)" }}>
               {tag}
             </span>
           );
@@ -319,52 +300,274 @@ export function TagsPanel({ c }: { c: InvCase }) {
   );
 }
 
-export function InvestigatorsPanel({
-  investigators,
-}: {
-  investigators: Investigator[];
-}) {
+// ─── Description ────────────────────────────────────────────────────────────
+
+export function DescriptionPanel({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
+  const [value, setValue] = useState(c.description ?? "");
+  const save = async () => {
+    if (value === (c.description ?? "")) return;
+    await casesApi.update(c.id, { description: value });
+    ctx.onRefresh();
+  };
   return (
-    <PanelShell title="Assigned investigators">
-      <div className="flex flex-col gap-3">
-        {investigators.map((inv) => {
-          const isLive = inv.status !== "off_duty";
-          return (
-            <div key={inv.id} className="flex items-center gap-3">
-              <div className="relative">
-                <div
-                  className="grid h-9 w-9 place-items-center rounded-full text-[11px] font-semibold text-white"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, var(--color-operator-from), var(--color-operator-to))",
-                  }}
-                >
-                  {inv.initials}
+    <PanelShell title="Description">
+      {ctx.isAdmin ? (
+        <textarea
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={save}
+          placeholder="Case summary / scope of work…"
+          className="h-full w-full resize-none rounded-[0.5rem] border border-transparent bg-transparent p-0 text-[0.8125rem] leading-relaxed text-[var(--color-text-mid)] placeholder:text-[var(--color-text-lo)] focus:outline-none"
+        />
+      ) : (
+        <p className="text-[0.8125rem] leading-relaxed text-[var(--color-text-mid)]">{c.description || "No description on file."}</p>
+      )}
+    </PanelShell>
+  );
+}
+
+// ─── Addresses + map ────────────────────────────────────────────────────────
+
+export function AddressesMapPanel({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
+  const [adding, setAdding] = useState(false);
+  const [line1, setLine1] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [zip, setZip] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!line1.trim()) return;
+    setBusy(true);
+    try {
+      let lat: number | undefined;
+      let lng: number | undefined;
+      try {
+        const { result } = await geocodeApi.lookup({ line1, city, state, zip });
+        if (result) {
+          lat = result.lat;
+          lng = result.lng;
+        }
+      } catch {
+        /* geocoding is best-effort */
+      }
+      await casesApi.addAddress(c.id, { line1, city, state, zip, lat, lng, isPrimary: c.addresses.length === 0 });
+      setLine1(""); setCity(""); setState(""); setZip("");
+      setAdding(false);
+      ctx.onRefresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (addressId: string) => {
+    await casesApi.deleteAddress(c.id, addressId);
+    ctx.onRefresh();
+  };
+
+  return (
+    <PanelShell
+      title="Addresses & map"
+      icon={<MapPin size={11} strokeWidth={1.8} />}
+      action={ctx.isAdmin && !adding && <button onClick={() => setAdding(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}
+    >
+      <div className="flex h-full min-h-0 flex-col gap-3">
+        <div className="flex max-h-[45%] shrink-0 flex-col gap-1.5 overflow-y-auto">
+          {c.addresses.length === 0 && !adding && (
+            <span className="font-mono text-[0.65625rem] text-[var(--color-text-lo)]">No addresses on file.</span>
+          )}
+          {c.addresses.map((a) => (
+            <div key={a.id} className="group flex items-start gap-1.5 rounded-[0.5rem] border border-[var(--color-line)] px-2.5 py-2">
+              <MapPin size={11} className="mt-0.5 shrink-0 text-[var(--color-text-lo)]" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[0.71875rem] text-[var(--color-text-hi)]">{a.line1}</div>
+                <div className="truncate font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
+                  {[a.city, a.state, a.zip].filter(Boolean).join(", ")}
                 </div>
-                <span
-                  className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--color-ink-2)]"
-                  style={{ background: isLive ? "#4ade80" : "#5b6680" }}
-                />
               </div>
-              <div className="min-w-0">
-                <div className="truncate text-[13px] font-medium text-[var(--color-text-hi)]">
-                  {inv.name}
-                </div>
-                <div className="font-mono text-[10px] text-[var(--color-text-lo)]">
-                  {inv.status === "off_duty"
-                    ? "Off Duty"
-                    : inv.status === "on_case"
-                      ? "On Case"
-                      : "Clocked In"}
-                  {inv.location && ` · ${inv.location}`}
-                </div>
+              {a.isPrimary && <span className="shrink-0 rounded-full bg-[var(--color-accent-soft)] px-1.5 py-0.5 text-[0.53125rem] text-[var(--color-accent-2)]">Primary</span>}
+              {ctx.isAdmin && (
+                <button onClick={() => remove(a.id)} className="hidden shrink-0 text-[var(--color-text-lo)] hover:text-[var(--color-neg)] group-hover:block">
+                  <X size={11} />
+                </button>
+              )}
+            </div>
+          ))}
+          {adding && (
+            <div className="flex flex-col gap-1 rounded-[0.5rem] border border-[var(--color-line-2)] p-2">
+              <input autoFocus placeholder="Street" value={line1} onChange={(e) => setLine1(e.target.value)} className="rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1 text-[0.6875rem] text-[var(--color-text-hi)] focus:outline-none" />
+              <div className="flex gap-1">
+                <input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} className="w-0 flex-1 rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1 text-[0.6875rem] text-[var(--color-text-hi)] focus:outline-none" />
+                <input placeholder="St" maxLength={2} value={state} onChange={(e) => setState(e.target.value.toUpperCase())} className="w-10 rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1 text-[0.6875rem] text-[var(--color-text-hi)] focus:outline-none" />
+                <input placeholder="ZIP" value={zip} onChange={(e) => setZip(e.target.value)} className="w-14 rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1 text-[0.6875rem] text-[var(--color-text-hi)] focus:outline-none" />
+              </div>
+              <div className="flex gap-1.5">
+                <button onClick={submit} disabled={busy} className="flex flex-1 items-center justify-center gap-1 rounded-[0.375rem] bg-[var(--color-accent-soft)] py-1 text-[0.625rem] text-[var(--color-text-hi)]">
+                  {busy ? <Loader2 size={10} className="animate-spin" /> : "Save"}
+                </button>
+                <button onClick={() => setAdding(false)} className="rounded-[0.375rem] border border-[var(--color-line)] px-2 py-1 text-[0.625rem] text-[var(--color-text-mid)]">Cancel</button>
               </div>
             </div>
-          );
-        })}
-        {investigators.length === 0 && (
-          <div className="font-mono text-[11.5px] text-[var(--color-text-lo)]">
-            No investigators assigned.
+          )}
+        </div>
+        <div className="min-h-0 min-w-0 flex-1">
+          <CaseMap addresses={c.addresses} />
+        </div>
+      </div>
+    </PanelShell>
+  );
+}
+
+// ─── Vehicles ───────────────────────────────────────────────────────────────
+
+export function VehiclesPanel({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
+  const [adding, setAdding] = useState(false);
+  const [make, setMake] = useState("");
+  const [model, setModel] = useState("");
+  const [color, setColor] = useState("");
+  const [plate, setPlate] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!make.trim() && !model.trim()) return;
+    setBusy(true);
+    try {
+      await casesApi.addVehicle(c.id, { make, model, color, licensePlate: plate, photoUrl: placeholderPhotoFor(`${c.id}-veh-${c.vehicles.length}`) });
+      setMake(""); setModel(""); setColor(""); setPlate("");
+      setAdding(false);
+      ctx.onRefresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (vehicleId: string) => {
+    await casesApi.deleteVehicle(c.id, vehicleId);
+    ctx.onRefresh();
+  };
+
+  return (
+    <PanelShell
+      title="Vehicles"
+      icon={<Car size={11} strokeWidth={1.8} />}
+      action={ctx.isAdmin && !adding && <button onClick={() => setAdding(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}
+    >
+      {c.vehicles.length === 0 && !adding ? (
+        <div className="grid h-full place-items-center">
+          <span className="font-mono text-[0.71875rem] text-[var(--color-text-lo)]">No vehicles on file.</span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2.5">
+          {c.vehicles.map((v) => (
+            <div key={v.id} className="group relative overflow-hidden rounded-[0.625rem] border border-[var(--color-line-2)]">
+              <img src={v.photoUrl ?? placeholderPhotoFor(v.id)} alt="" className="h-16 w-full object-cover" />
+              <div className="bg-[var(--color-ink-3)] px-2 py-1.5">
+                <div className="truncate text-[0.71875rem] font-medium text-[var(--color-text-hi)]">
+                  {[v.color, v.make, v.model].filter(Boolean).join(" ") || "Unknown vehicle"}
+                </div>
+                {v.licensePlate && <div className="font-mono text-[0.625rem] text-[var(--color-text-lo)]">{v.licensePlate}</div>}
+              </div>
+              {ctx.isAdmin && (
+                <button onClick={() => remove(v.id)} className="absolute right-1 top-1 hidden rounded-full bg-black/60 p-1 text-white group-hover:block">
+                  <X size={10} />
+                </button>
+              )}
+            </div>
+          ))}
+          {adding && (
+            <div className="col-span-2 flex flex-col gap-1.5 rounded-[0.625rem] border border-[var(--color-line-2)] p-2.5">
+              <div className="flex gap-1.5">
+                <input placeholder="Make" value={make} onChange={(e) => setMake(e.target.value)} className="w-0 flex-1 rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1 text-[0.6875rem] text-[var(--color-text-hi)] focus:outline-none" />
+                <input placeholder="Model" value={model} onChange={(e) => setModel(e.target.value)} className="w-0 flex-1 rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1 text-[0.6875rem] text-[var(--color-text-hi)] focus:outline-none" />
+              </div>
+              <div className="flex gap-1.5">
+                <input placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} className="w-0 flex-1 rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1 text-[0.6875rem] text-[var(--color-text-hi)] focus:outline-none" />
+                <input placeholder="Plate" value={plate} onChange={(e) => setPlate(e.target.value)} className="w-0 flex-1 rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1 text-[0.6875rem] text-[var(--color-text-hi)] focus:outline-none" />
+              </div>
+              <div className="flex gap-1.5">
+                <button onClick={submit} disabled={busy} className="flex flex-1 items-center justify-center gap-1 rounded-[0.375rem] bg-[var(--color-accent-soft)] py-1 text-[0.625rem] text-[var(--color-text-hi)]">
+                  {busy ? <Loader2 size={10} className="animate-spin" /> : "Save"}
+                </button>
+                <button onClick={() => setAdding(false)} className="rounded-[0.375rem] border border-[var(--color-line)] px-2 py-1 text-[0.625rem] text-[var(--color-text-mid)]">Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </PanelShell>
+  );
+}
+
+// ─── Assignment ─────────────────────────────────────────────────────────────
+
+export function AssignmentPanel({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
+  const [picking, setPicking] = useState(false);
+  const [selected, setSelected] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const available = ctx.investigatorOptions.filter((i) => !c.assignments.some((a) => a.userId === i.id));
+
+  const assign = async () => {
+    if (!selected) return;
+    setBusy(true);
+    try {
+      await casesApi.assign(c.id, selected);
+      setSelected("");
+      setPicking(false);
+      ctx.onRefresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unassign = async (userId: string) => {
+    await casesApi.unassign(c.id, userId);
+    ctx.onRefresh();
+  };
+
+  return (
+    <PanelShell
+      title="Assigned investigators"
+      action={ctx.isAdmin && !picking && available.length > 0 && <button onClick={() => setPicking(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}
+    >
+      <div className="flex flex-col gap-3">
+        {c.assignments.map((a) => (
+          <div key={a.id} className="group flex items-center gap-3">
+            <div className="grid h-9 w-9 place-items-center rounded-full text-[0.6875rem] font-semibold text-white" style={{ background: "linear-gradient(135deg, var(--color-operator-from), var(--color-operator-to))" }}>
+              {getInitials(a.user.name)}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{a.user.name}</div>
+              <div className="font-mono text-[0.625rem] text-[var(--color-text-lo)]">{a.role}</div>
+            </div>
+            {ctx.isAdmin && (
+              <button onClick={() => unassign(a.userId)} className="hidden shrink-0 text-[var(--color-text-lo)] hover:text-[var(--color-neg)] group-hover:block">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        ))}
+        {c.assignments.length === 0 && !picking && (
+          <div className="font-mono text-[0.71875rem] text-[var(--color-text-lo)]">No investigators assigned.</div>
+        )}
+        {picking && (
+          <div className="flex flex-col gap-1.5 rounded-[0.5rem] border border-[var(--color-line-2)] p-2">
+            <select value={selected} onChange={(e) => setSelected(e.target.value)} className="rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1.5 text-[0.75rem] text-[var(--color-text-hi)] focus:outline-none">
+              <option value="">Select investigator…</option>
+              {available.map((i) => (
+                <option key={i.id} value={i.id}>{i.name}</option>
+              ))}
+            </select>
+            <div className="flex gap-1.5">
+              <button onClick={assign} disabled={busy || !selected} className="flex flex-1 items-center justify-center gap-1 rounded-[0.375rem] bg-[var(--color-accent-soft)] py-1.5 text-[0.6875rem] text-[var(--color-text-hi)] disabled:opacity-50">
+                {busy ? <Loader2 size={11} className="animate-spin" /> : "Assign"}
+              </button>
+              <button onClick={() => setPicking(false)} className="rounded-[0.375rem] border border-[var(--color-line)] px-2.5 py-1.5 text-[0.6875rem] text-[var(--color-text-mid)]">Cancel</button>
+            </div>
           </div>
         )}
       </div>
@@ -372,77 +575,370 @@ export function InvestigatorsPanel({
   );
 }
 
-export function TimeLogPanel({ entries }: { entries: TimeEntry[] }) {
-  const totalHours = entries.reduce((s, t) => s + t.hours, 0);
+// ─── Days / chrono journal ──────────────────────────────────────────────────
+
+const ENTRY_ICON: Record<CaseDayEntryType, typeof StickyNote> = {
+  note: StickyNote,
+  qa: ShieldQuestion,
+  photo_person: ImagePlus,
+  photo_vehicle: Car,
+  face_match: ScanFace,
+};
+
+const ENTRY_LABEL: Record<CaseDayEntryType, string> = {
+  note: "Note",
+  qa: "Q&A",
+  photo_person: "Subject photo",
+  photo_vehicle: "Vehicle photo",
+  face_match: "Face match",
+};
+
+function EntryCard({ entry, caseId, dayId, canDelete, onDeleted }: { entry: CaseDayEntry; caseId: string; dayId: string; canDelete: boolean; onDeleted: () => void }) {
+  const Icon = ENTRY_ICON[entry.type];
+  const isPhoto = entry.type === "photo_person" || entry.type === "photo_vehicle" || entry.type === "face_match";
+
+  const remove = async () => {
+    await casesApi.deleteDayEntry(caseId, dayId, entry.id);
+    onDeleted();
+  };
+
   return (
-    <div className="surface flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="eyebrow shrink-0 border-b border-[var(--color-line)] px-4 py-2.5 flex items-center gap-2">
-        Time log
-        <span className="ml-auto font-mono text-[10px] normal-case tracking-normal text-[var(--color-text-lo)]">
-          {totalHours.toFixed(1)} hrs total
-        </span>
+    <div className="group flex gap-2.5 rounded-[0.625rem] border border-[var(--color-line)] p-2.5">
+      <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--color-ink-3)] text-[var(--color-accent-2)]">
+        <Icon size={13} strokeWidth={1.7} />
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">
-        {entries.length > 0 ? (
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b border-[var(--color-line)]">
-                <th className="px-4 py-2 text-left">
-                  <span className="eyebrow text-[9px]">Date</span>
-                </th>
-                <th className="px-4 py-2 text-left">
-                  <span className="eyebrow text-[9px]">Investigator</span>
-                </th>
-                <th className="px-4 py-2 text-left">
-                  <span className="eyebrow text-[9px]">Location</span>
-                </th>
-                <th className="px-4 py-2 text-right">
-                  <span className="eyebrow text-[9px]">Hours</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((t) => (
-                <tr
-                  key={t.id}
-                  className="border-b border-[var(--color-line)] last:border-0 hover:bg-white/[0.018]"
-                >
-                  <td className="px-4 py-2.5 font-mono text-[11px] text-[var(--color-text-mid)]">
-                    {t.date}
-                  </td>
-                  <td className="px-4 py-2.5 text-[12px] text-[var(--color-text-mid)]">
-                    {t.investigatorName}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-1 font-mono text-[10.5px] text-[var(--color-text-lo)]">
-                      <MapPin size={9} strokeWidth={1.8} /> {t.location}
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-mono text-[12px] text-[var(--color-text-hi)]">
-                    {t.hours.toFixed(1)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="px-4 py-8 font-mono text-[11.5px] text-[var(--color-text-lo)]">
-            No time entries logged yet.
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">{ENTRY_LABEL[entry.type]}</span>
+          <span className="text-[var(--color-text-lo)]">·</span>
+          <span className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+          {entry.author && <span className="truncate font-mono text-[0.59375rem] text-[var(--color-text-lo)]">· {entry.author.name}</span>}
+        </div>
+        {entry.type === "qa" && (
+          <div className="mt-1">
+            <div className="text-[0.75rem] font-medium text-[var(--color-text-hi)]">{entry.question}</div>
+            <div className="mt-0.5 text-[0.75rem] text-[var(--color-text-mid)]">{entry.body}</div>
           </div>
+        )}
+        {entry.type === "note" && <p className="mt-1 text-[0.75rem] leading-relaxed text-[var(--color-text-mid)]">{entry.body}</p>}
+        {isPhoto && (
+          <div className="mt-1.5 flex items-center gap-2">
+            <img src={entry.photoUrl ?? placeholderPhotoFor(entry.id)} alt="" className="h-12 w-12 shrink-0 rounded-[0.375rem] object-cover" />
+            {entry.body && <span className="text-[0.71875rem] text-[var(--color-text-mid)]">{entry.body}</span>}
+          </div>
+        )}
+      </div>
+      {canDelete && (
+        <button onClick={remove} className="hidden shrink-0 self-start text-[var(--color-text-lo)] hover:text-[var(--color-neg)] group-hover:block">
+          <Trash2 size={12} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Physical-folder journal: tabs across the top (Pre-surveillance first, then
+ * one tab per worked date), folder body below. Rendered as a fixed section
+ * under the widget grid — not a widget. */
+export function CaseJournalFolder({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
+  const canPost = ctx.isAdmin || c.assignments.some((a) => a.userId === ctx.currentUserId);
+
+  const days = useMemo(() => [...c.days].sort((a, b) => a.date.localeCompare(b.date)), [c.days]);
+
+  // Tab id: "presurv" | day id | pending new-day iso date
+  const [activeTab, setActiveTab] = useState<string>("presurv");
+  const [pendingDate, setPendingDate] = useState<string | null>(null);
+  const [addingDay, setAddingDay] = useState(false);
+  const [newDayDate, setNewDayDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  const activeDay = days.find((d) => d.id === activeTab) ?? null;
+  const isPresurv = activeTab === "presurv";
+  const isPending = pendingDate !== null && activeTab === `pending:${pendingDate}`;
+
+  const fmtTab = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+  const startNewDay = () => {
+    const exists = days.find((d) => d.date.slice(0, 10) === newDayDate);
+    setAddingDay(false);
+    if (exists) {
+      setActiveTab(exists.id);
+      return;
+    }
+    setPendingDate(newDayDate);
+    setActiveTab(`pending:${newDayDate}`);
+  };
+
+  const tabBase =
+    "relative -mb-px flex shrink-0 items-center gap-1.5 rounded-t-[0.625rem] border px-3.5 py-2 font-mono text-[0.65625rem] tracking-wide transition-colors";
+  const tabActive =
+    "z-10 border-[var(--color-line-2)] border-b-transparent bg-[var(--color-ink-2)] text-[var(--color-text-hi)]";
+  const tabIdle =
+    "translate-y-[0.125rem] border-[var(--color-line)] bg-[var(--color-ink-1)]/70 text-[var(--color-text-lo)] hover:bg-[var(--color-ink-2)]/60 hover:text-[var(--color-text-mid)]";
+
+  return (
+    <div className="case-journal-folder">
+      {/* Folder tab strip */}
+      <div className="flex items-end gap-1 overflow-x-auto px-1">
+        <button type="button" onClick={() => setActiveTab("presurv")} className={cn(tabBase, isPresurv ? tabActive : tabIdle)}>
+          <Search size={11} strokeWidth={1.8} className={isPresurv ? "text-[var(--color-accent-2)]" : ""} />
+          PRE-SURVEILLANCE
+        </button>
+        {days.map((d) => (
+          <button
+            key={d.id}
+            type="button"
+            onClick={() => setActiveTab(d.id)}
+            className={cn(tabBase, activeTab === d.id ? tabActive : tabIdle)}
+          >
+            {fmtTab(d.date)}
+            <span className="rounded-full bg-[var(--color-ink-3)] px-1.5 text-[0.5625rem] text-[var(--color-text-lo)]">
+              {d.entries.length}
+            </span>
+          </button>
+        ))}
+        {isPending && (
+          <button type="button" className={cn(tabBase, tabActive)}>
+            {fmtTab(pendingDate!)}
+            <span className="rounded-full bg-[var(--color-accent-soft)] px-1.5 text-[0.5625rem] text-[var(--color-accent-2)]">new</span>
+          </button>
+        )}
+        {canPost && !addingDay && (
+          <button
+            type="button"
+            onClick={() => setAddingDay(true)}
+            className={cn(tabBase, tabIdle, "text-[var(--color-accent-2)]")}
+            title="Add a day folder"
+          >
+            <Plus size={11} strokeWidth={2} />
+            DAY
+          </button>
+        )}
+        {addingDay && (
+          <span className={cn(tabBase, tabIdle, "gap-1 py-1")}>
+            <input
+              type="date"
+              autoFocus
+              value={newDayDate}
+              onChange={(e) => setNewDayDate(e.target.value)}
+              className="rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-1.5 py-0.5 text-[0.625rem] text-[var(--color-text-hi)] focus:outline-none"
+            />
+            <button type="button" onClick={startNewDay} className="text-[var(--color-accent-2)]">
+              <Plus size={12} strokeWidth={2} />
+            </button>
+            <button type="button" onClick={() => setAddingDay(false)} className="text-[var(--color-text-lo)] hover:text-[var(--color-neg)]">
+              <X size={11} />
+            </button>
+          </span>
+        )}
+      </div>
+
+      {/* Folder body */}
+      <div className="surface rounded-[0.875rem] rounded-tl-none border border-[var(--color-line-2)] p-5">
+        {isPresurv ? (
+          <PresurvFolderContent ctx={ctx} />
+        ) : (
+          <DayFolderContent
+            ctx={ctx}
+            day={activeDay}
+            pendingDate={isPending ? pendingDate : null}
+            canPost={canPost}
+            onPosted={() => {
+              setPendingDate(null);
+              ctx.onRefresh();
+            }}
+          />
         )}
       </div>
     </div>
   );
 }
 
-export function NotesPanel({ c }: { c: InvCase }) {
+function PresurvFolderContent({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
+  const [summary, setSummary] = useState(c.presurveillance?.summary ?? "");
+  const [saving, setSaving] = useState(false);
+  const status = c.presurveillance?.status ?? "pending";
+
+  const statusCfg: Record<string, { label: string; color: string }> = {
+    pending: { label: "Pending", color: "#f59e0b" },
+    fetched: { label: "Intel on file", color: "#4ade80" },
+    not_available: { label: "Not available", color: "#7a8499" },
+  };
+  const sc = statusCfg[status] ?? statusCfg.pending;
+
+  const save = async () => {
+    if (summary === (c.presurveillance?.summary ?? "")) return;
+    setSaving(true);
+    try {
+      await casesApi.updatePresurveillance(c.id, { summary });
+      ctx.onRefresh();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <PanelShell title="Notes">
-      {c.notes ? (
-        <p className="text-[13px] leading-relaxed text-[var(--color-text-mid)]">{c.notes}</p>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.625rem] font-medium" style={{ background: `${sc.color}26`, color: sc.color }}>
+          <span className="h-1.5 w-1.5 rounded-full" style={{ background: sc.color }} />
+          {sc.label}
+        </span>
+        {c.presurveillance?.fetchedAt && (
+          <span className="font-mono text-[0.625rem] text-[var(--color-text-lo)]">
+            fetched {fmtDate(c.presurveillance.fetchedAt)}
+          </span>
+        )}
+        <button
+          type="button"
+          disabled
+          title="Coming soon — will pull from the OSINT/pre-surv intel API"
+          className="ml-auto cursor-not-allowed rounded-full border border-[var(--color-line-2)] px-2.5 py-0.5 text-[0.625rem] text-[var(--color-text-lo)] opacity-60"
+        >
+          Re-run OSINT
+        </button>
+      </div>
+      {ctx.isAdmin ? (
+        <textarea
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+          onBlur={save}
+          placeholder="Intel summary — public records, social presence, known associates, vehicles seen, appointments…"
+          className="min-h-[8rem] w-full resize-y rounded-[0.625rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] p-3 text-[0.8125rem] leading-relaxed text-[var(--color-text-hi)] placeholder:text-[var(--color-text-lo)] focus:outline-none focus:border-[var(--color-accent)]"
+        />
       ) : (
-        <p className="font-mono text-[11.5px] text-[var(--color-text-lo)]">No notes on this case.</p>
+        <p className="whitespace-pre-wrap text-[0.8125rem] leading-relaxed text-[var(--color-text-mid)]">
+          {summary || "Nothing on file yet."}
+        </p>
       )}
-    </PanelShell>
+      {saving && <Loader2 size={12} className="animate-spin text-[var(--color-text-lo)]" />}
+    </div>
+  );
+}
+
+function DayFolderContent({
+  ctx,
+  day,
+  pendingDate,
+  canPost,
+  onPosted,
+}: {
+  ctx: CasePanelCtx;
+  day: { id: string; date: string; entries: CaseDayEntry[] } | null;
+  pendingDate: string | null;
+  canPost: boolean;
+  onPosted: () => void;
+}) {
+  const c = ctx.case;
+  const dateIso = pendingDate ?? day?.date.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+
+  const [type, setType] = useState<CaseDayEntryType>("note");
+  const [question, setQuestion] = useState("");
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const entries = day?.entries ?? [];
+  const photos = entries.filter((e) => e.type === "photo_person" || e.type === "photo_vehicle" || e.type === "face_match");
+  const rest = entries.filter((e) => !photos.includes(e));
+
+  const submit = async () => {
+    if (type === "qa" && !question.trim()) return;
+    if (type === "note" && !body.trim()) return;
+    setBusy(true);
+    try {
+      await casesApi.addDayEntry(c.id, {
+        date: dateIso,
+        type,
+        question: type === "qa" ? question : undefined,
+        body: body || undefined,
+        photoUrl: type === "photo_person" || type === "photo_vehicle" || type === "face_match"
+          ? placeholderPhotoFor(`${c.id}-${Date.now()}`)
+          : undefined,
+      });
+      setQuestion("");
+      setBody("");
+      onPosted();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-baseline gap-3">
+        <span className="text-[0.9375rem] font-medium text-[var(--color-text-hi)]">
+          {new Date(`${dateIso}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+        </span>
+        <span className="font-mono text-[0.625rem] text-[var(--color-text-lo)]">
+          {entries.length} entr{entries.length === 1 ? "y" : "ies"}
+        </span>
+      </div>
+
+      {photos.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {photos.map((e) => (
+            <div key={e.id} className="w-36 overflow-hidden rounded-[0.625rem] border border-[var(--color-line-2)]">
+              <img src={e.photoUrl ?? placeholderPhotoFor(e.id)} alt="" className="h-24 w-full object-cover" />
+              <div className="bg-[var(--color-ink-3)] px-2 py-1">
+                <div className="font-mono text-[0.53125rem] uppercase tracking-wider text-[var(--color-text-lo)]">{ENTRY_LABEL[e.type]}</div>
+                {e.body && <div className="truncate text-[0.625rem] text-[var(--color-text-mid)]" title={e.body}>{e.body}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2">
+        {rest.map((entry) => (
+          <EntryCard
+            key={entry.id}
+            entry={entry}
+            caseId={c.id}
+            dayId={day?.id ?? ""}
+            canDelete={!!day && (ctx.isAdmin || entry.author?.id === ctx.currentUserId)}
+            onDeleted={ctx.onRefresh}
+          />
+        ))}
+        {entries.length === 0 && (
+          <div className="grid place-items-center rounded-[0.625rem] border border-dashed border-[var(--color-line)] py-8 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
+            {pendingDate ? "New day — add the first entry below." : "Nothing logged for this day."}
+          </div>
+        )}
+      </div>
+
+      {canPost && (
+        <div className="flex flex-col gap-1.5 rounded-[0.625rem] border border-[var(--color-line-2)] bg-[var(--color-ink-1)]/40 p-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(Object.keys(ENTRY_LABEL) as CaseDayEntryType[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setType(t)}
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 text-[0.625rem] transition-colors",
+                  type === t ? "border-[var(--color-accent-soft)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]" : "border-[var(--color-line)] text-[var(--color-text-lo)] hover:text-[var(--color-text-mid)]",
+                )}
+              >
+                {ENTRY_LABEL[t]}
+              </button>
+            ))}
+          </div>
+          {type === "qa" && (
+            <input placeholder="Question" value={question} onChange={(e) => setQuestion(e.target.value)} className="rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1.5 text-[0.75rem] text-[var(--color-text-hi)] focus:outline-none" />
+          )}
+          <textarea
+            placeholder={type === "qa" ? "Answer" : type === "note" ? "Note…" : "Caption (optional)"}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            className="min-h-[3rem] resize-none rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1.5 text-[0.75rem] text-[var(--color-text-hi)] focus:outline-none"
+          />
+          <button onClick={submit} disabled={busy} className="flex items-center justify-center gap-1.5 self-end rounded-[0.5rem] bg-[var(--color-accent-soft)] px-3 py-1.5 text-[0.6875rem] font-medium text-[var(--color-text-hi)] disabled:opacity-50">
+            {busy ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+            Add entry
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

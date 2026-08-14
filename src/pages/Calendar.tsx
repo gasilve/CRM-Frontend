@@ -15,20 +15,22 @@ import {
   type InvStatus,
   type TimeEntry,
 } from "@/lib/mock-data";
+import { designPx } from "@/lib/rem";
 
 /** Mock data is anchored to May 26 2026 */
 const TODAY = new Date(2026, 4, 26);
 
-const INFO_W = 220;
+/** Layout metrics as design-px @ 1920; convert with designPx() at use sites. */
+const DESIGN_INFO_W = 220;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const CELL_MIN_W = 148;
-const HEAD_H = 40;
+const DESIGN_CELL_MIN_W = 148;
+const DESIGN_HEAD_H = 40;
 /** Target / max body row height; shrinks so MAX_VISIBLE_ROWS fit the viewport. */
-const ROW_H_MAX = 88;
+const DESIGN_ROW_H_MAX = 88;
 /** Show this many rows before the grid scrolls vertically. */
 const MAX_VISIBLE_ROWS = 7;
-const POSTIT_W = 112;
-const POSTIT_H = 40;
+const DESIGN_POSTIT_W = 112;
+const DESIGN_POSTIT_H = 40;
 /** Fallback when an entry has no startHour / clock-in. */
 const DEFAULT_START_HOUR = 8;
 /** Initial horizontal scroll target (hour column). */
@@ -37,16 +39,16 @@ const DEFAULT_VIEW_HOUR = 6;
 /** Sticky name column — solid surface ink + theme line (works across themes). */
 const INV_COL_STYLE = {
   backgroundColor: "var(--color-ink-2)",
-  borderRight: "1px solid var(--color-line-2)",
-  borderBottom: "1px solid var(--color-line-2)",
-  boxShadow: "inset -1px 0 0 0 var(--color-line)",
+  borderRight: "0.0625rem solid var(--color-line-2)",
+  borderBottom: "0.0625rem solid var(--color-line-2)",
+  boxShadow: "inset -0.0625rem 0 0 0 var(--color-line)",
 } as const;
 
 const INV_COL_HEAD_STYLE = {
   backgroundColor: "var(--color-ink-1)",
-  borderRight: "1px solid var(--color-line-2)",
-  borderBottom: "1px solid var(--color-line-2)",
-  boxShadow: "inset -1px 0 0 0 var(--color-line)",
+  borderRight: "0.0625rem solid var(--color-line-2)",
+  borderBottom: "0.0625rem solid var(--color-line-2)",
+  boxShadow: "inset -0.0625rem 0 0 0 var(--color-line)",
 } as const;
 
 const STATUS_LABEL: Record<InvStatus, string> = {
@@ -394,16 +396,22 @@ export default function Calendar() {
   }, []);
 
   const visibleRows = Math.min(Math.max(rows.length, 1), MAX_VISIBLE_ROWS);
+  const headH = designPx(DESIGN_HEAD_H);
+  const rowHMax = designPx(DESIGN_ROW_H_MAX);
+  const infoW = designPx(DESIGN_INFO_W);
+  const cellMinW = designPx(DESIGN_CELL_MIN_W);
+  const postitW = designPx(DESIGN_POSTIT_W);
+  const postitH = designPx(DESIGN_POSTIT_H);
   /** Sized so 7 rows always fit the available pane (then shrink for fewer). */
   const rowH =
-    availH > HEAD_H
-      ? Math.min(ROW_H_MAX, Math.max(56, Math.floor((availH - HEAD_H) / MAX_VISIBLE_ROWS)))
-      : ROW_H_MAX;
+    availH > headH
+      ? Math.min(rowHMax, Math.max(designPx(56), Math.floor((availH - headH) / MAX_VISIBLE_ROWS)))
+      : rowHMax;
 
   const surfaceH =
     availH > 0
-      ? Math.min(availH, HEAD_H + visibleRows * rowH)
-      : HEAD_H + visibleRows * ROW_H_MAX;
+      ? Math.min(availH, headH + visibleRows * rowH)
+      : headH + visibleRows * rowHMax;
 
   const openDatePicker = () => {
     const el = dateInputRef.current;
@@ -422,16 +430,16 @@ export default function Calendar() {
     <div className="flex h-full flex-col gap-4 overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="editorial text-[36px] leading-none text-[var(--color-text-hi)]">
+          <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">
             Calendar
           </h1>
-          <p className="mt-1 font-mono text-[11px] text-[var(--color-text-lo)]">
+          <p className="mt-1 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
             {groupLabel} · investigator daily schedule · hour by hour
           </p>
         </div>
 
         <div className="flex flex-col items-end gap-1.5">
-          <label className="font-mono text-[9px] uppercase tracking-widest text-[var(--color-text-lo)]">
+          <label className="font-mono text-[0.5625rem] uppercase tracking-widest text-[var(--color-text-lo)]">
             Calendar group
           </label>
           <div className="flex flex-wrap justify-end gap-1">
@@ -459,7 +467,7 @@ export default function Calendar() {
           <NavBtn onClick={() => setSelectedDay((d) => addDays(d, -1))}>
             <ChevronLeft size={14} strokeWidth={1.8} />
           </NavBtn>
-          <span className="min-w-[260px] text-center font-mono text-[11.5px] text-[var(--color-text-hi)]">
+          <span className="min-w-[16.25rem] text-center font-mono text-[0.71875rem] text-[var(--color-text-hi)]">
             {fmtDayHeader(selectedDay)}
           </span>
           <NavBtn onClick={() => setSelectedDay((d) => addDays(d, 1))}>
@@ -468,7 +476,7 @@ export default function Calendar() {
           <button
             type="button"
             onClick={() => setSelectedDay(startOfDay(TODAY))}
-            className="ml-1 rounded-full border border-[var(--color-line)] px-3 py-1 text-[11px] text-[var(--color-text-mid)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+            className="ml-1 rounded-full border border-[var(--color-line)] px-3 py-1 text-[0.6875rem] text-[var(--color-text-mid)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
           >
             Today
           </button>
@@ -477,7 +485,7 @@ export default function Calendar() {
               type="button"
               onClick={openDatePicker}
               title="Pick a date"
-              className="grid h-8 w-8 place-items-center rounded-[8px] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+              className="grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
             >
               <CalendarDays size={14} strokeWidth={1.8} />
             </button>
@@ -496,7 +504,7 @@ export default function Calendar() {
           </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-4 font-mono text-[10px] text-[var(--color-text-lo)]">
+        <div className="ml-auto flex items-center gap-4 font-mono text-[0.625rem] text-[var(--color-text-lo)]">
           {(["clocked_in", "on_case", "off_duty"] as InvStatus[]).map((s) => (
             <span key={s} className="flex items-center gap-1.5">
               <span
@@ -508,7 +516,7 @@ export default function Calendar() {
           ))}
           {isToday && (
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-[10px] w-px bg-[var(--color-accent)]" />
+              <span className="inline-block h-[0.625rem] w-[0.0625rem] bg-[var(--color-accent)]" />
               Today
             </span>
           )}
@@ -517,8 +525,8 @@ export default function Calendar() {
 
       <div ref={availRef} className="min-h-0 flex-1 overflow-hidden">
         {rows.length === 0 ? (
-          <div className="surface flex h-full min-h-[200px] items-center justify-center p-8">
-            <p className="font-mono text-[12px] text-[var(--color-text-lo)]">
+          <div className="surface flex h-full min-h-[12.5rem] items-center justify-center p-8">
+            <p className="font-mono text-[0.75rem] text-[var(--color-text-lo)]">
               No investigators on the {groupLabel} calendar.
             </p>
           </div>
@@ -530,6 +538,11 @@ export default function Calendar() {
             <DailyHourGrid
               rows={rows}
               rowH={rowH}
+              headH={headH}
+              infoW={infoW}
+              cellMinW={cellMinW}
+              postitW={postitW}
+              postitH={postitH}
               isToday={isToday}
               onCaseClick={(id) => navigate(`/cases/${id}`)}
               onAssignGroup={assignGroup}
@@ -546,6 +559,11 @@ export default function Calendar() {
 function DailyHourGrid({
   rows,
   rowH,
+  headH,
+  infoW,
+  cellMinW,
+  postitW,
+  postitH,
   isToday,
   onCaseClick,
   onAssignGroup,
@@ -556,6 +574,11 @@ function DailyHourGrid({
     segments: Segment[];
   }[];
   rowH: number;
+  headH: number;
+  infoW: number;
+  cellMinW: number;
+  postitW: number;
+  postitH: number;
   isToday: boolean;
   onCaseClick: (id: string) => void;
   onAssignGroup: (entryId: string, group: GeoGroup) => void;
@@ -563,22 +586,25 @@ function DailyHourGrid({
   const scrollRef = useRef<HTMLDivElement>(null);
   useDragScroll(scrollRef);
   const nowHour = isToday ? new Date().getHours() : -1;
-  const noteTop = Math.min(28, Math.max(22, rowH - POSTIT_H - 8));
+  const noteTop = Math.min(
+    designPx(28),
+    Math.max(designPx(22), rowH - postitH - designPx(8)),
+  );
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollLeft = DEFAULT_VIEW_HOUR * CELL_MIN_W;
-  }, []);
+    el.scrollLeft = DEFAULT_VIEW_HOUR * cellMinW;
+  }, [cellMinW]);
 
   return (
     <div
       ref={scrollRef}
-      className="h-full overflow-auto select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      className="calendar-scroll h-full overflow-auto select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
     >
       <table
         className="border-separate border-spacing-0"
-        style={{ minWidth: INFO_W + HOURS.length * CELL_MIN_W }}
+        style={{ minWidth: infoW + HOURS.length * cellMinW }}
       >
         <thead>
           {/*
@@ -592,13 +618,13 @@ function DailyHourGrid({
             <th
               className="sticky left-0 top-0 z-[5] px-4 text-left"
               style={{
-                width: INFO_W,
-                minWidth: INFO_W,
-                height: HEAD_H,
+                width: infoW,
+                minWidth: infoW,
+                height: headH,
                 ...INV_COL_HEAD_STYLE,
               }}
             >
-              <span className="font-mono text-[9px] uppercase tracking-widest text-[var(--color-text-lo)]">
+              <span className="font-mono text-[0.5625rem] uppercase tracking-widest text-[var(--color-text-lo)]">
                 Investigator
               </span>
             </th>
@@ -607,9 +633,9 @@ function DailyHourGrid({
                 key={hour}
                 className="border-l border-[var(--color-line)] px-1 text-center"
                 style={{
-                  minWidth: CELL_MIN_W,
-                  width: CELL_MIN_W,
-                  height: HEAD_H,
+                  minWidth: cellMinW,
+                  width: cellMinW,
+                  height: headH,
                   backgroundColor:
                     nowHour === hour
                       ? "color-mix(in srgb, var(--color-accent) 12%, var(--color-ink-1))"
@@ -618,7 +644,7 @@ function DailyHourGrid({
               >
                 <span
                   className={cn(
-                    "font-mono text-[10px]",
+                    "font-mono text-[0.625rem]",
                     nowHour === hour
                       ? "font-semibold text-[var(--color-accent-2)]"
                       : "text-[var(--color-text-lo)]",
@@ -637,15 +663,15 @@ function DailyHourGrid({
               <td
                 className="sticky left-0 z-[3] px-3 align-middle"
                 style={{
-                  width: INFO_W,
-                  minWidth: INFO_W,
+                  width: infoW,
+                  minWidth: infoW,
                   height: rowH,
                   ...INV_COL_STYLE,
                 }}
               >
                 <div className="flex items-center gap-2.5">
                   <span
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[10.5px] font-semibold text-white"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[0.65625rem] font-semibold text-white"
                     style={{
                       background:
                         "linear-gradient(135deg, var(--color-operator-from), var(--color-operator-to))",
@@ -654,10 +680,10 @@ function DailyHourGrid({
                     {inv.initials}
                   </span>
                   <div className="min-w-0">
-                    <div className="truncate text-[12.5px] font-medium text-[var(--color-text-hi)]">
+                    <div className="truncate text-[0.78125rem] font-medium text-[var(--color-text-hi)]">
                       {inv.name}
                     </div>
-                    <div className="flex items-center gap-1.5 font-mono text-[10px] text-[var(--color-text-lo)]">
+                    <div className="flex items-center gap-1.5 font-mono text-[0.625rem] text-[var(--color-text-lo)]">
                       <span
                         className="inline-block h-1.5 w-1.5 rounded-full"
                         style={{ background: STATUS_DOT[inv.status] }}
@@ -685,12 +711,12 @@ function DailyHourGrid({
                           "bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)]",
                       )}
                       style={{
-                        minWidth: CELL_MIN_W,
-                        width: CELL_MIN_W,
+                        minWidth: cellMinW,
+                        width: cellMinW,
                         height: rowH,
                       }}
                     >
-                      <div className="flex h-full items-center justify-center font-mono text-[9px] text-[var(--color-text-lo)] opacity-30">
+                      <div className="flex h-full items-center justify-center font-mono text-[0.5625rem] text-[var(--color-text-lo)] opacity-30">
                         —
                       </div>
                     </td>
@@ -699,7 +725,7 @@ function DailyHourGrid({
 
                 const coversNow =
                   nowHour >= seg.startHour && nowHour < seg.startHour + seg.span;
-                const blockW = CELL_MIN_W * seg.span;
+                const blockW = cellMinW * seg.span;
 
                 return (
                   <td
@@ -712,7 +738,7 @@ function DailyHourGrid({
                     )}
                     style={{ minWidth: blockW, height: rowH }}
                   >
-                    <div className="relative z-0 h-full w-full overflow-hidden rounded-[8px]">
+                    <div className="relative z-0 h-full w-full overflow-hidden rounded-[0.5rem]">
                       <div
                         className="absolute inset-0 flex flex-col justify-start gap-0.5 border border-[var(--color-line-2)] px-2.5 pt-1.5 text-left"
                         style={{
@@ -726,14 +752,14 @@ function DailyHourGrid({
                             onClick={() => onCaseClick(seg.slot.caseId)}
                             className="flex min-w-0 flex-1 items-baseline gap-x-2 text-left transition-opacity hover:opacity-90"
                           >
-                            <span className="shrink-0 font-mono text-[10px] font-semibold text-[var(--color-accent-2)]">
+                            <span className="shrink-0 font-mono text-[0.625rem] font-semibold text-[var(--color-accent-2)]">
                               {seg.slot.claim}
                             </span>
-                            <span className="truncate text-[11px] font-medium text-[var(--color-text-hi)]">
+                            <span className="truncate text-[0.6875rem] font-medium text-[var(--color-text-hi)]">
                               {seg.slot.subjectFull}
                             </span>
                           </button>
-                          <span className="shrink-0 font-mono text-[9px] text-[var(--color-text-lo)]">
+                          <span className="shrink-0 font-mono text-[0.5625rem] text-[var(--color-text-lo)]">
                             {fmtHour(seg.startHour)}
                             {seg.span > 1
                               ? ` – ${fmtHour(seg.startHour + seg.span - 1)}`
@@ -753,7 +779,7 @@ function DailyHourGrid({
                             onChange={(e) =>
                               onAssignGroup(seg.slot.entryId, e.target.value as GeoGroup)
                             }
-                            className="max-w-[118px] cursor-pointer rounded-[6px] border border-[var(--color-line-2)] bg-[var(--color-ink-1)] px-1.5 py-0.5 font-mono text-[9.5px] text-[var(--color-text-hi)] outline-none hover:border-[var(--color-line-3)] focus:border-[var(--color-accent)]"
+                            className="max-w-[7.375rem] cursor-pointer rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-1)] px-1.5 py-0.5 font-mono text-[0.59375rem] text-[var(--color-text-hi)] outline-none hover:border-[var(--color-line-3)] focus:border-[var(--color-accent)]"
                           >
                             {GEO_GROUPS.map((g) => (
                               <option key={g} value={g}>
@@ -769,28 +795,28 @@ function DailyHourGrid({
                         const h = noteHour(n.time);
                         const mins = noteMinute(n.time);
                         const leftPx =
-                          (h - seg.startHour) * CELL_MIN_W +
-                          (mins / 60) * CELL_MIN_W +
+                          (h - seg.startHour) * cellMinW +
+                          (mins / 60) * cellMinW +
                           4;
-                        const maxLeft = Math.max(4, blockW - POSTIT_W - 4);
+                        const maxLeft = Math.max(4, blockW - postitW - 4);
                         const left = Math.max(4, Math.min(leftPx, maxLeft));
 
                         return (
                           <div
                             key={n.id}
                             title={`${fmtNoteTime(n.time)} — ${n.text}`}
-                            className="pointer-events-none absolute overflow-hidden rounded-[5px] border border-[#e8c278] bg-[#fff4d6] px-1.5 py-1 shadow-sm"
+                            className="pointer-events-none absolute overflow-hidden rounded-[0.3125rem] border border-[#e8c278] bg-[#fff4d6] px-1.5 py-1 shadow-sm"
                             style={{
                               left,
                               top: noteTop,
-                              width: POSTIT_W,
-                              height: POSTIT_H,
+                              width: postitW,
+                              height: postitH,
                             }}
                           >
-                            <div className="font-mono text-[8.5px] font-semibold leading-none text-[#b45309]">
+                            <div className="font-mono text-[0.53125rem] font-semibold leading-none text-[#b45309]">
                               {fmtNoteTime(n.time)}
                             </div>
-                            <div className="mt-0.5 line-clamp-2 text-[9.5px] leading-tight text-[#78350f]">
+                            <div className="mt-0.5 line-clamp-2 text-[0.59375rem] leading-tight text-[#78350f]">
                               {n.text}
                             </div>
                           </div>
@@ -824,7 +850,7 @@ function GroupChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-[8px] border px-3 py-1.5 text-[11.5px] transition-colors",
+        "rounded-[0.5rem] border px-3 py-1.5 text-[0.71875rem] transition-colors",
         active
           ? "border-[color-mix(in_srgb,var(--color-accent)_55%,var(--color-line))] bg-[color-mix(in_srgb,var(--color-accent)_14%,transparent)] text-[var(--color-text-hi)]"
           : "border-[var(--color-line)] text-[var(--color-text-mid)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]",
@@ -840,7 +866,7 @@ function NavBtn({ children, onClick }: { children: React.ReactNode; onClick: () 
     <button
       type="button"
       onClick={onClick}
-      className="grid h-8 w-8 place-items-center rounded-[8px] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+      className="grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
     >
       {children}
     </button>

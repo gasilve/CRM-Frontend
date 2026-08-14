@@ -153,7 +153,7 @@ function Bubble({ msg }: { msg: Message }) {
               background:
                 "linear-gradient(135deg, var(--color-accent), #1f3a8a)",
               boxShadow:
-                "0 0 12px color-mix(in srgb, var(--color-accent) 35%, transparent)",
+                "0 0 0.75rem color-mix(in srgb, var(--color-accent) 35%, transparent)",
             }}
           >
             <Bot size={13} strokeWidth={1.8} className="text-white" />
@@ -164,21 +164,21 @@ function Bubble({ msg }: { msg: Message }) {
       {/* Bubble */}
       <div
         className={cn(
-          "relative max-w-[72%] rounded-2xl px-4 py-3 text-[13.5px] leading-relaxed",
+          "relative max-w-[72%] rounded-2xl px-4 py-3 text-[0.84375rem] leading-relaxed",
           isUser
             ? [
                 "rounded-tr-sm",
                 "bg-[var(--color-accent-soft)]",
                 "text-[var(--color-text-hi)]",
                 "border border-[var(--color-accent-soft)]",
-                "shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]",
+                "shadow-[0_0_0_0.0625rem_color-mix(in_srgb,var(--color-accent)_18%,transparent)]",
               ]
             : [
                 "rounded-tl-sm",
                 "bg-[var(--color-ink-2)]",
                 "text-[var(--color-text-mid)]",
                 "border border-[var(--color-line-2)]",
-                "shadow-[inset_0_1px_0_var(--color-surface-shine)]",
+                "shadow-[inset_0_0.0625rem_0_var(--color-surface-shine)]",
               ],
         )}
       >
@@ -190,7 +190,7 @@ function Bubble({ msg }: { msg: Message }) {
 
         <div
           className={cn(
-            "mt-2 font-mono text-[9.5px] opacity-0 transition-opacity group-hover:opacity-60",
+            "mt-2 font-mono text-[0.59375rem] opacity-0 transition-opacity group-hover:opacity-60",
             isUser ? "text-right text-[var(--color-accent-2)]" : "text-[var(--color-text-lo)]",
           )}
         >
@@ -356,14 +356,14 @@ export default function Assistant() {
             className="grid h-8 w-8 place-items-center rounded-full"
             style={{
               background: "linear-gradient(135deg, var(--color-accent), #1f3a8a)",
-              boxShadow: "0 0 14px color-mix(in srgb, var(--color-accent) 40%, transparent)",
+              boxShadow: "0 0 0.875rem color-mix(in srgb, var(--color-accent) 40%, transparent)",
             }}
           >
             <Bot size={15} strokeWidth={1.8} className="text-white" />
           </div>
           <div>
             <h1
-              className="text-[13px] font-medium tracking-wide text-[var(--color-text-hi)]"
+              className="text-[0.8125rem] font-medium tracking-wide text-[var(--color-text-hi)]"
               style={{ fontFamily: "var(--font-eyebrow)", letterSpacing: "0.18em" }}
             >
               INTELLIGENCE ASSISTANT
@@ -376,10 +376,10 @@ export default function Assistant() {
                 style={
                   isTyping
                     ? {}
-                    : { filter: "drop-shadow(0 0 4px var(--color-pos))" }
+                    : { filter: "drop-shadow(0 0 0.25rem var(--color-pos))" }
                 }
               />
-              <span className="font-mono text-[9.5px] text-[var(--color-text-lo)]">
+              <span className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
                 {isTyping ? "Processing…" : "Online"}
               </span>
             </div>
@@ -424,9 +424,9 @@ export default function Assistant() {
             className={cn(
               "assistant-input-shell flex items-end gap-3 rounded-2xl px-4 py-3",
               "border border-[var(--color-line-2)] bg-[var(--color-ink-2)]",
-              "shadow-[inset_0_1px_0_var(--color-surface-shine)]",
+              "shadow-[inset_0_0.0625rem_0_var(--color-surface-shine)]",
               "transition-shadow duration-200",
-              "focus-within:border-[var(--color-accent-soft)] focus-within:shadow-[0_0_0_2px_var(--color-accent-soft)]",
+              "focus-within:border-[var(--color-accent-soft)] focus-within:shadow-[0_0_0_0.125rem_var(--color-accent-soft)]",
             )}
           >
             <textarea
@@ -439,7 +439,7 @@ export default function Assistant() {
               disabled={isTyping}
               className={cn(
                 "min-h-0 flex-1 resize-none bg-transparent",
-                "text-[13.5px] leading-relaxed text-[var(--color-text-hi)]",
+                "text-[0.84375rem] leading-relaxed text-[var(--color-text-hi)]",
                 "placeholder:text-[var(--color-text-lo)]",
                 "outline-none",
                 "disabled:opacity-50",
@@ -463,9 +463,9 @@ export default function Assistant() {
               )}
             </button>
           </div>
-          <p className="mt-2 text-center font-mono text-[9.5px] text-[var(--color-text-lo)]">
-            Press <kbd className="rounded border border-[var(--color-line-2)] px-1 py-0.5 text-[8px]">Enter</kbd> to send
-            · <kbd className="rounded border border-[var(--color-line-2)] px-1 py-0.5 text-[8px]">Shift + Enter</kbd> for newline
+          <p className="mt-2 text-center font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
+            Press <kbd className="rounded border border-[var(--color-line-2)] px-1 py-0.5 text-[0.5rem]">Enter</kbd> to send
+            · <kbd className="rounded border border-[var(--color-line-2)] px-1 py-0.5 text-[0.5rem]">Shift + Enter</kbd> for newline
           </p>
         </div>
       </div>
