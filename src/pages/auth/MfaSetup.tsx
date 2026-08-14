@@ -30,8 +30,6 @@ export default function MfaSetup() {
   const [step, setStep] = useState<Step>(navState.password ? "verify" : "password");
   const [password, setPassword] = useState(navState.password ?? "");
   const [totpUri, setTotpUri] = useState<string | null>(null);
-  const [backupCodes, setBackupCodes] = useState<string[]>([]);
-  const [savedCodes, setSavedCodes] = useState(false);
   const [copied, setCopied] = useState(false);
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -60,7 +58,6 @@ export default function MfaSetup() {
       return false;
     }
     setTotpUri(data.totpURI);
-    setBackupCodes(data.backupCodes ?? []);
     setStep("verify");
     setBootstrapping(false);
     // Drop password from history so a refresh / back doesn't keep it around.
@@ -129,7 +126,7 @@ export default function MfaSetup() {
     return (
       <AuthLayout
         title="Set up MFA"
-        subtitle="Confirm your password once to generate your authenticator QR and backup codes."
+        subtitle="Confirm your password once to generate your authenticator QR."
       >
         <form className="flex flex-col gap-4" onSubmit={onEnable}>
           {error ? <div className={errorBannerClass}>{error}</div> : null}
@@ -163,7 +160,6 @@ export default function MfaSetup() {
       {error ? <div className={`${errorBannerClass} mb-5`}>{error}</div> : null}
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start">
-        {/* Left — scan & backup, secondary weight */}
         <div className="flex flex-col items-center gap-5 lg:items-stretch">
           {totpUri ? (
             <div className="mx-auto rounded-[1rem] border border-[var(--color-line-2)] bg-white p-4 shadow-[0_0.5rem_1.5rem_-0.75rem_rgba(15,23,64,0.18)]">
@@ -192,48 +188,8 @@ export default function MfaSetup() {
               </span>
             </button>
           ) : null}
-
-          {backupCodes.length > 0 ? (
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className={labelClass}>Backup codes</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(backupCodes.join("\n"));
-                    setCopied(true);
-                    window.setTimeout(() => setCopied(false), 1500);
-                  }}
-                  className={`mb-1.5 flex items-center gap-1 ${mutedLinkClass}`}
-                >
-                  {copied ? <Check size={13} /> : <Copy size={13} />}
-                  Copy
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-2 rounded-[0.625rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] p-2.5">
-                {backupCodes.map((c) => (
-                  <div
-                    key={c}
-                    className="rounded-[0.5rem] bg-[var(--color-ink-2)] px-2.5 py-1.5 text-center font-mono text-[0.8125rem] text-[var(--color-text-hi)]"
-                  >
-                    {c}
-                  </div>
-                ))}
-              </div>
-              <label className="mt-3 flex cursor-pointer items-start gap-2 text-[0.8125rem] leading-snug text-[var(--color-text-mid)]">
-                <input
-                  type="checkbox"
-                  checked={savedCodes}
-                  onChange={(e) => setSavedCodes(e.target.checked)}
-                  className="mt-0.5 accent-[var(--color-accent)]"
-                />
-                I&apos;ve saved these somewhere safe
-              </label>
-            </div>
-          ) : null}
         </div>
 
-        {/* Right — the actual verification step, the main draw */}
         <div className="flex flex-col items-center justify-center gap-6 rounded-[1rem] border border-[var(--color-line-2)] bg-[var(--color-accent-soft)] px-6 py-10 sm:px-10">
           <div className="grid h-14 w-14 place-items-center rounded-full bg-[var(--color-accent)] text-white shadow-[0_0.5rem_1.25rem_-0.375rem_var(--color-accent-glow)]">
             <ShieldCheck size={26} strokeWidth={2} />
@@ -261,7 +217,7 @@ export default function MfaSetup() {
             />
             <button
               type="submit"
-              disabled={loading || code.length < 6 || (backupCodes.length > 0 && !savedCodes)}
+              disabled={loading || code.length < 6}
               className={primaryButtonClass}
             >
               {loading ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
