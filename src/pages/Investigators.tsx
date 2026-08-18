@@ -5,7 +5,6 @@ import {
   Mail,
   ShieldCheck,
   ShieldAlert,
-  CalendarDays,
   Clock,
   X,
   Loader2,
@@ -17,12 +16,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/format";
-import { getCertifications, hasCertification, CERTIFICATION_CATALOG } from "@/lib/certifications";
+import { getCertifications, hasCertification, CERTIFICATION_CATALOG, type Certification as CatalogCert } from "@/lib/certifications";
+import { formatHomeAddressShort, formatTimezone } from "@/lib/timezones";
 import { useAuth } from "@/contexts/AuthContext";
-import { investigatorsApi, invitationsApi, type CrmUser, type Invitation, type InviteCreateResult, ApiError } from "@/lib/crm-api";
+import { investigatorsApi, invitationsApi, REGION_LABELS, type InvestigatorListItem, type Invitation, type InviteCreateResult, ApiError } from "@/lib/crm-api";
 import type { Role } from "@/lib/auth-client";
 import { RoleChip } from "@/components/team/RoleChip";
-import { CertificationBadges, CertificationList } from "@/components/team/CertificationBadges";
+import { CertificationBadges } from "@/components/team/CertificationBadges";
 
 type TeamNotice =
   | { kind: "invitation"; email: string }
@@ -35,13 +35,32 @@ const ROLE_FILTER_CONFIG: Record<Extract<Role, "admin" | "investigator">, { labe
 
 const PER_PAGE = 8;
 
+/** Real profile certs when saved; otherwise the roster placeholder catalog. */
+const rosterCertifications = (person: InvestigatorListItem): CatalogCert[] => {
+  const saved = person.profile?.certifications;
+  if (saved?.length) {
+    return saved.map((c) => ({
+      code: c.id,
+      label: c.label,
+      color: c.color ?? (c.kind === "license" ? "#4ade80" : "#4a7fff"),
+    }));
+  }
+  return getCertifications(person.id);
+};
+
+const personHasCertification = (person: InvestigatorListItem, code: string): boolean => {
+  const saved = person.profile?.certifications;
+  if (saved?.length) return saved.some((c) => c.id === code);
+  return hasCertification(person.id, code);
+};
+
 export default function Investigators() {
   const { hasRole } = useAuth();
   const isAdmin = hasRole("admin");
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [people, setPeople] = useState<CrmUser[] | null>(null);
+  const [people, setPeople] = useState<InvestigatorListItem[] | null>(null);
   const [invitations, setInvitations] = useState<Invitation[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<TeamNotice | null>(null);
@@ -87,7 +106,7 @@ export default function Investigators() {
   const filteredPeople = useMemo(() => {
     let list = people ?? [];
     if (roleFilter) list = list.filter((p) => p.roles.includes(roleFilter));
-    if (certFilter) list = list.filter((p) => hasCertification(p.id, certFilter));
+    if (certFilter) list = list.filter((p) => personHasCertification(p, certFilter));
     return list;
   }, [people, roleFilter, certFilter]);
 
@@ -341,7 +360,7 @@ export default function Investigators() {
 // ─── Roster table ─────────────────────────────────────────────────────────────
 
 const ROSTER_COLS =
-  "grid grid-cols-[minmax(13rem,1.5fr)_minmax(8rem,0.85fr)_minmax(9.5rem,1.15fr)_6.25rem_6.5rem] items-center gap-x-3 px-5";
+  "grid grid-cols-[minmax(12rem,1.35fr)_minmax(6.5rem,0.75fr)_minmax(5.5rem,0.65fr)_minmax(5.5rem,0.65fr)_minmax(9rem,1.1fr)_3.5rem_5rem] items-center gap-x-3 px-5";
 
 function RosterTable({
   items,
@@ -349,8 +368,8 @@ function RosterTable({
   emptyTitle,
   emptyMessage,
 }: {
-  items: CrmUser[];
-  onRowClick: (person: CrmUser) => void;
+  items: InvestigatorListItem[];
+  onRowClick: (person: InvestigatorListItem) => void;
   emptyTitle: string;
   emptyMessage: string;
 }) {
@@ -360,7 +379,9 @@ function RosterTable({
     <div className="surface flex h-full min-h-0 flex-col overflow-hidden p-0">
       <div className={cn(ROSTER_COLS, "shrink-0 border-b border-[var(--color-line)] py-2.5")}>
         <span className="eyebrow">Investigator</span>
-        <span className="eyebrow">Roles</span>
+        <span className="eyebrow">Mobile</span>
+        <span className="eyebrow">Region</span>
+        <span className="eyebrow">Time zone</span>
         <span className="eyebrow">Certifications</span>
         <span className="eyebrow text-center">MFA</span>
         <span className="eyebrow text-right">Joined</span>
@@ -395,11 +416,19 @@ function RosterRow({
   onClick,
   showDivider,
 }: {
-  person: CrmUser;
+  person: InvestigatorListItem;
   onClick: () => void;
   showDivider: boolean;
 }) {
-  const certs = getCertifications(person.id);
+  const profile = person.profile;
+  const displayRegion = person.region ?? profile?.region ?? null;
+  const certs = rosterCertifications(person);
+  const contactBits = [
+    profile?.dob
+      ? new Date(`${profile.dob}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
+      : null,
+    profile ? formatHomeAddressShort(profile) : null,
+  ].filter((v) => v && v !== "—");
 
   return (
     <div
@@ -418,10 +447,9 @@ function RosterRow({
         showDivider && "border-b border-[var(--color-line)]",
       )}
     >
-      {/* Investigator */}
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2.5">
         <div
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[0.75rem] font-semibold text-white"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[0.6875rem] font-semibold text-white"
           style={{ background: "linear-gradient(135deg,#4a7fff,#7aa1ff)" }}
         >
           {getInitials(person.name)}
@@ -429,22 +457,30 @@ function RosterRow({
         <div className="min-w-0">
           <div className="truncate text-[0.8125rem] font-medium leading-tight text-[var(--color-text-hi)]">{person.name}</div>
           <div className="truncate font-mono text-[0.625rem] leading-tight text-[var(--color-text-lo)]">{person.email}</div>
+          {contactBits.length > 0 && (
+            <div className="mt-0.5 truncate text-[0.625rem] leading-tight text-[var(--color-text-mid)]">
+              {contactBits.join(" · ")}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Roles */}
-      <div className="flex min-w-0 flex-wrap items-center gap-1 overflow-hidden">
-        {person.roles.map((role) => (
-          <RoleChip key={role} role={role} />
-        ))}
+      <div className="min-w-0 truncate text-[0.75rem] text-[var(--color-text-mid)]">
+        {profile?.phone ?? "—"}
       </div>
 
-      {/* Certifications */}
+      <div className="min-w-0 truncate text-[0.75rem] text-[var(--color-text-mid)]">
+        {displayRegion ? REGION_LABELS[displayRegion] : "—"}
+      </div>
+
+      <div className="min-w-0 truncate text-[0.6875rem] text-[var(--color-text-mid)]">
+        {profile?.timezone ? formatTimezone(profile.timezone) : "—"}
+      </div>
+
       <div className="min-w-0 overflow-hidden">
         <CertificationBadges items={certs} max={4} />
       </div>
 
-      {/* MFA */}
       <div className="flex justify-center">
         <span
           title={person.twoFactorEnabled ? "Two-factor enabled" : "Two-factor not set up"}
@@ -457,7 +493,6 @@ function RosterRow({
         </span>
       </div>
 
-      {/* Joined */}
       <div className="min-w-0 text-right font-mono text-[0.6875rem] leading-tight text-[var(--color-text-lo)]">
         {new Date(person.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
       </div>
@@ -468,7 +503,7 @@ function RosterRow({
 // ─── Pending invitations table ────────────────────────────────────────────────
 
 const INVITE_COLS =
-  "grid grid-cols-[minmax(13rem,1.6fr)_minmax(8rem,0.9fr)_minmax(9rem,1fr)_6.5rem_9.5rem] items-center gap-x-3 px-5";
+  "grid grid-cols-[minmax(10rem,1.1fr)_minmax(9rem,1fr)_minmax(5.5rem,0.65fr)_minmax(5.5rem,0.65fr)_minmax(6rem,0.7fr)_minmax(6.5rem,0.75fr)_5.5rem_8.5rem] items-center gap-x-2 px-4";
 
 function InvitesTable({
   items,
@@ -490,9 +525,12 @@ function InvitesTable({
   return (
     <div className="surface flex h-full min-h-0 flex-col overflow-hidden p-0">
       <div className={cn(INVITE_COLS, "shrink-0 border-b border-[var(--color-line)] py-2.5")}>
+        <span className="eyebrow">Name</span>
         <span className="eyebrow">Email</span>
+        <span className="eyebrow">Mobile</span>
+        <span className="eyebrow">Region</span>
+        <span className="eyebrow">Time zone</span>
         <span className="eyebrow">Roles</span>
-        <span className="eyebrow">Invited by</span>
         <span className="eyebrow">Expires</span>
         <span className="eyebrow text-right">Actions</span>
       </div>
@@ -544,32 +582,42 @@ function InviteRow({
   const resending = busyKey === `resend:${invitation.id}`;
   const revoking = busyKey === `revoke:${invitation.id}`;
   const [justResent, setJustResent] = useState(false);
+  const profile = invitation.profile;
+  const displayRegion = profile?.region ?? null;
 
   return (
     <div className={cn(INVITE_COLS, "h-full min-h-0 overflow-hidden", showDivider && "border-b border-[var(--color-line)]")}>
-      {/* Email */}
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]">
-          <Mail size={14} strokeWidth={1.5} className="text-[var(--color-text-lo)]" />
+      <div className="min-w-0 truncate text-[0.8125rem] font-medium leading-tight text-[var(--color-text-hi)]">
+        {profile?.fullName ?? "—"}
+      </div>
+
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="grid h-7 w-7 shrink-0 place-items-center rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]">
+          <Mail size={12} strokeWidth={1.5} className="text-[var(--color-text-lo)]" />
         </div>
-        <div className="min-w-0 truncate text-[0.8125rem] font-medium leading-tight text-[var(--color-text-hi)]">
+        <div className="min-w-0 truncate text-[0.75rem] leading-tight text-[var(--color-text-mid)]">
           {invitation.email}
         </div>
       </div>
 
-      {/* Roles */}
+      <div className="min-w-0 truncate text-[0.75rem] text-[var(--color-text-mid)]">
+        {profile?.phone ?? "—"}
+      </div>
+
+      <div className="min-w-0 truncate text-[0.75rem] text-[var(--color-text-mid)]">
+        {displayRegion ? REGION_LABELS[displayRegion] : "—"}
+      </div>
+
+      <div className="min-w-0 truncate text-[0.6875rem] text-[var(--color-text-mid)]">
+        {formatTimezone(profile?.timezone)}
+      </div>
+
       <div className="flex min-w-0 flex-wrap items-center gap-1 overflow-hidden">
         {invitation.roles.map((role) => (
           <RoleChip key={role} role={role} />
         ))}
       </div>
 
-      {/* Invited by */}
-      <div className="min-w-0 truncate text-[0.78125rem] leading-tight text-[var(--color-text-mid)]">
-        {invitation.invitedBy?.name ?? "—"}
-      </div>
-
-      {/* Expires */}
       <div className="flex items-center gap-1 font-mono text-[0.6875rem] leading-tight text-[var(--color-text-lo)]">
         <Clock size={10} />
         {new Date(invitation.expiresAt).toLocaleDateString()}

@@ -67,6 +67,23 @@ export interface CrmUser {
   roles: Role[];
 }
 
+export interface InvestigatorProfileSummary {
+  fullName: string | null;
+  dob: string | null;
+  phone: string | null;
+  homeAddressLine1: string | null;
+  homeCity: string | null;
+  homeState: string | null;
+  homeZip: string | null;
+  timezone: string | null;
+  region: Region | null;
+  certifications: Certification[];
+}
+
+export interface InvestigatorListItem extends CrmUser {
+  profile: InvestigatorProfileSummary | null;
+}
+
 export interface Invitation {
   id: string;
   email: string;
@@ -75,6 +92,7 @@ export interface Invitation {
   expiresAt: string;
   acceptedAt: string | null;
   createdAt: string;
+  profile?: InvestigatorProfileSummary | null;
 }
 
 export interface InvitationPreview {
@@ -115,6 +133,11 @@ export interface InvestigatorProfile {
   fullName: string | null;
   dob: string | null;
   phone: string | null;
+  homeAddressLine1: string | null;
+  homeCity: string | null;
+  homeState: string | null;
+  homeZip: string | null;
+  timezone: string | null;
   licenseNumber: string | null;
   licenseState: string | null;
   region: Region | null;
@@ -129,6 +152,11 @@ export interface InviteProfilePayload {
   fullName?: string | null;
   dob?: string | null;
   phone?: string | null;
+  homeAddressLine1?: string | null;
+  homeCity?: string | null;
+  homeState?: string | null;
+  homeZip?: string | null;
+  timezone?: string | null;
   licenseNumber?: string | null;
   licenseState?: string | null;
   region?: Region | null;
@@ -159,7 +187,7 @@ export type InviteCreateResult =
   | { kind: "roles_assigned"; user: CrmUser };
 
 export const investigatorsApi = {
-  list: () => request<{ investigators: CrmUser[] }>("/investigators"),
+  list: () => request<{ investigators: InvestigatorListItem[] }>("/investigators"),
   get: (id: string) =>
     request<{ user: CrmUser; profile: InvestigatorProfile | null }>(`/investigators/${encodeURIComponent(id)}`),
   setRegion: (id: string, region: Region | null) =>

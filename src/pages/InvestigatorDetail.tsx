@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarDays, Loader2, MapPin, Phone, ShieldAlert, ShieldCheck } from "lucide-react";
-import { getInitials } from "@/lib/format";
+import { ArrowLeft, CalendarDays, Clock, Home, Loader2, MapPin, Phone, ShieldAlert, ShieldCheck } from "lucide-react";
+import { formatHomeAddress, formatTimezone } from "@/lib/timezones";
 import { getCertifications } from "@/lib/certifications";
 import { RoleChip } from "@/components/team/RoleChip";
 import { CredentialCard } from "@/components/team/CredentialCard";
@@ -16,6 +16,9 @@ import {
 
 const fmtDate = (iso: string): string =>
   new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+
+const fmtShortDate = (iso: string): string =>
+  new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
 
 const ageFrom = (dobIso: string): number => {
   const dob = new Date(dobIso);
@@ -63,7 +66,7 @@ export default function InvestigatorDetail() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="surface flex h-full items-center justify-center">
         <Loader2 size={24} className="animate-spin text-[var(--color-text-lo)]" />
       </div>
     );
@@ -71,7 +74,7 @@ export default function InvestigatorDetail() {
 
   if (error || !user) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
+      <div className="surface flex flex-col items-center justify-center gap-4 py-24 text-center">
         <div className="font-mono text-[0.75rem] text-[var(--color-text-lo)]">INVESTIGATOR NOT FOUND</div>
         <div className="editorial text-[2rem] text-[var(--color-text-hi)]">404</div>
         <button onClick={() => navigate("/investigators")} className="eyebrow text-[var(--color-accent)]">
@@ -84,12 +87,13 @@ export default function InvestigatorDetail() {
   const creds = profile?.certifications?.length ? profile.certifications : placeholderCreds(user.id);
   const usingPlaceholders = !profile?.certifications?.length;
   const mfaOn = user.twoFactorEnabled;
+  const displayRegion = user.region ?? profile?.region ?? null;
+  const displayName = profile?.fullName ?? user.name;
 
   const infoRows: [string, React.ReactNode][] = [
-    ["Full legal name", profile?.fullName ?? "—"],
     ["Date of birth", profile?.dob ? `${fmtDate(profile.dob)} (${ageFrom(profile.dob)})` : "—"],
     [
-      "Phone",
+      "Mobile phone",
       profile?.phone ? (
         <span className="inline-flex items-center gap-1.5">
           <Phone size={11} strokeWidth={1.8} className="text-[var(--color-text-lo)]" />
@@ -100,11 +104,33 @@ export default function InvestigatorDetail() {
       ),
     ],
     [
+      "Home address",
+      profile?.homeAddressLine1 || profile?.homeCity ? (
+        <span className="inline-flex items-start gap-1.5 text-right">
+          <Home size={11} strokeWidth={1.8} className="mt-0.5 shrink-0 text-[var(--color-text-lo)]" />
+          <span>{formatHomeAddress(profile)}</span>
+        </span>
+      ) : (
+        "—"
+      ),
+    ],
+    [
+      "Time zone",
+      profile?.timezone ? (
+        <span className="inline-flex items-center gap-1.5">
+          <Clock size={11} strokeWidth={1.8} className="text-[var(--color-text-lo)]" />
+          {formatTimezone(profile.timezone)}
+        </span>
+      ) : (
+        "—"
+      ),
+    ],
+    [
       "Region",
-      user.region ? (
+      displayRegion ? (
         <span className="inline-flex items-center gap-1.5">
           <MapPin size={11} strokeWidth={1.8} className="text-[var(--color-text-lo)]" />
-          {REGION_LABELS[user.region]}
+          {REGION_LABELS[displayRegion]}
         </span>
       ) : (
         "—"
@@ -114,32 +140,17 @@ export default function InvestigatorDetail() {
       "Joined",
       <span key="joined" className="inline-flex items-center gap-1.5">
         <CalendarDays size={11} strokeWidth={1.8} className="text-[var(--color-text-lo)]" />
-        {new Date(user.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+        {fmtShortDate(user.createdAt)}
       </span>,
     ],
   ];
 
   return (
-    <div className="relative pb-10">
-      {/* Header — same shape as the case page */}
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-4">
-          <div
-            className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-[1rem] font-semibold text-white"
-            style={{ background: "linear-gradient(135deg,#4a7fff,#7aa1ff)" }}
-          >
-            {getInitials(user.name)}
-          </div>
-          <div className="min-w-0">
-            <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">{user.name}</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[0.75rem] tracking-wide text-[var(--color-accent-2)]">{user.email}</span>
-              <span className="text-[var(--color-text-lo)]" aria-hidden>·</span>
-              {user.roles.map((role) => (
-                <RoleChip key={role} role={role} />
-              ))}
-            </div>
-          </div>
+    <div className="flex h-full flex-col gap-4 overflow-hidden">
+      {/* Header — title + actions only, same shape as case detail */}
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">{displayName}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -163,50 +174,62 @@ export default function InvestigatorDetail() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-4">
-        {/* Left: details */}
-        <div className="flex w-[24rem] shrink-0 flex-col gap-3">
-          <div className="surface p-5">
-            <div className="eyebrow mb-4">Details</div>
-            <dl className="flex flex-col gap-2.5">
-              {infoRows.map(([label, value]) => (
-                <div key={label} className="flex items-baseline justify-between gap-3">
-                  <dt className="shrink-0 font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">{label}</dt>
-                  <dd className="min-w-0 truncate text-right text-[0.8125rem] text-[var(--color-text-hi)]">{value}</dd>
+      <div className="surface flex min-h-0 flex-1 flex-col overflow-hidden p-5">
+        <div className="flex min-h-0 flex-1 flex-wrap gap-4 overflow-y-auto">
+          <div className="flex w-[24rem] shrink-0 flex-col gap-3">
+            <div className="rounded-[0.75rem] border border-[var(--color-line)] bg-[var(--color-ink-3)]/40 p-5">
+              <div className="eyebrow mb-3">Details</div>
+
+              <div className="min-w-0">
+                <div className="truncate font-mono text-[0.75rem] tracking-wide text-[var(--color-accent-2)]">{user.email}</div>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {user.roles.map((role) => (
+                    <RoleChip key={role} role={role} />
+                  ))}
                 </div>
-              ))}
-            </dl>
-          </div>
+              </div>
 
-          {profile?.notes && (
-            <div className="surface p-5">
-              <div className="eyebrow mb-2">Internal notes</div>
-              <p className="text-[0.8125rem] leading-relaxed text-[var(--color-text-mid)]">{profile.notes}</p>
+              <div className="hairline my-4" />
+
+              <dl className="flex flex-col gap-2.5">
+                {infoRows.map(([label, value]) => (
+                  <div key={label} className="flex items-baseline justify-between gap-3">
+                    <dt className="shrink-0 font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">{label}</dt>
+                    <dd className="min-w-0 text-right text-[0.8125rem] text-[var(--color-text-hi)]">{value}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
-          )}
-        </div>
 
-        {/* Right: certifications & licenses */}
-        <div className="flex min-w-[22rem] flex-1 flex-col gap-2">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="eyebrow">Certifications & licenses</h2>
-            {usingPlaceholders && (
-              <span className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
-                sample data — real credentials appear once added on their profile
-              </span>
+            {profile?.notes && (
+              <div className="rounded-[0.75rem] border border-[var(--color-line)] bg-[var(--color-ink-3)]/40 p-5">
+                <div className="eyebrow mb-2">Internal notes</div>
+                <p className="text-[0.8125rem] leading-relaxed text-[var(--color-text-mid)]">{profile.notes}</p>
+              </div>
             )}
           </div>
-          {creds.length === 0 ? (
-            <div className="grid flex-1 place-items-center rounded-[0.75rem] border border-dashed border-[var(--color-line)] py-14 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
-              No certifications or licenses on file.
+
+          <div className="flex min-w-[22rem] flex-1 flex-col gap-2">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="eyebrow">Certifications & licenses</h2>
+              {usingPlaceholders && (
+                <span className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
+                  sample data — real credentials appear once added on their profile
+                </span>
+              )}
             </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {creds.map((cert) => (
-                <CredentialCard key={cert.id} cert={cert} />
-              ))}
-            </div>
-          )}
+            {creds.length === 0 ? (
+              <div className="grid flex-1 place-items-center rounded-[0.75rem] border border-dashed border-[var(--color-line)] bg-[var(--color-ink-3)]/20 py-14 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
+                No certifications or licenses on file.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {creds.map((cert) => (
+                  <CredentialCard key={cert.id} cert={cert} />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
