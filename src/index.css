@@ -1,17 +1,33 @@
 @import "tailwindcss";
 
+/* Foundations */
 @import "./styles/tokens.css";
 @import "./themes/index.css";
 @import "./styles/base.css";
 @import "./styles/components.css";
+
+/* Background stack */
 @import "./styles/atmosphere.css";
 @import "./styles/live-background.css";
+
+/* Feature surfaces — base GridStack rules must load globally (case detail can
+   deep-link without visiting the dashboard first). */
+@import "gridstack/dist/gridstack.css";
 @import "./styles/gridstack.css";
 @import "./styles/dashboard.css";
 @import "./styles/assistant.css";
 @import "./styles/video-player.css";
 @import "./styles/docx-preview.css";
+
+/* Loading states */
+@import "./styles/boot-loader.css";
+@import "./styles/loading.css";
+
 @import "./styles/responsive.css";
+
+/* Motion is last: its reduced-motion switch must win over every animation
+   declared above, including the ambient background loops. */
+@import "./styles/motion.css";
 
 /* Root rem scale — 1920 design = 16px. Laptops step down; ≤1023 jumps to mobile base. */
 html {

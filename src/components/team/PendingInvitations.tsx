@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Mail, Clock, X, RotateCw, Loader2, Check } from "lucide-react";
+import { BeamLoader, LoadingCaption } from "@/components/ui/LoadingState";
 import { invitationsApi, ApiError, type Invitation } from "@/lib/crm-api";
 import { RoleChip } from "./RoleChip";
 
@@ -63,8 +64,9 @@ export function PendingInvitations({ reloadToken = 0, emptyState = defaultEmptyS
 
   if (!invitations && !error) {
     return (
-      <div className="flex justify-center py-8">
-        <Loader2 size={18} className="animate-spin text-[var(--color-text-lo)]" />
+      <div className="flex flex-col items-center gap-3 py-8" role="status" aria-live="polite" aria-busy="true">
+        <BeamLoader className="w-28" />
+        <LoadingCaption>Loading invites</LoadingCaption>
       </div>
     );
   }
@@ -72,7 +74,7 @@ export function PendingInvitations({ reloadToken = 0, emptyState = defaultEmptyS
   return (
     <div>
       {error && (
-        <div className="mb-4 rounded-[0.5rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-3.5 py-2.5 text-[0.78125rem] text-[var(--color-neg)]">
+        <div className="anim-banner mb-4 rounded-[0.5rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-3.5 py-2.5 text-[0.78125rem] text-[var(--color-neg)]">
           {error}
         </div>
       )}
@@ -80,7 +82,7 @@ export function PendingInvitations({ reloadToken = 0, emptyState = defaultEmptyS
       {pending.length === 0 ? (
         emptyState
       ) : (
-        <div className="flex flex-col divide-y divide-[var(--color-line)]">
+        <div className="anim-stagger flex flex-col divide-y divide-[var(--color-line)]">
           {pending.map((inv) => {
             const resending = busyKey === `resend:${inv.id}`;
             const revoking = busyKey === `revoke:${inv.id}`;

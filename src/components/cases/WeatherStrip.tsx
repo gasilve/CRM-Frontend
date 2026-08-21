@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Sun, Moon, Cloud, CloudSun, CloudMoon, CloudFog, CloudDrizzle, CloudRain, CloudSnow,
-  CloudLightning, ChevronLeft, ChevronRight, X, Droplets, Wind, CalendarDays, Loader2,
+  CloudLightning, ChevronLeft, ChevronRight, X, Droplets, Wind, CalendarDays,
 } from "lucide-react";
+import { BeamLoader, LoadingCaption } from "@/components/ui/LoadingState";
 import { cn } from "@/lib/cn";
 import { weatherApi, type WeatherReading, type WeeklyWeather } from "@/lib/crm-api";
 
@@ -170,9 +171,9 @@ function WeatherModal({ onClose }: { onClose: () => void }) {
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="anim-backdrop fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed left-1/2 top-1/2 z-50 w-[min(64rem,94vw)] -translate-x-1/2 -translate-y-1/2">
-        <div className="surface flex max-h-[88vh] flex-col overflow-hidden rounded-[0.875rem]">
+        <div className="surface anim-modal flex max-h-[88vh] flex-col overflow-hidden rounded-[0.875rem]">
           {/* Header */}
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--color-line)] px-5 py-4">
             <div className="flex items-center gap-2.5">
@@ -219,8 +220,9 @@ function WeatherModal({ onClose }: { onClose: () => void }) {
           {/* Body */}
           <div className="min-h-0 flex-1 overflow-y-auto p-5">
             {loading && !groups ? (
-              <div className="grid h-48 place-items-center">
-                <Loader2 size={20} className="animate-spin text-[var(--color-text-lo)]" />
+              <div className="flex h-48 flex-col items-center justify-center gap-3" role="status" aria-live="polite" aria-busy="true">
+                <BeamLoader className="w-32" />
+                <LoadingCaption>Loading forecast</LoadingCaption>
               </div>
             ) : !groups || groups.length === 0 || groups.every((g) => g.days.length === 0) ? (
               <div className="grid h-48 place-items-center font-mono text-[0.71875rem] text-[var(--color-text-lo)]">

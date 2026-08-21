@@ -119,7 +119,7 @@ export default function InvestigatorNew() {
       </div>
 
       {error && (
-        <div className="surface shrink-0 rounded-[0.875rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-4 py-3 text-[0.8125rem] text-[var(--color-neg)]">
+        <div className="anim-banner surface shrink-0 rounded-[0.875rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-4 py-3 text-[0.8125rem] text-[var(--color-neg)]">
           {error}
         </div>
       )}
@@ -127,7 +127,7 @@ export default function InvestigatorNew() {
       <div className="surface flex min-h-0 flex-1 flex-col overflow-hidden p-5">
         <div className="flex min-h-0 flex-1 flex-wrap gap-4 overflow-y-auto">
           <div className="flex w-[24rem] shrink-0 flex-col gap-3">
-            <div className="rounded-[0.75rem] border border-[var(--color-line)] bg-[var(--color-ink-3)]/40 p-5">
+            <div className="anim-panel anim-delay-1 rounded-[0.75rem] border border-[var(--color-line)] bg-[var(--color-ink-3)]/40 p-5">
               <div className="eyebrow mb-1">Details</div>
               <p className="mb-4 font-mono text-[0.625rem] text-[var(--color-text-lo)]">
                 Filled in before the invite goes out
@@ -241,7 +241,7 @@ export default function InvestigatorNew() {
               </div>
             </div>
 
-            <div className="rounded-[0.75rem] border border-[var(--color-line)] bg-[var(--color-ink-3)]/40 p-4">
+            <div className="anim-panel anim-delay-2 rounded-[0.75rem] border border-[var(--color-line)] bg-[var(--color-ink-3)]/40 p-4">
               <div className="eyebrow mb-2">Internal notes</div>
               <textarea
                 value={notes}
@@ -252,7 +252,7 @@ export default function InvestigatorNew() {
             </div>
           </div>
 
-          <div className="flex min-w-[22rem] flex-1 flex-col gap-2">
+          <div className="anim-panel anim-delay-3 flex min-w-[22rem] flex-1 flex-col gap-2">
             <div className="flex items-center justify-between gap-3">
               <h2 className="eyebrow">Certifications & licenses</h2>
               <button

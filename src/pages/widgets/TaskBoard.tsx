@@ -29,7 +29,7 @@ export function TaskBoard() {
         </button>
       </div>
 
-      <ul className="-mx-1 min-h-0 flex-1 overflow-y-auto">
+      <ul className="anim-stagger anim-stagger-tight -mx-1 min-h-0 flex-1 overflow-y-auto">
         {items.map((t) => (
           <li
             key={t.id}

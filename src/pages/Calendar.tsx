@@ -850,7 +850,7 @@ function GroupChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-[0.5rem] border px-3 py-1.5 text-[0.71875rem] transition-colors",
+        "anim-toggle tap rounded-[0.5rem] border px-3 py-1.5 text-[0.71875rem]",
         active
           ? "border-[color-mix(in_srgb,var(--color-accent)_55%,var(--color-line))] bg-[color-mix(in_srgb,var(--color-accent)_14%,transparent)] text-[var(--color-text-hi)]"
           : "border-[var(--color-line)] text-[var(--color-text-mid)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]",

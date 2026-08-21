@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Check, Clock, Loader2, MapPin, Plus } from "lucide-react";
+import { PanelLoader } from "@/components/ui/LoadingState";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/format";
 import { TIMEZONE_OPTIONS } from "@/lib/timezones";
@@ -120,11 +121,7 @@ export default function Profile() {
   };
 
   if (loading) {
-    return (
-      <div className="surface flex h-full items-center justify-center">
-        <Loader2 size={22} className="animate-spin text-[var(--color-text-lo)]" />
-      </div>
-    );
+    return <PanelLoader message="Loading profile" />;
   }
 
   if (!user) {
@@ -145,7 +142,7 @@ export default function Profile() {
       </div>
 
       {error && (
-        <div className="surface shrink-0 rounded-[0.875rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-4 py-3 text-[0.8125rem] text-[var(--color-neg)]">
+        <div className="anim-banner surface shrink-0 rounded-[0.875rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-4 py-3 text-[0.8125rem] text-[var(--color-neg)]">
           {error}
         </div>
       )}
@@ -240,7 +237,7 @@ export default function Profile() {
                         type="button"
                         onClick={() => setRegion(r)}
                         className={cn(
-                          "flex items-center gap-1 rounded-full border px-3 py-1 text-[0.71875rem] transition-colors",
+                          "anim-toggle tap flex items-center gap-1 rounded-full border px-3 py-1 text-[0.71875rem]",
                           region === r
                             ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
                             : "border-[var(--color-line)] text-[var(--color-text-mid)] hover:border-[var(--color-line-2)]",
@@ -295,7 +292,7 @@ export default function Profile() {
                 Nothing on file yet — add your licenses and certifications so dispatch knows what you're qualified for.
               </div>
             ) : (
-              <div className="flex flex-col gap-2">
+              <div className="anim-stagger flex flex-col gap-2">
                 {certs.map((cert) => (
                   <CredentialCard key={cert.id} cert={cert} onRemove={() => void saveCerts(certs.filter((c) => c.id !== cert.id))} />
                 ))}

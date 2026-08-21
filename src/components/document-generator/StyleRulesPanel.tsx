@@ -131,7 +131,8 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
     <>
       <div
         className={cn(
-          "fixed inset-0 z-40 bg-black/50 backdrop-blur-[0.125rem] transition-opacity duration-200",
+          "fixed inset-0 z-40 bg-black/50 backdrop-blur-[0.125rem] transition-opacity",
+          "duration-[var(--motion-base)] ease-[var(--motion-ease-inout)]",
           open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
         )}
         onClick={onClose}
@@ -142,7 +143,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
         className={cn(
           "fixed top-0 right-0 z-50 flex h-full w-[min(27.5rem,92vw)] flex-col",
           "border-l border-[var(--color-line)] bg-[var(--color-ink-1)] shadow-2xl",
-          "transition-transform duration-250 ease-out",
+          "transition-transform duration-[var(--motion-base)] ease-[var(--motion-ease)]",
           open ? "translate-x-0" : "translate-x-full",
         )}
         aria-hidden={!open}
@@ -183,7 +184,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
               type="button"
               onClick={() => setTab(id)}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-2.5 text-[0.75rem] font-medium border-b-2 -mb-px transition-colors",
+                "anim-toggle tap flex items-center gap-1.5 px-3 py-2.5 text-[0.75rem] font-medium border-b-2 -mb-px",
                 tab === id
                   ? "border-[var(--color-accent)] text-[var(--color-text-hi)]"
                   : "border-transparent text-[var(--color-text-lo)] hover:text-[var(--color-text-mid)]",
@@ -201,7 +202,7 @@ export default function StyleRulesPanel({ open, onClose, onRulesChange }: Props)
         </div>
 
         {error && (
-          <div className="mx-5 mt-3 rounded-[0.5rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.08)] px-3 py-2 text-[0.75rem] text-[var(--color-neg)]">
+          <div className="anim-banner mx-5 mt-3 rounded-[0.5rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.08)] px-3 py-2 text-[0.75rem] text-[var(--color-neg)]">
             {error}
           </div>
         )}

@@ -124,11 +124,11 @@ export function NewCaseModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="anim-backdrop fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed left-1/2 top-1/2 z-50 w-[min(40rem,92vw)] -translate-x-1/2 -translate-y-1/2">
         <form
           onSubmit={submit}
-          className="surface flex max-h-[85vh] flex-col gap-5 overflow-y-auto rounded-[0.875rem] p-6"
+          className="surface anim-modal flex max-h-[85vh] flex-col gap-5 overflow-y-auto rounded-[0.875rem] p-6"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -141,7 +141,7 @@ export function NewCaseModal({
           </div>
 
           {error && (
-            <div className="rounded-[0.5rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-3.5 py-2.5 text-[0.78125rem] text-[var(--color-neg)]">
+            <div className="anim-banner rounded-[0.5rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-3.5 py-2.5 text-[0.78125rem] text-[var(--color-neg)]">
               {error}
             </div>
           )}

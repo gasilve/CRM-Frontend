@@ -1,0 +1,383 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOTION
+   One vocabulary for every animated surface in the app. Prefer these classes
+   over per-component keyframes so timing stays consistent.
+
+     .anim-page          route content enter
+     .anim-fade          opacity only
+     .anim-rise          opacity + upward travel + slight scale
+     .anim-pop           opacity + scale (badges, pills, inline reveals)
+     .anim-backdrop      modal/drawer scrim
+     .anim-modal         centered dialog
+     .anim-popover       anchored panel (dropdowns, pickers)
+     .anim-drawer-*      edge-anchored panel
+     .anim-banner        inline notice/alert
+     .anim-panel         card/section reveal
+     .anim-stagger       container: reveals its direct children in sequence
+     .anim-stagger-tight same, reduced travel — dense rows and tables
+     .anim-row           single row with an explicit --row index
+
+   Interaction helpers: .tap (press feedback), .lift (hover raise),
+   .anim-toggle (segmented control / chip), .anim-rotate (chevrons).
+
+   Everything collapses to a plain fade under prefers-reduced-motion — see the
+   block at the bottom, which also silences the ambient background layers.
+
+   Fill mode is `backwards`, never `forwards`/`both`: a retained end-state
+   transform would make the element a containing block, and any
+   `position: fixed` descendant (inline modals, the design switcher) would
+   anchor to it instead of the viewport.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --motion-fast: 180ms;
+  --motion-base: 320ms;
+  --motion-slow: 440ms;
+
+  /* Expo-out. Leaves fast, settles hard — this is what makes the motion read
+     as deliberate rather than floaty. Used for nearly everything. */
+  --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Symmetric: things moving between two states. */
+  --motion-ease-inout: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Overshoot. Small elements only — on a large surface it reads as wobble. */
+  --motion-ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Gap between consecutive children of .anim-stagger. Large enough that the
+     cascade is legible rather than a blur. */
+  --motion-stagger-step: 45ms;
+
+  /* Travel for rise/slide. Deliberately generous — the whole point is that the
+     movement is visible. Anything inside a scroll container uses -sm so the
+     start position cannot flash a scrollbar. */
+  --motion-travel: 1.375rem;
+  --motion-travel-sm: 0.625rem;
+  --motion-travel-lg: 3rem;
+}
+
+/* ── Keyframes ───────────────────────────────────────────────────────────── */
+
+@keyframes motion-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes motion-page-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0.75rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes motion-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--motion-travel), 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* Same shape, shorter throw — dense rows, tables, compact feeds. */
+@keyframes motion-rise-tight {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--motion-travel-sm), 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes motion-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes motion-modal-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--motion-travel), 0) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes motion-popover-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -0.5rem, 0) scale(0.93);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes motion-slide-from-right {
+  from {
+    opacity: 0;
+    transform: translate3d(var(--motion-travel-lg), 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes motion-slide-from-left {
+  from {
+    opacity: 0;
+    transform: translate3d(calc(var(--motion-travel-lg) * -1), 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes motion-slide-from-bottom {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--motion-travel-lg), 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* ── Enter utilities ─────────────────────────────────────────────────────── */
+
+/* Travel stays small here: the wrapper lives inside the scrolling <main>, so a
+   large start offset would grow the scroll area and flash a scrollbar. The
+   staggered content underneath supplies the rest of the movement. */
+.anim-page {
+  animation: motion-page-in var(--motion-base) var(--motion-ease) backwards;
+}
+
+.anim-fade {
+  animation: motion-fade var(--motion-base) var(--motion-ease) backwards;
+}
+
+.anim-rise {
+  animation: motion-rise var(--motion-base) var(--motion-ease) backwards;
+}
+
+.anim-pop {
+  animation: motion-pop var(--motion-fast) var(--motion-ease-pop) backwards;
+}
+
+.anim-panel {
+  animation: motion-rise var(--motion-slow) var(--motion-ease) backwards;
+}
+
+.anim-banner {
+  animation: motion-slide-from-bottom var(--motion-base) var(--motion-ease) backwards;
+}
+
+.anim-backdrop {
+  animation: motion-fade var(--motion-fast) var(--motion-ease-inout) backwards;
+}
+
+.anim-modal {
+  animation: motion-modal-in var(--motion-base) var(--motion-ease) backwards;
+}
+
+.anim-popover {
+  animation: motion-popover-in var(--motion-fast) var(--motion-ease) backwards;
+  transform-origin: top center;
+}
+
+.anim-popover-bottom {
+  animation: motion-popover-in var(--motion-fast) var(--motion-ease) backwards;
+  transform-origin: bottom center;
+}
+
+.anim-drawer-right {
+  animation: motion-slide-from-right var(--motion-base) var(--motion-ease) backwards;
+}
+
+.anim-drawer-left {
+  animation: motion-slide-from-left var(--motion-base) var(--motion-ease) backwards;
+}
+
+.anim-drawer-bottom {
+  animation: motion-slide-from-bottom var(--motion-base) var(--motion-ease) backwards;
+}
+
+/* Optional delay steps for hand-sequencing a few sibling blocks. */
+.anim-delay-1 {
+  animation-delay: 80ms;
+}
+.anim-delay-2 {
+  animation-delay: 160ms;
+}
+.anim-delay-3 {
+  animation-delay: 240ms;
+}
+
+/* ── Sequenced children ─────────────────────────────────────────────────────
+   Put .anim-stagger on a list/table body; direct children rise in order.
+   Capped at 14 steps so the last row never waits more than ~630ms. */
+
+.anim-stagger > * {
+  animation: motion-rise var(--motion-base) var(--motion-ease) backwards;
+}
+
+/* Reduced throw for dense rows, tables, and compact widget feeds. */
+.anim-stagger-tight > * {
+  animation-name: motion-rise-tight;
+}
+
+.anim-stagger > *:nth-child(1) {
+  animation-delay: calc(var(--motion-stagger-step) * 0);
+}
+.anim-stagger > *:nth-child(2) {
+  animation-delay: calc(var(--motion-stagger-step) * 1);
+}
+.anim-stagger > *:nth-child(3) {
+  animation-delay: calc(var(--motion-stagger-step) * 2);
+}
+.anim-stagger > *:nth-child(4) {
+  animation-delay: calc(var(--motion-stagger-step) * 3);
+}
+.anim-stagger > *:nth-child(5) {
+  animation-delay: calc(var(--motion-stagger-step) * 4);
+}
+.anim-stagger > *:nth-child(6) {
+  animation-delay: calc(var(--motion-stagger-step) * 5);
+}
+.anim-stagger > *:nth-child(7) {
+  animation-delay: calc(var(--motion-stagger-step) * 6);
+}
+.anim-stagger > *:nth-child(8) {
+  animation-delay: calc(var(--motion-stagger-step) * 7);
+}
+.anim-stagger > *:nth-child(9) {
+  animation-delay: calc(var(--motion-stagger-step) * 8);
+}
+.anim-stagger > *:nth-child(10) {
+  animation-delay: calc(var(--motion-stagger-step) * 9);
+}
+.anim-stagger > *:nth-child(11) {
+  animation-delay: calc(var(--motion-stagger-step) * 10);
+}
+.anim-stagger > *:nth-child(12) {
+  animation-delay: calc(var(--motion-stagger-step) * 11);
+}
+.anim-stagger > *:nth-child(13) {
+  animation-delay: calc(var(--motion-stagger-step) * 12);
+}
+.anim-stagger > *:nth-child(n + 14) {
+  animation-delay: calc(var(--motion-stagger-step) * 13);
+}
+
+/* Explicit index, for children rendered outside a single container. */
+.anim-row {
+  animation: motion-rise var(--motion-base) var(--motion-ease) backwards;
+  animation-delay: calc(var(--motion-stagger-step) * var(--row, 0));
+}
+
+/* ── Interaction ─────────────────────────────────────────────────────────── */
+
+/* Press feedback. Safe on buttons and clickable rows. */
+.tap {
+  transition: transform var(--motion-fast) var(--motion-ease-pop);
+}
+.tap:active {
+  transform: scale(0.955);
+}
+
+/* Hover raise for cards and tiles that are not already .surface-hover. */
+.lift {
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    border-color var(--motion-base) var(--motion-ease-inout),
+    box-shadow var(--motion-base) var(--motion-ease);
+}
+.lift:hover {
+  transform: translate3d(0, -0.1875rem, 0);
+}
+
+/* Segmented controls, tabs and filter chips: animate the active pill instead of
+   snapping. Covers border-color too — chips rely on it for hover. */
+.anim-toggle {
+  transition:
+    background-color var(--motion-fast) var(--motion-ease-inout),
+    border-color var(--motion-fast) var(--motion-ease-inout),
+    color var(--motion-fast) var(--motion-ease-inout),
+    box-shadow var(--motion-fast) var(--motion-ease-inout);
+}
+
+/* Icon rotate (chevrons, disclosure arrows). */
+.anim-rotate {
+  transition: transform var(--motion-base) var(--motion-ease);
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────────
+   One global switch. Keeps a short fade so surfaces still register as new,
+   drops all travel/scale, and stops the ambient background loops. */
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-page,
+  .anim-fade,
+  .anim-rise,
+  .anim-pop,
+  .anim-panel,
+  .anim-banner,
+  .anim-backdrop,
+  .anim-modal,
+  .anim-popover,
+  .anim-popover-bottom,
+  .anim-drawer-right,
+  .anim-drawer-left,
+  .anim-drawer-bottom,
+  .anim-row,
+  .anim-stagger > *,
+  .anim-stagger-tight > * {
+    animation: motion-fade var(--motion-fast) linear backwards;
+    animation-delay: 0ms;
+  }
+
+  .tap,
+  .lift,
+  .anim-toggle,
+  .anim-rotate {
+    transition-duration: 1ms;
+  }
+
+  .tap:active,
+  .lift:hover {
+    transform: none;
+  }
+
+  .atmo-sweep::before,
+  .signal-flicker,
+  .signal-acquired,
+  .theme-picker-panel {
+    animation: none;
+  }
+
+  .atmo-noise {
+    display: none;
+  }
+}

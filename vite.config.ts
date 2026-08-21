@@ -42,4 +42,20 @@ export default defineConfig({
     strictPort: false,
     open: false,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+
+          if (id.includes("pdfjs-dist") || id.includes("docx-preview")) return "vendor-docs";
+          if (id.includes("leaflet")) return "vendor-maps";
+          if (id.includes("gridstack")) return "vendor-grid";
+          if (id.includes("recharts")) return "vendor-charts";
+          if (id.includes("@dnd-kit")) return "vendor-dnd";
+          if (id.includes("lucide-react")) return "vendor-icons";
+        },
+      },
+    },
+  },
 });

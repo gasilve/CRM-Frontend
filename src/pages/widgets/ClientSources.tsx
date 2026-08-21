@@ -37,7 +37,7 @@ export function ClientSources() {
           </div>
         </div>
 
-        <ul className="flex flex-col gap-2.5">
+        <ul className="anim-stagger anim-stagger-tight flex flex-col gap-2.5">
           {sourceMix.map((s) => (
             <li key={s.name} className="flex items-center gap-2.5 text-[0.78125rem]">
               <span

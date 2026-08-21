@@ -41,7 +41,7 @@ export function TopClients() {
   return (
     <Card className="flex flex-col">
       <CardHeader eyebrow="Accounts" title="Top clients by ARR" />
-      <ul className="min-h-0 flex-1 overflow-y-auto">
+      <ul className="anim-stagger anim-stagger-tight min-h-0 flex-1 overflow-y-auto">
         {top.map((c, i) => (
           <li
             key={c.id}

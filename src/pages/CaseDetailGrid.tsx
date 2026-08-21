@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { GridStack, type GridStackNode, type GridStackOptions } from "gridstack";
+import { settleGridMetrics } from "@/lib/grid-stack-host";
 import { designPx } from "@/lib/rem";
 import {
   CASE_CELL_HEIGHT,
@@ -79,7 +80,7 @@ function renderPanel(host: HTMLElement, id: CasePanelId, ctx: CasePanelCtx) {
 
   root.render(
     <div className="widget-frame h-full w-full">
-      <div className="widget-body signal-acquired h-full w-full">{def.render(ctx)}</div>
+      <div className="widget-body h-full w-full">{def.render(ctx)}</div>
     </div>,
   );
 }
@@ -109,7 +110,6 @@ function CaseDetailGridInner({
 
     unmountAll();
 
-    // Must be set before grid.load so GridStack paints via renderCB (same as dashboard).
     GridStack.renderCB = (el, node) => {
       const id = (node.id ?? el.getAttribute("gs-id")) as CasePanelId | null;
       if (!id || !CASE_PANELS[id]) return;
@@ -132,7 +132,7 @@ function CaseDetailGridInner({
       cellHeight: designPx(CASE_CELL_HEIGHT),
       margin: designPx(CASE_GRID_MARGIN),
       float: true,
-      animate: true,
+      animate: false,
       disableResize: false,
       disableDrag: false,
       draggable: { handle: ".widget-body", appendTo: "body" },
@@ -144,12 +144,10 @@ function CaseDetailGridInner({
 
     const widgets = layoutToCaseGridWidgets(layoutRef.current);
     if (widgets.length > 0) grid.load(widgets);
+    settleGridMetrics(grid, CASE_CELL_HEIGHT, CASE_GRID_MARGIN);
 
     const syncCellMetrics = () => {
-      const g = gridInstanceRef.current;
-      if (!g) return;
-      g.cellHeight(designPx(CASE_CELL_HEIGHT));
-      g.margin(designPx(CASE_GRID_MARGIN));
+      settleGridMetrics(grid, CASE_CELL_HEIGHT, CASE_GRID_MARGIN);
     };
     window.addEventListener("resize", syncCellMetrics);
 
@@ -172,6 +170,7 @@ function CaseDetailGridInner({
 
     const syncLayout = () => {
       if (cancelled || !initSettledRef.current) return;
+      if (grid.isIgnoreChangeCB?.()) return;
       const items = nodesToLayout(grid.save(false) as GridStackNode[]);
       layoutRef.current = items;
       persistRef.current(items);
@@ -195,7 +194,6 @@ function CaseDetailGridInner({
       queueSync();
     };
 
-    grid.on("change", queueSync);
     grid.on("dragstart", onDragStart);
     grid.on("dragstop", onDragStop);
     grid.on("resizestop", queueSync);
@@ -207,10 +205,10 @@ function CaseDetailGridInner({
 
     return () => {
       cancelled = true;
+      initSettledRef.current = false;
       window.removeEventListener("resize", syncCellMetrics);
       document.body.classList.remove("dashboard-widget-dragging");
       try {
-        grid.off("change");
         grid.off("dragstart");
         grid.off("dragstop");
         grid.off("resizestop");
@@ -225,7 +223,6 @@ function CaseDetailGridInner({
       gridInstanceRef.current = null;
       if (gridRef.current?.getEl() === hostEl) gridRef.current = null;
       unmountAll();
-      // Only clear if we still own the global callback
       if (GridStack.renderCB) {
         try {
           delete (GridStack as { renderCB?: unknown }).renderCB;
@@ -237,14 +234,13 @@ function CaseDetailGridInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- remount via mountKey
   }, [mountKey, gridRef]);
 
-  // Refresh panel React trees when the case changes (same grid instance).
   useEffect(() => {
     hostById.forEach((host, id) => {
       renderPanel(host, id, ctx);
     });
   }, [ctx.case.id, ctx]);
 
-  return <div ref={hostRef} className="case-detail-grid" />;
+  return <div ref={hostRef} key={mountKey} className="case-detail-grid" />;
 }
 
 export const CaseDetailGrid = memo(CaseDetailGridInner);

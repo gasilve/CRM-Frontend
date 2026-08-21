@@ -20,6 +20,8 @@ import { getCertifications, hasCertification, CERTIFICATION_CATALOG, type Certif
 import { formatHomeAddressShort, formatTimezone } from "@/lib/timezones";
 import { useAuth } from "@/contexts/AuthContext";
 import { investigatorsApi, invitationsApi, REGION_LABELS, type InvestigatorListItem, type Invitation, type InviteCreateResult, ApiError } from "@/lib/crm-api";
+import { PanelLoader } from "@/components/ui/LoadingState";
+import { ViewToggle, ViewToggleGroup } from "@/components/ui/ViewToggle";
 import type { Role } from "@/lib/auth-client";
 import { RoleChip } from "@/components/team/RoleChip";
 import { CertificationBadges } from "@/components/team/CertificationBadges";
@@ -165,7 +167,7 @@ export default function Investigators() {
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
-            <div className="flex items-center gap-1 rounded-[0.625rem] border border-[var(--color-line)] bg-[var(--color-ink-2)]/40 p-1">
+            <ViewToggleGroup>
               <ViewToggle
                 active={view === "roster"}
                 onClick={() => setView("roster")}
@@ -179,7 +181,7 @@ export default function Investigators() {
                 label="Pending"
                 badge={pendingInvites.length > 0 ? pendingInvites.length : undefined}
               />
-            </div>
+            </ViewToggleGroup>
           )}
           {isAdmin && (
             <button
@@ -204,7 +206,7 @@ export default function Investigators() {
                 key={r}
                 onClick={() => setRoleFilter(r === "all" ? null : r)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[0.71875rem] font-medium transition-all",
+                  "anim-toggle tap flex items-center gap-1.5 rounded-full border px-3 py-1 text-[0.71875rem] font-medium",
                   active
                     ? "border-[var(--color-accent-soft)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
                     : "border-[var(--color-line)] text-[var(--color-text-lo)] hover:text-[var(--color-text-mid)] hover:border-[var(--color-line-2)]",
@@ -229,7 +231,7 @@ export default function Investigators() {
               <button
                 key={cert.code}
                 onClick={() => setCertFilter(active ? null : cert.code)}
-                className="rounded-full border px-2.5 py-0.5 text-[0.65625rem] font-medium tracking-wide transition-all"
+                className="anim-toggle tap rounded-full border px-2.5 py-0.5 text-[0.65625rem] font-medium tracking-wide"
                 style={
                   active
                     ? { background: `${cert.color}26`, color: cert.color, borderColor: `${cert.color}60` }
@@ -269,7 +271,7 @@ export default function Investigators() {
       )}
 
       {error && (
-        <div className="surface shrink-0 rounded-[0.875rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-4 py-3 text-[0.8125rem] text-[var(--color-neg)]">
+        <div className="anim-banner surface shrink-0 rounded-[0.875rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-4 py-3 text-[0.8125rem] text-[var(--color-neg)]">
           {error}
         </div>
       )}
@@ -279,11 +281,11 @@ export default function Investigators() {
         <div className="min-h-0 flex-1 overflow-hidden">
           {view === "roster" ? (
             !people ? (
-              <div className="surface flex h-full items-center justify-center">
-                <Loader2 size={22} className="animate-spin text-[var(--color-text-lo)]" />
-              </div>
+              <PanelLoader message="Loading roster" />
             ) : (
+              /* Keyed on the page so paging replays the row stagger. */
               <RosterTable
+                key={`roster-${page}`}
                 items={pagedPeople}
                 onRowClick={(p) => navigate(`/investigators/${p.id}`)}
                 emptyTitle={people.length > 0 ? "No matches" : "No investigators yet"}
@@ -298,6 +300,7 @@ export default function Investigators() {
             )
           ) : (
             <InvitesTable
+              key={`invites-${page}`}
               items={pagedInvites}
               busyKey={busyKey}
               onResend={resendInvite}
@@ -397,7 +400,10 @@ function RosterTable({
           </div>
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 overflow-hidden" style={{ gridTemplateRows: `repeat(${PER_PAGE}, minmax(0, 1fr))` }}>
+        <div
+          className="anim-stagger anim-stagger-tight grid min-h-0 flex-1 overflow-hidden"
+          style={{ gridTemplateRows: `repeat(${PER_PAGE}, minmax(0, 1fr))` }}
+        >
           {slots.map((person, i) =>
             person ? (
               <RosterRow key={person.id} person={person} onClick={() => onRowClick(person)} showDivider={i < PER_PAGE - 1} />
@@ -545,7 +551,10 @@ function InvitesTable({
           </div>
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 overflow-hidden" style={{ gridTemplateRows: `repeat(${PER_PAGE}, minmax(0, 1fr))` }}>
+        <div
+          className="anim-stagger anim-stagger-tight grid min-h-0 flex-1 overflow-hidden"
+          style={{ gridTemplateRows: `repeat(${PER_PAGE}, minmax(0, 1fr))` }}
+        >
           {slots.map((inv, i) =>
             inv ? (
               <InviteRow
@@ -659,39 +668,6 @@ function InviteRow({
 }
 
 // ─── Shared bits ──────────────────────────────────────────────────────────────
-
-function ViewToggle({
-  active,
-  onClick,
-  icon,
-  label,
-  badge,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-  badge?: number;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[0.71875rem] transition-colors",
-        active
-          ? "bg-[var(--color-ink-3)] text-[var(--color-text-hi)] shadow-[inset_0_0_0_0.0625rem_var(--color-line-2)]"
-          : "text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]",
-      )}
-    >
-      {icon} {label}
-      {badge ? (
-        <span className="rounded-full bg-[var(--color-accent-soft)] px-1.5 py-0 text-[0.625rem] text-[var(--color-accent-2)]">
-          {badge}
-        </span>
-      ) : null}
-    </button>
-  );
-}
 
 function PageBtn({
   children,

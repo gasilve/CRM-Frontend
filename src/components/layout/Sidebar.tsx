@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NavLink } from "react-router-dom";
 import {
@@ -51,6 +51,7 @@ import { BackgroundPicker } from "./BackgroundPicker";
 import { ThemePicker } from "./ThemePicker";
 import { ConfirmModal } from "@/components/dashboard/ConfirmModal";
 import { invCases, investigators } from "@/lib/mock-data";
+import { pendingCasesApi } from "@/lib/crm-api";
 import { useAuth } from "@/contexts/AuthContext";
 import { getInitials, formatRoleList } from "@/lib/format";
 import accentyLogo from "@/assets/branding/accenty-logo.png";
@@ -113,6 +114,11 @@ const ITEM_MAP: Record<string, Item> = Object.fromEntries(
 );
 const ALL_ITEM_IDS = Object.keys(ITEM_MAP);
 
+/** Where a nav item belongs before the user drags it somewhere else. */
+const DEFAULT_FOLDER_BY_ITEM: Record<string, string> = Object.fromEntries(
+  DEFAULT_GROUPS.flatMap((group) => group.items.map((item) => [item.to, group.id])),
+);
+
 const DEFAULT_SIDEBAR_STATE: SidebarState = {
   folders: DEFAULT_GROUPS.map((group) => ({
     id: group.id,
@@ -164,11 +170,13 @@ const readSidebarState = (): SidebarState => {
     }
     const missing = ALL_ITEM_IDS.filter((id) => !seen.has(id));
     if (missing.length > 0) {
-      const target =
-        folders.find((folder) => folder.id === "system") ??
-        folders.find((folder) => folder.id === "operations") ??
-        folders[0];
-      target.itemIds.push(...missing);
+      for (const itemId of missing) {
+        const target =
+          folders.find((folder) => folder.id === DEFAULT_FOLDER_BY_ITEM[itemId]) ??
+          folders.find((folder) => folder.id === "system") ??
+          folders[0];
+        target.itemIds.push(itemId);
+      }
       // Persist so we don't need a mount effect that re-runs on every drag update.
       try {
         localStorage.setItem(SIDEBAR_LS_KEY, JSON.stringify({ folders }));
@@ -553,6 +561,24 @@ export default function Sidebar({
   const isAdmin = roles.includes("admin");
   const isStaff = isAdmin || roles.includes("investigator");
 
+  const [pendingCases, setPendingCases] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    pendingCasesApi
+      .summary()
+      .then((res) => {
+        if (!cancelled) setPendingCases(res.pendingReview);
+      })
+      .catch(() => {
+        /* the badge is decoration — a failed count must not break the nav */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
+
   const groups = useMemo(() => {
     return sidebarState.folders.map((folder) => ({
       id: folder.id,
@@ -561,9 +587,15 @@ export default function Sidebar({
         .map((itemId) => ITEM_MAP[itemId])
         .filter(Boolean)
         .filter((item) => isStaff || !STAFF_ONLY_ITEMS.has(item.to))
-        .filter((item) => isAdmin || !ADMIN_ONLY_ITEMS.has(item.to)),
+        .filter((item) => isAdmin || !ADMIN_ONLY_ITEMS.has(item.to))
+        .map((item) => {
+          if (item.to === "/cases" && isAdmin && pendingCases && pendingCases > 0) {
+            return { ...item, badge: pendingCases };
+          }
+          return item;
+        }),
     }));
-  }, [sidebarState, isStaff, isAdmin]);
+  }, [sidebarState, isStaff, isAdmin, pendingCases]);
 
   const updateState = (next: SidebarState) => {
     setSidebarState(next);

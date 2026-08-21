@@ -13,7 +13,7 @@ export default function RequireAuth() {
   const { isPending, isAuthenticated, user, roles } = useAuth();
   const location = useLocation();
 
-  if (isPending) return <FullScreenLoader />;
+  if (isPending) return <FullScreenLoader message="Loading" />;
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />;

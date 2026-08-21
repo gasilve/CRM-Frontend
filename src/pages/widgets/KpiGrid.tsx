@@ -46,7 +46,7 @@ function Spark({ data, positive }: { data: number[]; positive: boolean }) {
 export function KpiGrid() {
   return (
     <Card padding={false} className="p-1.5">
-      <div className="grid h-full grid-cols-2 grid-rows-2 gap-1.5">
+      <div className="anim-stagger grid h-full grid-cols-2 grid-rows-2 gap-1.5">
         {kpis.map((k) => {
           const positive = k.delta >= 0;
           return (

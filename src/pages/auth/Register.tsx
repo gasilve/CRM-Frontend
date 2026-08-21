@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Loader2, UserPlus } from "lucide-react";
 import AuthLayout from "@/components/auth/AuthLayout";
+import FullScreenLoader from "@/components/auth/FullScreenLoader";
 import {
   errorBannerClass,
   footerTextClass,
@@ -30,7 +31,7 @@ export default function Register() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.isPending, auth.isAuthenticated, auth.user?.twoFactorEnabled, auth.roles.length]);
 
-  if (auth.isPending || auth.isAuthenticated) return null;
+  if (auth.isAuthenticated) return <FullScreenLoader message="Signing you in" />;
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();

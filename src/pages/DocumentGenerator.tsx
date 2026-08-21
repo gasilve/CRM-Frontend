@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { BeamLoader, LoadingCaption } from "@/components/ui/LoadingState";
 import StyleRulesPanel from "@/components/document-generator/StyleRulesPanel";
 import DocumentAiEditorModal, {
   type AiEditCorrection,
@@ -261,7 +262,7 @@ export default function DocumentGenerator() {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-[0.625rem] bg-[rgba(248,113,113,0.08)] border border-[rgba(248,113,113,0.25)] px-4 py-3 text-[var(--color-neg)] text-sm">
+        <div className="anim-banner flex items-start gap-2 rounded-[0.625rem] bg-[rgba(248,113,113,0.08)] border border-[rgba(248,113,113,0.25)] px-4 py-3 text-[var(--color-neg)] text-sm">
           <AlertCircle size={15} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
@@ -310,7 +311,7 @@ export default function DocumentGenerator() {
               )}
               {tileSize > 0 && (
                 <div
-                  className="grid h-full w-full place-content-center"
+                  className="anim-stagger grid h-full w-full place-content-center"
                   style={{
                     gap: GRID_GAP_PX,
                     gridTemplateColumns: `repeat(${cols}, ${tileSize}px)`,
@@ -406,11 +407,11 @@ export default function DocumentGenerator() {
               )}
             >
               {generating ? (
-                <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-                  <Loader2 size={28} className="animate-spin text-[var(--color-accent)]" />
+                <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center" role="status" aria-live="polite" aria-busy="true">
+                  <BeamLoader className="w-40" />
                   <div>
-                    <p className="text-[0.8125rem] text-[var(--color-text-mid)]">Generating report…</p>
-                    <p className="text-[0.6875rem] text-[var(--color-text-lo)] mt-1">
+                    <p className="load-caption">Generating report</p>
+                    <p className="mt-2 text-[0.6875rem] leading-relaxed text-[var(--color-text-lo)]">
                       Merging chrono · AI paraphrase · full document rebuild
                     </p>
                   </div>

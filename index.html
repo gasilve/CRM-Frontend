@@ -55,13 +55,52 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Boot + auth: Cinzel eyebrow, Cormorant editorial title, Montserrat UI -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Michroma&family=Montserrat:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Cormorant+Garamond:ital,wght@0,300;1,300&family=Montserrat:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;1,400&family=Michroma&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;1,400&family=Michroma&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
+    <link rel="stylesheet" href="/admin/boot-loader.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #04060c;
+      }
+      html[data-theme^="light"] body {
+        background: #eef1f7;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-screen" id="boot-loader" role="status" aria-live="polite" aria-busy="true">
+        <div class="boot-atmo boot-atmo-radial" aria-hidden></div>
+        <div class="boot-atmo boot-atmo-vignette" aria-hidden></div>
+        <div class="boot-atmo boot-atmo-scan" aria-hidden></div>
+        <div class="boot-card">
+          <p class="boot-eyebrow">Accenty CRM</p>
+          <h1 class="boot-title">Accenty</h1>
+          <div class="boot-progress" aria-hidden>
+            <span class="boot-progress__beam"></span>
+          </div>
+          <p class="boot-caption">Loading</p>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

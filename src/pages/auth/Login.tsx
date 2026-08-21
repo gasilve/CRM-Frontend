@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { Loader2, LogIn } from "lucide-react";
 import AuthLayout from "@/components/auth/AuthLayout";
+import FullScreenLoader from "@/components/auth/FullScreenLoader";
 import {
   errorBannerClass,
   footerTextClass,
@@ -11,6 +12,9 @@ import {
   primaryButtonClass,
 } from "@/components/auth/form";
 import { authClient } from "@/lib/auth-client";
+import { isDatabaseUnavailableMessage, DB_UNAVAILABLE_HINT } from "@/lib/health";
+import { useServiceHealth } from "@/hooks/useServiceHealth";
+import { ServiceUnavailableBanner } from "@/components/auth/ServiceUnavailableBanner";
 import { useAuth, getPostAuthPath } from "@/contexts/AuthContext";
 
 export default function Login() {
@@ -22,6 +26,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { health, refresh: refreshHealth } = useServiceHealth();
 
   useEffect(() => {
     if (auth.isPending) return;
@@ -30,7 +35,7 @@ export default function Login() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.isPending, auth.isAuthenticated, auth.user?.twoFactorEnabled, auth.roles.length]);
 
-  if (auth.isPending || auth.isAuthenticated) return null;
+  if (auth.isAuthenticated) return <FullScreenLoader message="Signing you in" />;
 
   const from = (location.state as { from?: string } | null)?.from;
 
@@ -41,7 +46,9 @@ export default function Login() {
     try {
       const { data, error: signInError } = await authClient.signIn.email({ email, password });
       if (signInError) {
-        setError(signInError.message ?? "Could not sign in.");
+        const msg = signInError.message ?? "Could not sign in.";
+        setError(isDatabaseUnavailableMessage(msg) ? DB_UNAVAILABLE_HINT : msg);
+        void refreshHealth();
         return;
       }
       if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) {
@@ -61,6 +68,9 @@ export default function Login() {
   return (
     <AuthLayout title="Sign in" showThemePicker>
       <form className="flex flex-col gap-4 sm:gap-5" onSubmit={onSubmit}>
+        {health && !health.ok && health.message ? (
+          <ServiceUnavailableBanner message={health.message} onRetry={() => void refreshHealth()} />
+        ) : null}
         {error ? <div className={errorBannerClass}>{error}</div> : null}
         <div>
           <label className={labelClass} htmlFor="email">

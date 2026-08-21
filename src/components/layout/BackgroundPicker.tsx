@@ -70,7 +70,7 @@ export function BackgroundPicker({ open, onClose, triggerRef, align = "bottom-en
     <div
       ref={panelRef}
       className={`theme-picker-panel absolute z-50 w-[26rem] overflow-hidden rounded-[0.875rem] border border-[var(--color-line-2)] bg-[var(--color-ink-1)] shadow-[0_1.25rem_3rem_-0.75rem_rgba(0,0,0,var(--shadow-alpha-heavy))] ${
-        align === "top-start" ? "bottom-full left-0 mb-2" : "right-0 top-full mt-2"
+        align === "top-start" ? "anim-popover-bottom bottom-full left-0 mb-2" : "right-0 top-full mt-2"
       }`}
       role="dialog"
       aria-label="Background selector"

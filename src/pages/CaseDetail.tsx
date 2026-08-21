@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarPlus, Loader2 } from "lucide-react";
+import { ArrowLeft, CalendarPlus } from "lucide-react";
+import { CaseDetailSkeleton, PanelLoader } from "@/components/ui/LoadingState";
 import { casesApi, investigatorsApi, ApiError, type CaseDetail as CaseDetailType, type CaseStatus } from "@/lib/crm-api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGridLayout } from "@/hooks/useGridLayout";
 import { CaseSubjectHeader } from "@/components/case/CaseSubjectHeader";
 import type { Subject } from "@/lib/mock-data";
 import {
-  loadCaseLayout,
+  CASE_DEFAULT_LAYOUT,
+  CASE_LEGACY_LS_KEY,
   normalizeCaseLayout,
-  saveCaseLayout,
   type CaseLayoutItem,
   type CasePanelCtx,
 } from "./case-detail-widgets";
@@ -32,9 +34,13 @@ export default function CaseDetail() {
   const [notFound, setNotFound] = useState(false);
   const [investigatorOptions, setInvestigatorOptions] = useState<{ id: string; name: string }[]>([]);
 
-  const [layout] = useState<CaseLayoutItem[]>(() => loadCaseLayout());
-  const layoutRef = useRef(layout);
-  layoutRef.current = layout;
+  // Layout is per user, not per case — every case detail shares one arrangement.
+  const { layout, persist: persistLayout, revision: layoutRevision } = useGridLayout<CaseLayoutItem>({
+    surface: "case-detail",
+    defaultLayout: CASE_DEFAULT_LAYOUT,
+    normalize: normalizeCaseLayout,
+    legacyStorageKey: CASE_LEGACY_LS_KEY,
+  });
   const gridHandleRef = useRef<CaseDetailGridHandle | null>(null);
 
   const load = useCallback(() => {
@@ -62,12 +68,6 @@ export default function CaseDetail() {
       .catch(() => {});
   }, []);
 
-  const persistLayout = useCallback((items: CaseLayoutItem[]) => {
-    const normalized = normalizeCaseLayout(items);
-    layoutRef.current = normalized;
-    saveCaseLayout(normalized);
-  }, []);
-
   if (notFound) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
@@ -82,11 +82,11 @@ export default function CaseDetail() {
 
   if (!kase) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-full flex-col">
         {error ? (
-          <div className="text-[0.8125rem] text-[var(--color-neg)]">{error}</div>
+          <div className="surface grid flex-1 place-items-center text-[0.8125rem] text-[var(--color-neg)]">{error}</div>
         ) : (
-          <Loader2 size={24} className="animate-spin text-[var(--color-text-lo)]" />
+          <CaseDetailSkeleton />
         )}
       </div>
     );
@@ -151,15 +151,18 @@ export default function CaseDetail() {
         }
       />
 
-      <CaseDetailGrid
-        layout={layout}
-        mountKey={kase.id}
-        ctx={panelCtx}
-        gridRef={gridHandleRef}
-        onLayoutPersist={persistLayout}
-      />
+      {layout ? (
+        <CaseDetailGrid
+          layout={layout}
+          mountKey={`${kase.id}:${layoutRevision}`}
+          ctx={panelCtx}
+          gridRef={gridHandleRef}
+          onLayoutPersist={persistLayout}
+        />
+      ) : (
+        <PanelLoader message="Loading your layout" />
+      )}
 
-      {/* Activity journal — a physical folder below the widgets */}
       <div className="mt-8">
         <CaseJournalFolder ctx={panelCtx} />
       </div>

@@ -206,12 +206,12 @@ export default function DocumentAiEditorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 sm:p-6">
+    <div className="anim-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 sm:p-6">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="doc-ai-editor-title"
-        className="flex h-full max-h-[60rem] w-full max-w-[87.5rem] flex-col overflow-hidden rounded-[0.875rem] border border-[var(--color-line)] bg-[var(--color-ink-2)] shadow-2xl"
+        className="anim-modal flex h-full max-h-[60rem] w-full max-w-[87.5rem] flex-col overflow-hidden rounded-[0.875rem] border border-[var(--color-line)] bg-[var(--color-ink-2)] shadow-2xl"
       >
         <header className="flex items-center justify-between gap-3 border-b border-[var(--color-line)] px-5 py-3.5">
           <div className="min-w-0">
@@ -284,7 +284,7 @@ export default function DocumentAiEditorModal({
 
               <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
                 {error && (
-                  <div className="rounded-[0.625rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.08)] px-3 py-2 text-[0.6875rem] text-[var(--color-neg)]">
+                  <div className="anim-banner rounded-[0.625rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.08)] px-3 py-2 text-[0.6875rem] text-[var(--color-neg)]">
                     {error}
                   </div>
                 )}

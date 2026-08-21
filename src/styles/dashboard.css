@@ -1,4 +1,4 @@
-﻿/* Floating add-widget control — centered bottom chevron */
+/* Floating add-widget control — centered bottom chevron */
 .dashboard-add-fab {
   position: fixed;
   z-index: 65;
@@ -36,7 +36,9 @@ body.dashboard-dock-placing .dashboard-add-fab {
   visibility: hidden;
 }
 
-/* Shared confirmation modal */
+/* Shared confirmation modal.
+   Enter animation lives here so every consumer of these classes gets it —
+   see motion.css for the keyframes. */
 .dashboard-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -47,10 +49,12 @@ body.dashboard-dock-placing .dashboard-add-fab {
   backdrop-filter: blur(0.375rem);
   -webkit-backdrop-filter: blur(0.375rem);
   padding: 1.5rem;
+  animation: motion-fade var(--motion-fast) var(--motion-ease-inout) backwards;
 }
 .dashboard-modal {
   width: min(32.5rem, 100%);
   padding: 1.75rem 2rem 1.625rem;
+  animation: motion-modal-in var(--motion-base) var(--motion-ease) backwards;
 }
 .dashboard-modal__title {
   font-family: var(--font-display);
@@ -80,6 +84,7 @@ body.dashboard-dock-placing .dashboard-add-fab {
 .dashboard-modal-btn {
   height: 2.625rem;
   padding: 0 1.375rem;
+  transform-origin: center;
   border-radius: var(--radius-tile);
   border: 0.0625rem solid var(--color-line-2);
   background:

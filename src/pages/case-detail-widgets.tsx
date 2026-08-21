@@ -129,7 +129,12 @@ export const CASE_DEFAULT_LAYOUT: CaseLayoutItem[] = [
   { id: "vehicles",        x: 0, y: 9, w: 12, h: 3 },
 ];
 
-export const CASE_LS_KEY = "accenty.crm.case-detail.layout.v5";
+/**
+ * Where this layout lived before it moved to the server. Read once per user to
+ * carry their existing arrangement over, then removed. Safe to delete when no
+ * client can still be holding one.
+ */
+export const CASE_LEGACY_LS_KEY = "accenty.crm.case-detail.layout.v5";
 
 export function normalizeCaseLayout(items: CaseLayoutItem[]): CaseLayoutItem[] {
   const seen = new Set<CasePanelId>();
@@ -155,26 +160,6 @@ export function normalizeCaseLayout(items: CaseLayoutItem[]): CaseLayoutItem[] {
   }
 
   return out;
-}
-
-export function loadCaseLayout(): CaseLayoutItem[] {
-  try {
-    const raw = localStorage.getItem(CASE_LS_KEY);
-    if (!raw) return CASE_DEFAULT_LAYOUT;
-    const parsed = JSON.parse(raw) as CaseLayoutItem[];
-    if (!Array.isArray(parsed)) return CASE_DEFAULT_LAYOUT;
-    return normalizeCaseLayout(parsed);
-  } catch {
-    return CASE_DEFAULT_LAYOUT;
-  }
-}
-
-export function saveCaseLayout(items: CaseLayoutItem[]): void {
-  try {
-    localStorage.setItem(CASE_LS_KEY, JSON.stringify(items));
-  } catch {
-    /* ignore */
-  }
 }
 
 export function layoutToCaseGridWidgets(items: CaseLayoutItem[]) {

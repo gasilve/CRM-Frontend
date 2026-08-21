@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import QRCode from "react-qr-code";
 import { Loader2, ShieldCheck, Copy, Check } from "lucide-react";
+import { BeamLoader, LoadingCaption } from "@/components/ui/LoadingState";
 import AuthLayout from "@/components/auth/AuthLayout";
 import {
   errorBannerClass,
@@ -112,11 +113,9 @@ export default function MfaSetup() {
   if (bootstrapping || (step === "verify" && !totpUri && loading)) {
     return (
       <AuthLayout title="Setting up MFA">
-        <div className="flex flex-col items-center gap-3 py-6">
-          <Loader2 size={22} className="animate-spin text-[var(--color-accent)]" />
-          <p className="text-center text-[0.8125rem] text-[var(--color-text-mid)]">
-            Preparing your authenticator…
-          </p>
+        <div className="flex flex-col items-center gap-3 py-6" role="status" aria-live="polite" aria-busy="true">
+          <BeamLoader className="w-32" />
+          <LoadingCaption>Preparing authenticator</LoadingCaption>
         </div>
       </AuthLayout>
     );

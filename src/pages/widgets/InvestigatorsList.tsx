@@ -19,7 +19,7 @@ const STATUS_LABEL: Record<InvStatus, string> = {
 export function InvestigatorsList() {
   return (
     <Card className="flex flex-col">
-      <ul className="min-h-0 flex-1 overflow-y-auto">
+      <ul className="anim-stagger anim-stagger-tight min-h-0 flex-1 overflow-y-auto">
         {investigators.map((inv) => (
           <li
             key={inv.id}

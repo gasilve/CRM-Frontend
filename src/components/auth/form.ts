@@ -11,7 +11,7 @@ export const secondaryButtonClass =
   "flex w-full items-center justify-center gap-2 rounded-tile border border-[var(--color-line-2)] py-2.5 text-sm font-medium text-[var(--color-text-mid)] hover:border-[var(--color-line-3)] hover:text-[var(--color-text-hi)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 
 export const errorBannerClass =
-  "rounded-[0.5rem] border border-[rgba(248,113,113,0.35)] bg-[rgba(248,113,113,0.1)] px-3 py-2 text-[0.75rem] text-[var(--color-neg)]";
+  "anim-banner rounded-[0.5rem] border border-[rgba(248,113,113,0.35)] bg-[rgba(248,113,113,0.1)] px-3 py-2 text-[0.75rem] text-[var(--color-neg)]";
 
 export const infoBannerClass =
   "rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-3 py-2 text-[0.75rem] text-[var(--color-text-mid)]";

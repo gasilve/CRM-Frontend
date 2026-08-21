@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Loader2, UserPlus } from "lucide-react";
+import { BeamLoader, LoadingCaption } from "@/components/ui/LoadingState";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { errorBannerClass, inputClass, labelClass, primaryButtonClass } from "@/components/auth/form";
 import { authClient, INVITE_TOKEN_HEADER } from "@/lib/auth-client";
@@ -57,8 +58,9 @@ export default function AcceptInvite() {
   if (loadingPreview) {
     return (
       <AuthLayout title="Checking your invitation…">
-        <div className="flex justify-center py-4">
-          <Loader2 size={20} className="animate-spin text-[var(--color-text-lo)]" />
+        <div className="flex flex-col items-center gap-3 py-6" role="status" aria-live="polite" aria-busy="true">
+          <BeamLoader className="w-32" />
+          <LoadingCaption>Verifying invite</LoadingCaption>
         </div>
       </AuthLayout>
     );

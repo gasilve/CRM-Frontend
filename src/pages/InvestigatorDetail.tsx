@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarDays, Clock, Home, Loader2, MapPin, Phone, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ArrowLeft, CalendarDays, Clock, Home, MapPin, Phone, ShieldAlert, ShieldCheck } from "lucide-react";
+import { PanelLoader } from "@/components/ui/LoadingState";
 import { formatHomeAddress, formatTimezone } from "@/lib/timezones";
 import { getCertifications } from "@/lib/certifications";
 import { RoleChip } from "@/components/team/RoleChip";
@@ -65,11 +66,7 @@ export default function InvestigatorDetail() {
   }, [id]);
 
   if (loading) {
-    return (
-      <div className="surface flex h-full items-center justify-center">
-        <Loader2 size={24} className="animate-spin text-[var(--color-text-lo)]" />
-      </div>
-    );
+    return <PanelLoader message="Loading investigator" />;
   }
 
   if (error || !user) {
@@ -191,7 +188,7 @@ export default function InvestigatorDetail() {
 
               <div className="hairline my-4" />
 
-              <dl className="flex flex-col gap-2.5">
+              <dl className="anim-stagger anim-stagger-tight flex flex-col gap-2.5">
                 {infoRows.map(([label, value]) => (
                   <div key={label} className="flex items-baseline justify-between gap-3">
                     <dt className="shrink-0 font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">{label}</dt>
@@ -223,7 +220,7 @@ export default function InvestigatorDetail() {
                 No certifications or licenses on file.
               </div>
             ) : (
-              <div className="flex flex-col gap-2">
+              <div className="anim-stagger flex flex-col gap-2">
                 {creds.map((cert) => (
                   <CredentialCard key={cert.id} cert={cert} />
                 ))}

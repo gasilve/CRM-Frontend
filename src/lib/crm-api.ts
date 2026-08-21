@@ -28,6 +28,8 @@ function toQuery<T extends object>(params: T): string {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${CRM_API_URL}${path}`, {
     ...init,
+    // Fetch cache mode — not a request header, so no CORS preflight issue.
+    cache: "no-store",
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
@@ -475,6 +477,200 @@ export const casesApi = {
     request<null>(`/cases/${id}/days/${dayId}/entries/${entryId}`, { method: "DELETE" }),
 };
 
+// ─── Case ingest — pending proposals ────────────────────────────────────────
+// Shapes mirror the ingestor's payload, normalised server-side. Snake_case
+// fields from his DTO become camelCase here; anything unmapped stays in
+// `rawPayload` on the detail response.
+
+export type PendingCaseStatus = "pending_review" | "accepted" | "rejected";
+export type PendingCaseFilesStatus = "none" | "pending" | "ready" | "failed";
+
+export interface ProposalSubject {
+  name: string | null;
+  dob: string | null;
+  ssnLast4: string | null;
+  addresses: string[];
+  phones: string[];
+  vehicle: string | null;
+  physical: string | null;
+  job: string | null;
+  employer: string | null;
+  employerContact: string | null;
+  employerPhone: string | null;
+}
+
+export interface ProposalAssignment {
+  insurer: string | null;
+  adjusterName: string | null;
+  adjusterPhone: string | null;
+  adjusterEmail: string | null;
+  type: string | null;
+  surveillanceDays: string | null;
+  reportDueDate: string | null;
+  dateOfLoss: string | null;
+  typeOfClaim: string | null;
+  bodyParts: string | null;
+  restrictions: string | null;
+  injuryDescription: string | null;
+  instructions: string | null;
+  suspicion: string | null;
+  isRepresented: string | null;
+  defenseAttorney: string | null;
+  defenseLawFirm: string | null;
+  defensePhone: string | null;
+}
+
+export interface ProposalEmailSource {
+  messageId: string | null;
+  subject: string | null;
+  from: string | null;
+  receivedAt: string | null;
+  classification: string | null;
+}
+
+export interface ProposalVehicle {
+  year: string | null;
+  color: string | null;
+  makeModel: string | null;
+  plate: string | null;
+  registeredOwner: string | null;
+  source: string | null;
+}
+
+export interface ProposalAttachment {
+  filename: string | null;
+  contentType: string | null;
+  sizeBytes: number | null;
+  sha256: string | null;
+  extracted: Record<string, unknown> | null;
+  hasInlineContent: boolean;
+}
+
+export interface CaseProposal {
+  caseIngestorCode: string | null;
+  claimNumber: string | null;
+  caseType: string | null;
+  ingestorStatus: string | null;
+  subject: ProposalSubject;
+  assignment: ProposalAssignment;
+  emailSource: ProposalEmailSource;
+  vehicles: ProposalVehicle[];
+  attachments: ProposalAttachment[];
+  ingestorCreatedAt: string | null;
+  pushedAt: string | null;
+}
+
+export interface PendingCaseFile {
+  id: string;
+  filename: string;
+  contentType: string | null;
+  sizeBytes: number | null;
+  sha256: string | null;
+  extracted: Record<string, unknown> | null;
+  storage: string;
+  storageKey: string | null;
+  error: string | null;
+  createdAt: string;
+}
+
+export interface PendingCaseListItem {
+  id: string;
+  caseIngestorCode: string | null;
+  claimNumber: string | null;
+  status: PendingCaseStatus;
+  filesStatus: PendingCaseFilesStatus;
+  ingestorStatus: string | null;
+  ingestorCaseType: string | null;
+  subjectName: string | null;
+  insurer: string | null;
+  dueDate: string | null;
+  filesError: string | null;
+  acceptedCaseId: string | null;
+  reviewedAt: string | null;
+  receivedAt: string;
+  proposal: CaseProposal;
+}
+
+export interface PendingCaseDetail extends PendingCaseListItem {
+  rawPayload: unknown;
+  filesFetchedAt: string | null;
+  reviewNote: string | null;
+  reviewedBy: CaseParticipant | null;
+  deletedAt: string | null;
+  updatedAt: string;
+  files: PendingCaseFile[];
+}
+
+export interface PendingCaseSummary {
+  pendingReview: number;
+  accepted: number;
+  rejected: number;
+  filesFailed: number;
+}
+
+export interface PendingCasesListParams {
+  status?: PendingCaseStatus;
+  filesStatus?: PendingCaseFilesStatus;
+  search?: string;
+  includeRejected?: boolean;
+  page?: number;
+  pageSize?: number;
+}
+
+/** Only the normalised proposal is editable — the raw ingestor payload is not. */
+export interface UpdatePendingCasePayload {
+  claimNumber?: string | null;
+  caseType?: string | null;
+  ingestorStatus?: string | null;
+  subject?: Partial<ProposalSubject>;
+  assignment?: Partial<ProposalAssignment>;
+  vehicles?: ProposalVehicle[];
+}
+
+export interface AcceptPendingCasePayload {
+  /** Omit to let the server infer it from the payload. */
+  service?: CaseService;
+  priority?: CasePriority;
+  region?: Region | null;
+  clientId?: string | null;
+  note?: string;
+}
+
+export interface AcceptedCase {
+  id: string;
+  caseNumber: string;
+  claimNumber: string | null;
+  subjectName: string;
+  service: CaseService;
+  status: CaseStatus;
+}
+
+export const pendingCasesApi = {
+  list: (params: PendingCasesListParams = {}) =>
+    request<{ pendingCases: PendingCaseListItem[]; total: number; page: number; pageSize: number }>(
+      `/pending-cases${toQuery(params)}`,
+    ),
+  summary: () => request<PendingCaseSummary>("/pending-cases/summary"),
+  get: (id: string) => request<{ pendingCase: PendingCaseDetail }>(`/pending-cases/${id}`),
+  update: (id: string, body: UpdatePendingCasePayload) =>
+    request<{ pendingCase: PendingCaseDetail }>(`/pending-cases/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  accept: (id: string, body: AcceptPendingCasePayload = {}) =>
+    request<{ case: AcceptedCase; pendingCase: PendingCaseDetail }>(`/pending-cases/${id}/accept`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  reject: (id: string, note?: string) =>
+    request<{ pendingCase: PendingCaseDetail }>(`/pending-cases/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+  retryFiles: (id: string) =>
+    request<{ pendingCase: PendingCaseDetail }>(`/pending-cases/${id}/retry-files`, { method: "POST" }),
+};
+
 export const clientsApi = {
   list: () => request<{ clients: CaseClient[] }>("/clients"),
   create: (body: { company: string; contactName?: string; contactEmail?: string; contactPhone?: string }) =>
@@ -573,4 +769,42 @@ export const scheduleApi = {
   update: (id: string, body: Partial<Omit<CreateScheduleBlockPayload, "caseId" | "userId">>) =>
     request<{ block: ScheduleBlock }>(`/schedule/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   remove: (id: string) => request<null>(`/schedule/${id}`, { method: "DELETE" }),
+};
+
+/* ── Grid layouts ─────────────────────────────────────────────────────────── */
+
+/** Draggable grids whose placement is saved per user. */
+export type GridSurface = "dashboard" | "case-detail";
+
+export interface GridLayoutItem {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface GridLayoutRecord {
+  surface: GridSurface;
+  /** `null` when the user has never customised this surface. */
+  items: GridLayoutItem[] | null;
+  source: "user" | "default";
+  updatedAt: string | null;
+}
+
+export const gridLayoutsApi = {
+  list: () => request<{ layouts: Record<GridSurface, GridLayoutRecord> }>("/grid-layouts"),
+  get: (surface: GridSurface) => request<{ layout: GridLayoutRecord }>(`/grid-layouts/${surface}`),
+  /**
+   * `keepalive` lets a save started during page unload finish — layouts are
+   * often dragged and then immediately navigated away from.
+   */
+  save: (surface: GridSurface, items: GridLayoutItem[]) =>
+    request<{ layout: GridLayoutRecord }>(`/grid-layouts/${surface}`, {
+      method: "PUT",
+      body: JSON.stringify({ items }),
+      keepalive: true,
+    }),
+  reset: (surface: GridSurface) =>
+    request<{ layout: GridLayoutRecord }>(`/grid-layouts/${surface}`, { method: "DELETE" }),
 };

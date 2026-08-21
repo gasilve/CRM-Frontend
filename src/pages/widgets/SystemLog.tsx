@@ -12,7 +12,7 @@ const LOGS = [
 export function SystemLog() {
   return (
     <Card className="flex flex-col crt-interlaced">
-      <ul className="min-h-0 flex-1 overflow-y-auto font-mono text-[0.6875rem] text-[var(--color-text-mid)]">
+      <ul className="anim-stagger anim-stagger-tight min-h-0 flex-1 overflow-y-auto font-mono text-[0.6875rem] text-[var(--color-text-mid)]">
         {LOGS.map((line, i) => (
           <li
             key={line}

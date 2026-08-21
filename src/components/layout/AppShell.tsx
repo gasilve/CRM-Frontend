@@ -129,7 +129,11 @@ export default function AppShell() {
               : "app-main flex-1 overflow-y-auto px-7 py-6"
           }
         >
-          <Outlet />
+          {/* Fade only — no transform. A transformed ancestor breaks GridStack's
+              top/left positioning and makes widgets overlap after reload. */}
+          <div key={pathname} className="anim-fade h-full">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

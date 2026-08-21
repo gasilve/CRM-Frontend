@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings as SettingsIcon, UserPlus, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
+import { Settings as SettingsIcon, UserPlus, ShieldCheck, ShieldAlert } from "lucide-react";
+import { BeamLoader, LoadingCaption } from "@/components/ui/LoadingState";
 import { cn } from "@/lib/cn";
 import { getInitials, formatRoleLabel } from "@/lib/format";
 import { useAuth } from "@/contexts/AuthContext";
@@ -114,19 +115,20 @@ function TeamAdminPanel() {
         </div>
 
         {error && (
-          <div className="mb-4 rounded-[0.5rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-3.5 py-2.5 text-[0.78125rem] text-[var(--color-neg)]">
+          <div className="anim-banner mb-4 rounded-[0.5rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-3.5 py-2.5 text-[0.78125rem] text-[var(--color-neg)]">
             {error}
           </div>
         )}
 
         {!users && (
-          <div className="flex justify-center py-10">
-            <Loader2 size={20} className="animate-spin text-[var(--color-text-lo)]" />
+          <div className="flex flex-col items-center gap-3 py-10" role="status" aria-live="polite" aria-busy="true">
+            <BeamLoader className="w-32" />
+            <LoadingCaption>Loading team</LoadingCaption>
           </div>
         )}
 
         {users && (
-          <div className="flex flex-col divide-y divide-[var(--color-line)]">
+          <div className="anim-stagger flex flex-col divide-y divide-[var(--color-line)]">
             {users.map((u) => (
               <div key={u.id} className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
                 <div

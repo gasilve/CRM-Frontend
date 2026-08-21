@@ -230,7 +230,12 @@ export const DEFAULT_LAYOUT: LayoutItem[] = [
   { id: "system-log", x: 0, y: 6, w: 12, h: 3 },
 ];
 
-export const LS_KEY = "accenty.crm.dashboard.layout.v5";
+/**
+ * Where this layout lived before it moved to the server. Read once per user to
+ * carry their existing arrangement over, then removed. Safe to delete when no
+ * client can still be holding one.
+ */
+export const DASHBOARD_LEGACY_LS_KEY = "accenty.crm.dashboard.layout.v5";
 export const COLUMNS = 12;
 export const CELL_HEIGHT = 84;
 export const GRID_MARGIN = 8;
@@ -260,19 +265,6 @@ export function normalizeLayout(items: LayoutItem[]): LayoutItem[] {
   }
 
   return out;
-}
-
-export function loadLayout(): LayoutItem[] {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    // Only seed the default layout on first visit (no saved key yet).
-    if (!raw) return DEFAULT_LAYOUT;
-    const parsed = JSON.parse(raw) as LayoutItem[];
-    if (!Array.isArray(parsed)) return DEFAULT_LAYOUT;
-    return normalizeLayout(parsed);
-  } catch {
-    return DEFAULT_LAYOUT;
-  }
 }
 
 export function layoutToGridWidgets(items: LayoutItem[]) {

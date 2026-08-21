@@ -14,7 +14,7 @@ const ICONS = {
 export function RecentActivity() {
   return (
     <Card className="flex flex-col">
-      <ul className="min-h-0 flex-1 overflow-y-auto">
+      <ul className="anim-stagger anim-stagger-tight min-h-0 flex-1 overflow-y-auto">
         {activity.map((a) => {
           const Icon = ICONS[a.type];
           return (

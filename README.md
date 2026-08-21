@@ -15,7 +15,8 @@ Then open <http://localhost:5173>.
 ## What's in here
 
 - **Dashboard** (`/`) — drag-and-drop widget grid powered by [Gridstack.js](https://gridstackjs.com/).
-  Click **Edit layout** in the top right to enable drag & resize handles. Layout persists to `localStorage` under `accenty.crm.dashboard.layout.v1`.
+  Layout is saved per user on the server via `GET`/`PUT /grid-layouts/dashboard`; the case detail
+  grid uses the same endpoint under the `case-detail` surface. See `hooks/useGridLayout.ts`.
 - **Clients** (`/clients`) — searchable, segmentable, sortable table with a side-drawer detail view.
 - **Cases** (`/cases`) — Kanban board (drag cards across columns, powered by [`@dnd-kit`](https://dndkit.com/)) with an alternate table view.
 

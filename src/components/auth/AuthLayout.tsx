@@ -51,19 +51,19 @@ export default function AuthLayout({
 
       <div className="relative z-10 w-full" style={{ maxWidth }}>
         <div
-          className="surface auth-surface p-7 sm:p-10"
+          className="surface auth-surface anim-modal p-7 sm:p-10"
           style={maxHeight ? { maxHeight, overflowY: "auto" } : undefined}
         >
-          {eyebrow ? <div className="eyebrow mb-2 text-center">{eyebrow}</div> : null}
-          <h1 className="editorial text-center text-[1.75rem] leading-tight text-[var(--color-text-hi)] sm:text-[2.25rem]">
+          {eyebrow ? <div className="eyebrow anim-fade anim-delay-1 mb-2 text-center">{eyebrow}</div> : null}
+          <h1 className="editorial anim-rise anim-delay-1 text-center text-[1.75rem] leading-tight text-[var(--color-text-hi)] sm:text-[2.25rem]">
             {title}
           </h1>
           {subtitle ? (
-            <p className="mt-2 text-center text-[0.8125rem] leading-relaxed text-[var(--color-text-mid)] sm:text-[0.9375rem]">
+            <p className="anim-rise anim-delay-2 mt-2 text-center text-[0.8125rem] leading-relaxed text-[var(--color-text-mid)] sm:text-[0.9375rem]">
               {subtitle}
             </p>
           ) : null}
-          <div className="mt-6 sm:mt-8">{children}</div>
+          <div className="anim-rise anim-delay-3 mt-6 sm:mt-8">{children}</div>
         </div>
       </div>
     </div>

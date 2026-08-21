@@ -140,7 +140,7 @@ function Bubble({ msg }: { msg: Message }) {
   return (
     <div
       className={cn(
-        "group flex w-full gap-3",
+        "anim-rise group flex w-full gap-3",
         isUser ? "flex-row-reverse" : "flex-row",
       )}
     >

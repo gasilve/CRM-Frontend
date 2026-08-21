@@ -660,7 +660,7 @@ export default function Schedule() {
               title="Vertical — days as columns"
               aria-pressed={orientation === "vertical"}
               className={cn(
-                "grid h-8 w-9 place-items-center transition-colors",
+                "anim-toggle tap grid h-8 w-9 place-items-center",
                 orientation === "vertical"
                   ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]"
                   : "text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]",
@@ -674,7 +674,7 @@ export default function Schedule() {
               title="Horizontal — days as rows"
               aria-pressed={orientation === "horizontal"}
               className={cn(
-                "grid h-8 w-9 place-items-center border-l border-[var(--color-line)] transition-colors",
+                "anim-toggle tap grid h-8 w-9 place-items-center border-l border-[var(--color-line)]",
                 orientation === "horizontal"
                   ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]"
                   : "text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]",
@@ -731,7 +731,7 @@ export default function Schedule() {
             key={r}
             onClick={() => setRegion(r)}
             className={cn(
-              "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[0.71875rem] font-medium transition-all",
+              "anim-toggle tap flex items-center gap-1.5 rounded-full border px-3 py-1 text-[0.71875rem] font-medium",
               region === r
                 ? "border-[var(--color-accent-soft)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
                 : "border-[var(--color-line)] text-[var(--color-text-lo)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-mid)]",
@@ -744,7 +744,7 @@ export default function Schedule() {
       </div>
 
       {error && (
-        <div className="surface shrink-0 rounded-[0.875rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-4 py-3 text-[0.8125rem] text-[var(--color-neg)]">
+        <div className="anim-banner surface shrink-0 rounded-[0.875rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-4 py-3 text-[0.8125rem] text-[var(--color-neg)]">
           {error}
         </div>
       )}
@@ -1308,9 +1308,9 @@ function DayInfoModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="anim-backdrop fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed left-1/2 top-1/2 z-50 w-[min(24rem,92vw)] -translate-x-1/2 -translate-y-1/2">
-        <div className="surface flex flex-col gap-4 rounded-[0.875rem] p-6">
+        <div className="surface anim-modal flex flex-col gap-4 rounded-[0.875rem] p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="editorial text-[1.25rem] leading-tight text-[var(--color-text-hi)]">{dateLabel}</h2>
@@ -1493,9 +1493,9 @@ function EditBlockModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="anim-backdrop fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed left-1/2 top-1/2 z-50 w-[min(26rem,92vw)] -translate-x-1/2 -translate-y-1/2">
-        <div className="surface flex flex-col gap-4 rounded-[0.875rem] p-6">
+        <div className="surface anim-modal flex flex-col gap-4 rounded-[0.875rem] p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="editorial text-[1.25rem] leading-tight text-[var(--color-text-hi)]">{block.user.name}</h2>
@@ -1674,9 +1674,9 @@ function MonthOverviewModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="anim-backdrop fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed left-1/2 top-1/2 z-50 w-[min(46rem,94vw)] -translate-x-1/2 -translate-y-1/2">
-        <div className="surface flex max-h-[90vh] flex-col gap-4 overflow-y-auto rounded-[0.875rem] p-6">
+        <div className="surface anim-modal flex max-h-[90vh] flex-col gap-4 overflow-y-auto rounded-[0.875rem] p-6">
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div>

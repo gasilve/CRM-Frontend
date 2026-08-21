@@ -671,7 +671,7 @@ export function CaseJournalFolder({ ctx }: { ctx: CasePanelCtx }) {
   };
 
   const tabBase =
-    "relative -mb-px flex shrink-0 items-center gap-1.5 rounded-t-[0.625rem] border px-3.5 py-2 font-mono text-[0.65625rem] tracking-wide transition-colors";
+    "anim-toggle tap relative -mb-px flex shrink-0 items-center gap-1.5 rounded-t-[0.625rem] border px-3.5 py-2 font-mono text-[0.65625rem] tracking-wide";
   const tabActive =
     "z-10 border-[var(--color-line-2)] border-b-transparent bg-[var(--color-ink-2)] text-[var(--color-text-hi)]";
   const tabIdle =

@@ -2,6 +2,7 @@ import { memo, useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { GridStack, type GridStackNode, type GridStackOptions } from "gridstack";
 import { designPx } from "@/lib/rem";
+import { settleGridMetrics } from "@/lib/grid-stack-host";
 import {
   canPlaceAtY,
   clampY,
@@ -30,7 +31,7 @@ export type DashboardGridHandle = {
 
 type Props = {
   layout: LayoutItem[];
-  mountKey: number;
+  mountKey: string | number;
   gridRef: React.MutableRefObject<DashboardGridHandle | null>;
   onLayoutPersist: (items: LayoutItem[]) => void;
   onWidgetDragStart?: (id: WidgetId | null) => void;
@@ -104,7 +105,7 @@ function renderWidgetContent(host: HTMLElement, id: WidgetId) {
 
   root.render(
     <div className="widget-frame h-full w-full">
-      <div className="widget-body signal-acquired h-full w-full">
+      <div className="widget-body h-full w-full">
         {def.render()}
       </div>
     </div>,
@@ -178,7 +179,7 @@ function DashboardGridInner({
       cellHeight: designPx(CELL_HEIGHT),
       margin: designPx(GRID_MARGIN),
       float: true,
-      animate: true,
+      animate: false,
       acceptWidgets: ".dock-carousel-item",
       disableResize: false,
       disableDrag: false,
@@ -188,7 +189,6 @@ function DashboardGridInner({
 
     const grid = GridStack.init(opts, hostEl);
     gridInstanceRef.current = grid;
-    initSettledRef.current = false;
 
     const widgets = layoutToGridWidgets(
       enforceLayoutRowRules(layoutRef.current),
@@ -199,12 +199,10 @@ function DashboardGridInner({
     grid.engine.maxRow = gridMaxRow(
       enforceLayoutRowRules(layoutRef.current),
     );
+    settleGridMetrics(grid, CELL_HEIGHT, GRID_MARGIN);
 
     const syncCellMetrics = () => {
-      const g = gridInstanceRef.current;
-      if (!g) return;
-      g.cellHeight(designPx(CELL_HEIGHT));
-      g.margin(designPx(GRID_MARGIN));
+      settleGridMetrics(grid, CELL_HEIGHT, GRID_MARGIN);
     };
     window.addEventListener("resize", syncCellMetrics);
 
@@ -286,6 +284,7 @@ function DashboardGridInner({
 
     const syncLayout = () => {
       if (cancelled || !initSettledRef.current || replacingDockDrop) return;
+      if (grid.isIgnoreChangeCB?.()) return;
       if (
         isDraggingWidget &&
         hostEl.classList.contains("dashboard-placement-invalid")
@@ -320,10 +319,6 @@ function DashboardGridInner({
       syncLayout();
     };
 
-    /**
-     * Gridstack drops a dock clone via _prepareElement (DD handles on dock DOM).
-     * Do not mutate that node — remove it and add a clean widget so DD/renderCB stay in sync.
-     */
     const replaceDockDropWithWidget = (newNode: GridStackNode) => {
       const el = newNode.el as HTMLElement | undefined;
       const id = (newNode.id ??
@@ -431,7 +426,6 @@ function DashboardGridInner({
       }
     };
 
-    grid.on("change", syncLayout);
     grid.on("dropped", onDropped);
     grid.on("removed", onRemoved);
     grid.on("dragstart", onDragStart);
@@ -439,6 +433,7 @@ function DashboardGridInner({
     grid.on("dragstop", onDragStop);
     document.addEventListener("contextmenu", onCancelDragPointer, true);
     hostEl.addEventListener("dragstart", onNativeDragStart);
+
     return () => {
       cancelled = true;
       initSettledRef.current = false;
@@ -447,7 +442,6 @@ function DashboardGridInner({
       document.removeEventListener("contextmenu", onCancelDragPointer, true);
       hostEl.removeEventListener("dragstart", onNativeDragStart);
       try {
-        grid.off("change");
         grid.off("dropped");
         grid.off("removed");
         grid.off("dragstart");

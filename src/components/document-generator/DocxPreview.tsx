@@ -84,7 +84,7 @@ export default function DocxPreview({
         </div>
       )}
       {error && (
-        <div className="absolute inset-x-4 top-4 z-10 flex items-start gap-2 rounded-tile border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.1)] px-3 py-2 text-[0.75rem] text-[var(--color-neg)]">
+        <div className="anim-banner absolute inset-x-4 top-4 z-10 flex items-start gap-2 rounded-tile border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.1)] px-3 py-2 text-[0.75rem] text-[var(--color-neg)]">
           <AlertCircle size={14} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>

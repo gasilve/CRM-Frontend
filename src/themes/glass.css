@@ -307,8 +307,14 @@ html[data-glass="true"] .app-main {
  * Widget intro animation uses opacity/transform on .widget-body, which
  * disables backdrop-filter on child Cards until it ends — reads as
  * "0 blur, then frost pops in". Skip the intro while glass is on.
+ *
+ * .anim-page (the route wrapper) is skipped for the same reason: it is an
+ * ancestor of every frosted Card on the page, so animating it would unfrost
+ * the whole view for the duration. Smaller motion — modals, popovers, row
+ * stagger — stays on, since those elements do not host the frost themselves.
  */
-html[data-glass="true"] .signal-acquired {
+html[data-glass="true"] .signal-acquired,
+html[data-glass="true"] .anim-fade {
   animation: none !important;
   opacity: 1 !important;
   transform: none !important;
