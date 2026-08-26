@@ -29,8 +29,14 @@ export type CasePanelId =
   | "vehicles"
   | "description";
 
+export type CasePage = {
+  id: string;
+  name: string;
+};
+
 export type CaseLayoutItem = {
   id: CasePanelId;
+  pageId: string;
   x: number;
   y: number;
   w: number;
@@ -39,10 +45,18 @@ export type CaseLayoutItem = {
 
 export type CasePanelCtx = {
   case: CaseDetail;
-  isAdmin: boolean;
   currentUserId: string;
   investigatorOptions: { id: string; name: string }[];
   onRefresh: () => void;
+
+  canEdit: boolean;
+  canAssign: boolean;
+  canPostJournal: boolean;
+  canModerateJournal: boolean;
+  /** False when the administrator has hidden this field from the viewer's role. */
+  canSee: (field: string) => boolean;
+  /** True only when the field is fully writable for the viewer's role. */
+  canEditField: (field: string) => boolean;
 };
 
 export type CasePanelDef = {
@@ -113,58 +127,175 @@ export const CASE_COLUMNS = 12;
 /** Design px at 1920 — convert with designPx() when configuring GridStack. */
 export const CASE_CELL_HEIGHT = 84;
 export const CASE_GRID_MARGIN = 8;
+/** Rows per page. 9 gives three stacked rows of the common h=3 widgets. */
+export const CASE_PAGE_ROWS = 9;
 
-/** All widgets live on one page (grid grows vertically); the activity journal
- * is a fixed folder section below the grid, not a widget. */
+export const CASE_PAGE_OVERVIEW = "page-overview";
+export const CASE_PAGE_DETAILS = "page-details";
+
+export const CASE_DEFAULT_PAGES: CasePage[] = [
+  { id: CASE_PAGE_OVERVIEW, name: "Overview" },
+  { id: CASE_PAGE_DETAILS, name: "Details" },
+];
+
+/** Widgets split across carousel pages so each page fits one screen. */
 export const CASE_DEFAULT_LAYOUT: CaseLayoutItem[] = [
-  { id: "case-info",       x: 0, y: 0, w: 6, h: 3 },
-  { id: "identity",        x: 0, y: 3, w: 3, h: 3 },
-  { id: "work",            x: 3, y: 3, w: 3, h: 3 },
-  { id: "addresses-map",   x: 6, y: 0, w: 3, h: 6 },
-  { id: "subject-photo",   x: 9, y: 0, w: 3, h: 6 },
-  { id: "assignment",      x: 0, y: 6, w: 3, h: 3 },
-  { id: "client-adjuster", x: 3, y: 6, w: 3, h: 3 },
-  { id: "tags",            x: 6, y: 6, w: 3, h: 3 },
-  { id: "description",     x: 9, y: 6, w: 3, h: 3 },
-  { id: "vehicles",        x: 0, y: 9, w: 12, h: 3 },
+  { id: "case-info", pageId: CASE_PAGE_OVERVIEW, x: 0, y: 0, w: 6, h: 3 },
+  { id: "addresses-map", pageId: CASE_PAGE_OVERVIEW, x: 6, y: 0, w: 3, h: 6 },
+  { id: "subject-photo", pageId: CASE_PAGE_OVERVIEW, x: 9, y: 0, w: 3, h: 6 },
+  { id: "identity", pageId: CASE_PAGE_OVERVIEW, x: 0, y: 3, w: 3, h: 3 },
+  { id: "work", pageId: CASE_PAGE_OVERVIEW, x: 3, y: 3, w: 3, h: 3 },
+
+  { id: "assignment", pageId: CASE_PAGE_DETAILS, x: 0, y: 0, w: 3, h: 3 },
+  { id: "client-adjuster", pageId: CASE_PAGE_DETAILS, x: 3, y: 0, w: 3, h: 3 },
+  { id: "tags", pageId: CASE_PAGE_DETAILS, x: 6, y: 0, w: 3, h: 3 },
+  { id: "description", pageId: CASE_PAGE_DETAILS, x: 9, y: 0, w: 3, h: 3 },
+  { id: "vehicles", pageId: CASE_PAGE_DETAILS, x: 0, y: 3, w: 12, h: 3 },
 ];
 
 /**
- * Where this layout lived before it moved to the server. Read once per user to
- * carry their existing arrangement over, then removed. Safe to delete when no
- * client can still be holding one.
+ * Legacy localStorage key from before layouts moved to the server. Cleared
+ * after the shared house layout (or built-in default) loads — no longer a
+ * source of truth. Safe to delete when no client can still be holding one.
  */
 export const CASE_LEGACY_LS_KEY = "accenty.crm.case-detail.layout.v5";
 
-export function normalizeCaseLayout(items: CaseLayoutItem[]): CaseLayoutItem[] {
+function newPageId(): string {
+  return `page-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** Clamp a widget into the page row budget. */
+function clampItem(
+  raw: { id: CasePanelId; pageId?: string; x?: number; y?: number; w?: number; h?: number },
+  pageId: string,
+): CaseLayoutItem {
+  const def = CASE_PANELS[raw.id];
+  const w = Number.isFinite(raw.w) ? Math.max(def.minW, Math.min(CASE_COLUMNS, Math.floor(raw.w!))) : def.minW;
+  let h = Number.isFinite(raw.h) ? Math.max(def.minH, Math.floor(raw.h!)) : def.minH;
+  h = Math.min(h, CASE_PAGE_ROWS);
+  const x = Number.isFinite(raw.x) ? Math.max(0, Math.min(CASE_COLUMNS - w, Math.floor(raw.x!))) : 0;
+  let y = Number.isFinite(raw.y) ? Math.max(0, Math.floor(raw.y!)) : 0;
+  if (y + h > CASE_PAGE_ROWS) y = Math.max(0, CASE_PAGE_ROWS - h);
+  return { id: raw.id, pageId, x, y, w, h };
+}
+
+/**
+ * Normalize a saved (or legacy flat) layout into pages + items. Legacy rows
+ * without pageId are split: anything that would overflow page 1 goes to page 2.
+ */
+export function normalizeCaseDocument(
+  items: Array<Partial<CaseLayoutItem> & { id: string }>,
+  pages?: CasePage[] | null,
+): { pages: CasePage[]; items: CaseLayoutItem[] } {
+  const hasPageIds = items.some((i) => typeof i.pageId === "string" && i.pageId.length > 0);
+
+  let nextPages: CasePage[] =
+    pages && pages.length > 0
+      ? pages
+          .filter((p) => p.id && p.name)
+          .map((p) => ({ id: String(p.id), name: String(p.name).slice(0, 80) || "Page" }))
+      : CASE_DEFAULT_PAGES.map((p) => ({ ...p }));
+
+  if (nextPages.length === 0) {
+    nextPages = CASE_DEFAULT_PAGES.map((p) => ({ ...p }));
+  }
+
+  const pageIds = new Set(nextPages.map((p) => p.id));
   const seen = new Set<CasePanelId>();
   const out: CaseLayoutItem[] = [];
 
-  for (const raw of items) {
-    if (!CASE_PANELS[raw.id] || seen.has(raw.id)) continue;
-    seen.add(raw.id);
-    const def = CASE_PANELS[raw.id];
-    const w = Number.isFinite(raw.w) ? Math.max(def.minW, Math.min(CASE_COLUMNS, Math.floor(raw.w))) : def.minW;
-    const h = Number.isFinite(raw.h) ? Math.max(def.minH, Math.floor(raw.h)) : def.minH;
-    const x = Number.isFinite(raw.x) ? Math.max(0, Math.min(CASE_COLUMNS - w, Math.floor(raw.x))) : 0;
-    const y = Number.isFinite(raw.y) ? Math.max(0, Math.floor(raw.y)) : 0;
-    out.push({ id: raw.id, x, y, w, h });
+  if (!hasPageIds) {
+    // Migrate flat layouts: keep what fits on page 1, spill the rest to page 2.
+    if (nextPages.length < 2) {
+      nextPages = [
+        nextPages[0] ?? { id: CASE_PAGE_OVERVIEW, name: "Overview" },
+        { id: CASE_PAGE_DETAILS, name: "Details" },
+      ];
+    }
+    const page1 = nextPages[0].id;
+    const page2 = nextPages[1].id;
+
+    for (const raw of items) {
+      const id = raw.id as CasePanelId;
+      if (!CASE_PANELS[id] || seen.has(id)) continue;
+      seen.add(id);
+      const y = Number.isFinite(raw.y) ? Math.floor(raw.y!) : 0;
+      const h = Number.isFinite(raw.h) ? Math.floor(raw.h!) : CASE_PANELS[id].minH;
+      if (y + h <= CASE_PAGE_ROWS) {
+        out.push(clampItem({ ...raw, id }, page1));
+      } else {
+        out.push(clampItem({ ...raw, id, y: 0 }, page2));
+      }
+    }
+  } else {
+    for (const raw of items) {
+      const id = raw.id as CasePanelId;
+      if (!CASE_PANELS[id] || seen.has(id)) continue;
+      seen.add(id);
+      let pageId = raw.pageId && pageIds.has(raw.pageId) ? raw.pageId : nextPages[0].id;
+      if (!pageIds.has(pageId)) {
+        pageId = nextPages[0].id;
+      }
+      out.push(clampItem({ ...raw, id }, pageId));
+    }
   }
 
-  // Panels missing from the saved layout get appended at the bottom in their default size.
   for (const def of CASE_PANEL_LIST) {
     if (seen.has(def.id)) continue;
     const fallback = CASE_DEFAULT_LAYOUT.find((i) => i.id === def.id);
-    const bottom = out.reduce((m, i) => Math.max(m, i.y + i.h), 0);
-    out.push({ id: def.id, x: 0, y: bottom, w: fallback?.w ?? def.minW, h: fallback?.h ?? def.minH });
+    const pageId =
+      fallback && pageIds.has(fallback.pageId) ? fallback.pageId : nextPages[nextPages.length - 1].id;
+    const onPage = out.filter((i) => i.pageId === pageId);
+    const bottom = onPage.reduce((m, i) => Math.max(m, i.y + i.h), 0);
+    const h = fallback?.h ?? def.minH;
+    const y = bottom + h <= CASE_PAGE_ROWS ? bottom : 0;
+    out.push(
+      clampItem(
+        {
+          id: def.id,
+          pageId,
+          x: fallback?.x ?? 0,
+          y,
+          w: fallback?.w ?? def.minW,
+          h,
+        },
+        pageId,
+      ),
+    );
   }
 
-  return out;
+  return { pages: nextPages, items: out };
+}
+
+/** @deprecated Prefer normalizeCaseDocument — kept for call sites that only need items. */
+export function normalizeCaseLayout(
+  items: Array<Partial<CaseLayoutItem> & { id: string }>,
+): CaseLayoutItem[] {
+  return normalizeCaseDocument(items).items;
 }
 
 export function layoutToCaseGridWidgets(items: CaseLayoutItem[]) {
-  return normalizeCaseLayout(items).map((item) => {
+  return items.map((item) => {
     const def = CASE_PANELS[item.id];
-    return { id: item.id, x: item.x, y: item.y, w: item.w, h: item.h, minW: def.minW, minH: def.minH };
+    return {
+      id: item.id,
+      x: item.x,
+      y: item.y,
+      w: item.w,
+      h: item.h,
+      minW: def.minW,
+      minH: def.minH,
+      maxW: CASE_COLUMNS,
+      // A page is one screen — a widget can never be taller than that.
+      maxH: CASE_PAGE_ROWS,
+    };
   });
+}
+
+export function itemsForPage(items: CaseLayoutItem[], pageId: string): CaseLayoutItem[] {
+  return items.filter((i) => i.pageId === pageId);
+}
+
+export function createCasePage(name = "New page"): CasePage {
+  return { id: newPageId(), name };
 }

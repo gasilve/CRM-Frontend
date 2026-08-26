@@ -1,7 +1,7 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import RequireAuth from "./components/auth/RequireAuth";
-import RequireStaff from "./components/auth/RequireStaff";
+import RequirePermission from "./components/auth/RequirePermission";
 import FullScreenLoader from "./components/auth/FullScreenLoader";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
@@ -23,7 +23,7 @@ const InvestigatorNew = lazy(() => import("./pages/InvestigatorNew"));
 const InvestigatorDetail = lazy(() => import("./pages/InvestigatorDetail"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const Profile = lazy(() => import("./pages/Profile"));
-const Settings = lazy(() => import("./pages/Settings"));
+const Administration = lazy(() => import("./pages/Administration"));
 const Assistant = lazy(() => import("./pages/Assistant"));
 const DocumentGenerator = lazy(() => import("./pages/DocumentGenerator"));
 const VideoPlayer = lazy(() => import("./pages/VideoPlayer"));
@@ -62,7 +62,7 @@ export default function App() {
               </LazyRoute>
             }
           />
-          <Route element={<RequireStaff />}>
+          <Route element={<RequirePermission anyOf={["cases.view"]} />}>
             <Route
               path="/cases"
               element={
@@ -79,6 +79,8 @@ export default function App() {
                 </LazyRoute>
               }
             />
+          </Route>
+          <Route element={<RequirePermission anyOf={["intake.view"]} />}>
             <Route path="/pending-cases" element={<Navigate to="/cases" replace />} />
             <Route
               path="/pending-cases/:id"
@@ -88,35 +90,13 @@ export default function App() {
                 </LazyRoute>
               }
             />
+          </Route>
+          <Route element={<RequirePermission anyOf={["schedule.view"]} />}>
             <Route
               path="/schedule"
               element={
                 <LazyRoute>
                   <Schedule />
-                </LazyRoute>
-              }
-            />
-            <Route
-              path="/investigators"
-              element={
-                <LazyRoute>
-                  <Investigators />
-                </LazyRoute>
-              }
-            />
-            <Route
-              path="/investigators/new"
-              element={
-                <LazyRoute>
-                  <InvestigatorNew />
-                </LazyRoute>
-              }
-            />
-            <Route
-              path="/investigators/:id"
-              element={
-                <LazyRoute>
-                  <InvestigatorDetail />
                 </LazyRoute>
               }
             />
@@ -128,11 +108,51 @@ export default function App() {
                 </LazyRoute>
               }
             />
+          </Route>
+          <Route element={<RequirePermission anyOf={["team.view"]} />}>
+            <Route
+              path="/investigators"
+              element={
+                <LazyRoute>
+                  <Investigators />
+                </LazyRoute>
+              }
+            />
+            <Route
+              path="/investigators/:id"
+              element={
+                <LazyRoute>
+                  <InvestigatorDetail />
+                </LazyRoute>
+              }
+            />
+          </Route>
+          <Route element={<RequirePermission anyOf={["team.invite"]} />}>
+            <Route
+              path="/investigators/new"
+              element={
+                <LazyRoute>
+                  <InvestigatorNew />
+                </LazyRoute>
+              }
+            />
+          </Route>
+          <Route element={<RequirePermission anyOf={["video.use"]} />}>
             <Route
               path="/video"
               element={
                 <LazyRoute>
                   <VideoPlayer />
+                </LazyRoute>
+              }
+            />
+          </Route>
+          <Route element={<RequirePermission anyOf={["admin.roles", "admin.users"]} />}>
+            <Route
+              path="/administration"
+              element={
+                <LazyRoute>
+                  <Administration />
                 </LazyRoute>
               }
             />
@@ -145,30 +165,28 @@ export default function App() {
               </LazyRoute>
             }
           />
-          <Route
-            path="/settings"
-            element={
-              <LazyRoute>
-                <Settings />
-              </LazyRoute>
-            }
-          />
-          <Route
-            path="/assistant"
-            element={
-              <LazyRoute>
-                <Assistant />
-              </LazyRoute>
-            }
-          />
-          <Route
-            path="/documents"
-            element={
-              <LazyRoute>
-                <DocumentGenerator />
-              </LazyRoute>
-            }
-          />
+          {/* Settings split into a personal Profile page and the Administration page. */}
+          <Route path="/settings" element={<Navigate to="/profile" replace />} />
+          <Route element={<RequirePermission anyOf={["assistant.use"]} />}>
+            <Route
+              path="/assistant"
+              element={
+                <LazyRoute>
+                  <Assistant />
+                </LazyRoute>
+              }
+            />
+          </Route>
+          <Route element={<RequirePermission anyOf={["documents.generate"]} />}>
+            <Route
+              path="/documents"
+              element={
+                <LazyRoute>
+                  <DocumentGenerator />
+                </LazyRoute>
+              }
+            />
+          </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Route>

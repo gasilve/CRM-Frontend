@@ -2,11 +2,9 @@ import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export function ServiceUnavailableBanner({
-  message,
   className,
   onRetry,
 }: {
-  message: string;
   className?: string;
   onRetry?: () => void;
 }) {
@@ -22,7 +20,6 @@ export function ServiceUnavailableBanner({
         <AlertTriangle size={15} className="mt-0.5 shrink-0" strokeWidth={1.8} />
         <div className="min-w-0 flex-1">
           <p className="font-medium text-[var(--color-text-hi)]">Service temporarily unavailable</p>
-          <p className="mt-1 text-[var(--color-text-mid)]">{message}</p>
           {onRetry ? (
             <button
               type="button"

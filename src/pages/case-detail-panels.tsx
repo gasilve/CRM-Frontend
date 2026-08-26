@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Columns2, MapPin, User, Plus, X, Loader2, Car, ShieldQuestion, StickyNote,
-  ImagePlus, ScanFace, Search, Trash2, UserPlus,
+  ImagePlus, ScanFace, Trash2, UserPlus, Lock,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/format";
@@ -58,6 +58,36 @@ const maskSsn = (ssn: string | null): string => {
   return digits.length >= 4 ? `•••-••-${digits.slice(-4)}` : ssn;
 };
 
+/**
+ * Renders a protected field, or a "restricted" placeholder when the viewer's
+ * role hides it. The value is already stripped server-side — this just explains
+ * the gap instead of showing a bare em-dash the user cannot account for.
+ */
+function ProtectedField({
+  ctx,
+  field,
+  label,
+  value,
+  mono = true,
+}: {
+  ctx: CasePanelCtx;
+  field: string;
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  if (ctx.canSee(field)) return <Field label={label} value={value} mono={mono} />;
+  return (
+    <div>
+      <div className="mb-0.5 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">{label}</div>
+      <div className="inline-flex items-center gap-1 font-mono text-[0.71875rem] text-[var(--color-text-lo)]" title="Hidden by your role's privacy settings">
+        <Lock size={9} strokeWidth={2} />
+        Restricted
+      </div>
+    </div>
+  );
+}
+
 // ─── Subject photo ──────────────────────────────────────────────────────────
 
 export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
@@ -91,6 +121,14 @@ export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
     setUploadedId(probeId ?? photos[1]?.id ?? photos[0]?.id);
     setCompareOpen(true);
   };
+
+  if (!ctx.canSee("case.subjectPhoto")) {
+    return (
+      <PanelShell title="Subject photo" icon={<User size={11} strokeWidth={1.8} />}>
+        <RestrictedPanelBody />
+      </PanelShell>
+    );
+  }
 
   return (
     <PanelShell title="Subject photo" icon={<User size={11} strokeWidth={1.8} />}>
@@ -156,7 +194,7 @@ export function IdentityPanel({ ctx }: { ctx: CasePanelCtx }) {
   return (
     <PanelShell title="Identity" icon={<User size={11} strokeWidth={1.8} />}>
       <div className="space-y-2.5">
-        {c.subjectAliases.length > 0 && (
+        {ctx.canSee("case.subjectAliases") && c.subjectAliases.length > 0 && (
           <div>
             <div className="mb-1 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">AKA</div>
             <div className="flex flex-wrap gap-1">
@@ -168,11 +206,17 @@ export function IdentityPanel({ ctx }: { ctx: CasePanelCtx }) {
             </div>
           </div>
         )}
-        <Field label="Date of birth" value={fmtDate(c.subjectDob)} />
-        <Field label="SSN" value={maskSsn(c.subjectSsn)} />
-        <Field label="Driver license" value={c.subjectDriverLicense ?? "—"} />
+        <ProtectedField ctx={ctx} field="case.subjectDob" label="Date of birth" value={fmtDate(c.subjectDob)} />
+        {/* Already masked server-side when the role says so; maskSsn keeps the display consistent. */}
+        <ProtectedField ctx={ctx} field="case.subjectSsn" label="SSN" value={maskSsn(c.subjectSsn)} />
+        <ProtectedField
+          ctx={ctx}
+          field="case.subjectDriverLicense"
+          label="Driver license"
+          value={c.subjectDriverLicense ?? "—"}
+        />
         {c.subjectLanguage && <Field label="Language" value={c.subjectLanguage} mono={false} />}
-        {c.subjectDescription && (
+        {ctx.canSee("case.subjectDescription") && c.subjectDescription && (
           <div>
             <div className="mb-1 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">Description</div>
             <div className="text-[0.71875rem] leading-relaxed text-[var(--color-text-mid)]">{c.subjectDescription}</div>
@@ -185,6 +229,14 @@ export function IdentityPanel({ ctx }: { ctx: CasePanelCtx }) {
 
 export function WorkPanel({ ctx }: { ctx: CasePanelCtx }) {
   const c = ctx.case;
+  // Employment is one privacy field covering all four columns.
+  if (!ctx.canSee("case.subjectEmployment")) {
+    return (
+      <PanelShell title="Work" icon={<UserPlus size={11} strokeWidth={1.8} />}>
+        <RestrictedPanelBody />
+      </PanelShell>
+    );
+  }
   return (
     <PanelShell title="Work" icon={<UserPlus size={11} strokeWidth={1.8} />}>
       <div className="space-y-2.5">
@@ -197,6 +249,17 @@ export function WorkPanel({ ctx }: { ctx: CasePanelCtx }) {
   );
 }
 
+function RestrictedPanelBody() {
+  return (
+    <div className="grid h-full place-items-center gap-1.5 text-center">
+      <Lock size={16} strokeWidth={1.5} className="text-[var(--color-text-lo)]" />
+      <span className="font-mono text-[0.65625rem] text-[var(--color-text-lo)]">
+        Restricted by your role
+      </span>
+    </div>
+  );
+}
+
 // ─── Client / Adjuster ──────────────────────────────────────────────────────
 
 export function ClientAdjusterPanel({ ctx }: { ctx: CasePanelCtx }) {
@@ -204,11 +267,11 @@ export function ClientAdjusterPanel({ ctx }: { ctx: CasePanelCtx }) {
   return (
     <PanelShell title="Client & adjuster">
       <div className="space-y-2.5">
-        <Field label="Client" value={c.client?.company ?? "—"} mono={false} />
-        <Field label="Claim #" value={c.claimNumber ?? "—"} />
-        {c.policyNumber && <Field label="Policy #" value={c.policyNumber} />}
-        <Field label="Adjuster" value={c.adjusterName ?? "—"} mono={false} />
-        {c.adjusterEmail && <Field label="Adjuster email" value={c.adjusterEmail} />}
+        <ProtectedField ctx={ctx} field="case.client" label="Client" value={c.client?.company ?? "—"} mono={false} />
+        <ProtectedField ctx={ctx} field="case.claimNumber" label="Claim #" value={c.claimNumber ?? "—"} />
+        {ctx.canSee("case.policyNumber") && c.policyNumber && <Field label="Policy #" value={c.policyNumber} />}
+        <ProtectedField ctx={ctx} field="case.adjuster" label="Adjuster" value={c.adjusterName ?? "—"} mono={false} />
+        {ctx.canSee("case.adjuster") && c.adjusterEmail && <Field label="Adjuster email" value={c.adjusterEmail} />}
       </div>
     </PanelShell>
   );
@@ -241,7 +304,7 @@ export function CaseInfoPanel({ ctx }: { ctx: CasePanelCtx }) {
     <PanelShell
       title="Assignment details"
       action={
-        ctx.isAdmin ? (
+        ctx.canEdit ? (
           <select
             value={c.status}
             disabled={saving}
@@ -263,15 +326,15 @@ export function CaseInfoPanel({ ctx }: { ctx: CasePanelCtx }) {
     >
       <div className="grid grid-cols-2 gap-x-6 gap-y-3">
         <div className="space-y-3">
-          <Field label="Client" value={c.client?.company ?? "—"} mono={false} />
+          <ProtectedField ctx={ctx} field="case.client" label="Client" value={c.client?.company ?? "—"} mono={false} />
           <Field label="City" value={city || "—"} mono={false} />
           <Field label="Start time" value={c.startTime ?? "—"} />
-          <Field label="Adjuster" value={c.adjusterName ?? "—"} mono={false} />
-          <Field label="Date of injury" value={fmtDate(c.dateOfInjury)} />
+          <ProtectedField ctx={ctx} field="case.adjuster" label="Adjuster" value={c.adjusterName ?? "—"} mono={false} />
+          <ProtectedField ctx={ctx} field="case.dateOfInjury" label="Date of injury" value={fmtDate(c.dateOfInjury)} />
         </div>
         <div className="space-y-3">
-          <Field label="Claim #" value={c.claimNumber ?? "—"} />
-          <Field label="Policy #" value={c.policyNumber ?? "—"} />
+          <ProtectedField ctx={ctx} field="case.claimNumber" label="Claim #" value={c.claimNumber ?? "—"} />
+          <ProtectedField ctx={ctx} field="case.policyNumber" label="Policy #" value={c.policyNumber ?? "—"} />
           <Field label="Due date" value={fmtDate(c.dueDate)} />
           <Field label="Days" value={c.daysAllotted != null ? String(c.daysAllotted) : "—"} />
           <Field label="Service" value={SERVICE_LABELS[c.service]} mono={false} />
@@ -310,9 +373,16 @@ export function DescriptionPanel({ ctx }: { ctx: CasePanelCtx }) {
     await casesApi.update(c.id, { description: value });
     ctx.onRefresh();
   };
+  if (!ctx.canSee("case.description")) {
+    return (
+      <PanelShell title="Description">
+        <RestrictedPanelBody />
+      </PanelShell>
+    );
+  }
   return (
     <PanelShell title="Description">
-      {ctx.isAdmin ? (
+      {ctx.canEdit && ctx.canEditField("case.description") ? (
         <textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -367,11 +437,19 @@ export function AddressesMapPanel({ ctx }: { ctx: CasePanelCtx }) {
     ctx.onRefresh();
   };
 
+  if (!ctx.canSee("case.subjectAddresses")) {
+    return (
+      <PanelShell title="Addresses & map" icon={<MapPin size={11} strokeWidth={1.8} />}>
+        <RestrictedPanelBody />
+      </PanelShell>
+    );
+  }
+
   return (
     <PanelShell
       title="Addresses & map"
       icon={<MapPin size={11} strokeWidth={1.8} />}
-      action={ctx.isAdmin && !adding && <button onClick={() => setAdding(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}
+      action={ctx.canEdit && !adding && <button onClick={() => setAdding(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}
     >
       <div className="flex h-full min-h-0 flex-col gap-3">
         <div className="flex max-h-[45%] shrink-0 flex-col gap-1.5 overflow-y-auto">
@@ -388,7 +466,7 @@ export function AddressesMapPanel({ ctx }: { ctx: CasePanelCtx }) {
                 </div>
               </div>
               {a.isPrimary && <span className="shrink-0 rounded-full bg-[var(--color-accent-soft)] px-1.5 py-0.5 text-[0.53125rem] text-[var(--color-accent-2)]">Primary</span>}
-              {ctx.isAdmin && (
+              {ctx.canEdit && (
                 <button onClick={() => remove(a.id)} className="hidden shrink-0 text-[var(--color-text-lo)] hover:text-[var(--color-neg)] group-hover:block">
                   <X size={11} />
                 </button>
@@ -449,11 +527,19 @@ export function VehiclesPanel({ ctx }: { ctx: CasePanelCtx }) {
     ctx.onRefresh();
   };
 
+  if (!ctx.canSee("case.vehicles")) {
+    return (
+      <PanelShell title="Vehicles" icon={<Car size={11} strokeWidth={1.8} />}>
+        <RestrictedPanelBody />
+      </PanelShell>
+    );
+  }
+
   return (
     <PanelShell
       title="Vehicles"
       icon={<Car size={11} strokeWidth={1.8} />}
-      action={ctx.isAdmin && !adding && <button onClick={() => setAdding(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}
+      action={ctx.canEdit && !adding && <button onClick={() => setAdding(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}
     >
       {c.vehicles.length === 0 && !adding ? (
         <div className="grid h-full place-items-center">
@@ -470,7 +556,7 @@ export function VehiclesPanel({ ctx }: { ctx: CasePanelCtx }) {
                 </div>
                 {v.licensePlate && <div className="font-mono text-[0.625rem] text-[var(--color-text-lo)]">{v.licensePlate}</div>}
               </div>
-              {ctx.isAdmin && (
+              {ctx.canEdit && (
                 <button onClick={() => remove(v.id)} className="absolute right-1 top-1 hidden rounded-full bg-black/60 p-1 text-white group-hover:block">
                   <X size={10} />
                 </button>
@@ -532,7 +618,7 @@ export function AssignmentPanel({ ctx }: { ctx: CasePanelCtx }) {
   return (
     <PanelShell
       title="Assigned investigators"
-      action={ctx.isAdmin && !picking && available.length > 0 && <button onClick={() => setPicking(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}
+      action={ctx.canAssign && !picking && available.length > 0 && <button onClick={() => setPicking(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}
     >
       <div className="flex flex-col gap-3">
         {c.assignments.map((a) => (
@@ -544,7 +630,7 @@ export function AssignmentPanel({ ctx }: { ctx: CasePanelCtx }) {
               <div className="truncate text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{a.user.name}</div>
               <div className="font-mono text-[0.625rem] text-[var(--color-text-lo)]">{a.role}</div>
             </div>
-            {ctx.isAdmin && (
+            {ctx.canAssign && (
               <button onClick={() => unassign(a.userId)} className="hidden shrink-0 text-[var(--color-text-lo)] hover:text-[var(--color-neg)] group-hover:block">
                 <X size={13} />
               </button>
@@ -637,23 +723,29 @@ function EntryCard({ entry, caseId, dayId, canDelete, onDeleted }: { entry: Case
   );
 }
 
-/** Physical-folder journal: tabs across the top (Pre-surveillance first, then
- * one tab per worked date), folder body below. Rendered as a fixed section
- * under the widget grid — not a widget. */
+/** Physical-folder journal: tabs across the top (one tab per worked date),
+ * folder body below. Rendered as a fixed section under the widget grid —
+ * not a widget. */
 export function CaseJournalFolder({ ctx }: { ctx: CasePanelCtx }) {
   const c = ctx.case;
-  const canPost = ctx.isAdmin || c.assignments.some((a) => a.userId === ctx.currentUserId);
+  // Scope already restricts which cases are reachable, so the permission alone
+  // decides whether this viewer can add to the journal.
+  const canPost = ctx.canPostJournal;
 
   const days = useMemo(() => [...c.days].sort((a, b) => a.date.localeCompare(b.date)), [c.days]);
 
-  // Tab id: "presurv" | day id | pending new-day iso date
-  const [activeTab, setActiveTab] = useState<string>("presurv");
+  // Tab id: day id | pending new-day iso date
+  const [activeTab, setActiveTab] = useState<string>("");
   const [pendingDate, setPendingDate] = useState<string | null>(null);
   const [addingDay, setAddingDay] = useState(false);
   const [newDayDate, setNewDayDate] = useState(() => new Date().toISOString().slice(0, 10));
 
+  useEffect(() => {
+    if (activeTab) return;
+    if (days[0]) setActiveTab(days[0].id);
+  }, [days, activeTab]);
+
   const activeDay = days.find((d) => d.id === activeTab) ?? null;
-  const isPresurv = activeTab === "presurv";
   const isPending = pendingDate !== null && activeTab === `pending:${pendingDate}`;
 
   const fmtTab = (iso: string) =>
@@ -681,10 +773,6 @@ export function CaseJournalFolder({ ctx }: { ctx: CasePanelCtx }) {
     <div className="case-journal-folder">
       {/* Folder tab strip */}
       <div className="flex items-end gap-1 overflow-x-auto px-1">
-        <button type="button" onClick={() => setActiveTab("presurv")} className={cn(tabBase, isPresurv ? tabActive : tabIdle)}>
-          <Search size={11} strokeWidth={1.8} className={isPresurv ? "text-[var(--color-accent-2)]" : ""} />
-          PRE-SURVEILLANCE
-        </button>
         {days.map((d) => (
           <button
             key={d.id}
@@ -736,8 +824,10 @@ export function CaseJournalFolder({ ctx }: { ctx: CasePanelCtx }) {
 
       {/* Folder body */}
       <div className="surface rounded-[0.875rem] rounded-tl-none border border-[var(--color-line-2)] p-5">
-        {isPresurv ? (
-          <PresurvFolderContent ctx={ctx} />
+        {!activeTab && days.length === 0 && !isPending ? (
+          <div className="py-8 text-center text-[0.8125rem] text-[var(--color-text-lo)]">
+            No journal days yet{canPost ? " — add a day to start." : "."}
+          </div>
         ) : (
           <DayFolderContent
             ctx={ctx}
@@ -751,69 +841,6 @@ export function CaseJournalFolder({ ctx }: { ctx: CasePanelCtx }) {
           />
         )}
       </div>
-    </div>
-  );
-}
-
-function PresurvFolderContent({ ctx }: { ctx: CasePanelCtx }) {
-  const c = ctx.case;
-  const [summary, setSummary] = useState(c.presurveillance?.summary ?? "");
-  const [saving, setSaving] = useState(false);
-  const status = c.presurveillance?.status ?? "pending";
-
-  const statusCfg: Record<string, { label: string; color: string }> = {
-    pending: { label: "Pending", color: "#f59e0b" },
-    fetched: { label: "Intel on file", color: "#4ade80" },
-    not_available: { label: "Not available", color: "#7a8499" },
-  };
-  const sc = statusCfg[status] ?? statusCfg.pending;
-
-  const save = async () => {
-    if (summary === (c.presurveillance?.summary ?? "")) return;
-    setSaving(true);
-    try {
-      await casesApi.updatePresurveillance(c.id, { summary });
-      ctx.onRefresh();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.625rem] font-medium" style={{ background: `${sc.color}26`, color: sc.color }}>
-          <span className="h-1.5 w-1.5 rounded-full" style={{ background: sc.color }} />
-          {sc.label}
-        </span>
-        {c.presurveillance?.fetchedAt && (
-          <span className="font-mono text-[0.625rem] text-[var(--color-text-lo)]">
-            fetched {fmtDate(c.presurveillance.fetchedAt)}
-          </span>
-        )}
-        <button
-          type="button"
-          disabled
-          title="Coming soon — will pull from the OSINT/pre-surv intel API"
-          className="ml-auto cursor-not-allowed rounded-full border border-[var(--color-line-2)] px-2.5 py-0.5 text-[0.625rem] text-[var(--color-text-lo)] opacity-60"
-        >
-          Re-run OSINT
-        </button>
-      </div>
-      {ctx.isAdmin ? (
-        <textarea
-          value={summary}
-          onChange={(e) => setSummary(e.target.value)}
-          onBlur={save}
-          placeholder="Intel summary — public records, social presence, known associates, vehicles seen, appointments…"
-          className="min-h-[8rem] w-full resize-y rounded-[0.625rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] p-3 text-[0.8125rem] leading-relaxed text-[var(--color-text-hi)] placeholder:text-[var(--color-text-lo)] focus:outline-none focus:border-[var(--color-accent)]"
-        />
-      ) : (
-        <p className="whitespace-pre-wrap text-[0.8125rem] leading-relaxed text-[var(--color-text-mid)]">
-          {summary || "Nothing on file yet."}
-        </p>
-      )}
-      {saving && <Loader2 size={12} className="animate-spin text-[var(--color-text-lo)]" />}
     </div>
   );
 }
@@ -897,7 +924,7 @@ function DayFolderContent({
             entry={entry}
             caseId={c.id}
             dayId={day?.id ?? ""}
-            canDelete={!!day && (ctx.isAdmin || entry.author?.id === ctx.currentUserId)}
+            canDelete={!!day && (ctx.canModerateJournal || entry.author?.id === ctx.currentUserId)}
             onDeleted={ctx.onRefresh}
           />
         ))}

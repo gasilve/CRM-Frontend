@@ -12,7 +12,7 @@ import {
   primaryButtonClass,
 } from "@/components/auth/form";
 import { authClient } from "@/lib/auth-client";
-import { isDatabaseUnavailableMessage, DB_UNAVAILABLE_HINT } from "@/lib/health";
+import { isDatabaseUnavailableMessage, SERVICE_UNAVAILABLE_MESSAGE } from "@/lib/health";
 import { useServiceHealth } from "@/hooks/useServiceHealth";
 import { ServiceUnavailableBanner } from "@/components/auth/ServiceUnavailableBanner";
 import { useAuth, getPostAuthPath } from "@/contexts/AuthContext";
@@ -47,7 +47,7 @@ export default function Login() {
       const { data, error: signInError } = await authClient.signIn.email({ email, password });
       if (signInError) {
         const msg = signInError.message ?? "Could not sign in.";
-        setError(isDatabaseUnavailableMessage(msg) ? DB_UNAVAILABLE_HINT : msg);
+        setError(isDatabaseUnavailableMessage(msg) ? SERVICE_UNAVAILABLE_MESSAGE : msg);
         void refreshHealth();
         return;
       }
@@ -68,8 +68,8 @@ export default function Login() {
   return (
     <AuthLayout title="Sign in" showThemePicker>
       <form className="flex flex-col gap-4 sm:gap-5" onSubmit={onSubmit}>
-        {health && !health.ok && health.message ? (
-          <ServiceUnavailableBanner message={health.message} onRetry={() => void refreshHealth()} />
+        {health && !health.ok ? (
+          <ServiceUnavailableBanner onRetry={() => void refreshHealth()} />
         ) : null}
         {error ? <div className={errorBannerClass}>{error}</div> : null}
         <div>

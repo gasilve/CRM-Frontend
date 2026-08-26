@@ -50,8 +50,8 @@ const clean = (value: string): string | null => (value.trim() ? value.trim() : n
 export default function PendingCaseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { hasRole } = useAuth();
-  const isAdmin = hasRole("admin");
+  const { can } = useAuth();
+  const canReview = can("intake.view");
 
   const [pendingCase, setPendingCase] = useState<PendingCase | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,7 +69,7 @@ export default function PendingCaseDetail() {
   }, []);
 
   useEffect(() => {
-    if (!id || !isAdmin) return;
+    if (!id || !canReview) return;
     let cancelled = false;
     setLoading(true);
     pendingCasesApi
@@ -88,7 +88,7 @@ export default function PendingCaseDetail() {
     return () => {
       cancelled = true;
     };
-  }, [id, isAdmin]);
+  }, [id, canReview]);
 
   const proposal = pendingCase?.proposal;
   const editing = draft !== null;
@@ -170,10 +170,10 @@ export default function PendingCaseDetail() {
     }
   };
 
-  if (!isAdmin) {
+  if (!canReview) {
     return (
       <div className="surface flex flex-col items-center justify-center gap-3 py-24 text-center">
-        <div className="font-mono text-[0.75rem] text-[var(--color-text-lo)]">ADMINS ONLY</div>
+        <div className="font-mono text-[0.75rem] text-[var(--color-text-lo)]">RESTRICTED</div>
         <div className="editorial text-[1.5rem] text-[var(--color-text-hi)]">Case review is restricted</div>
       </div>
     );

@@ -181,7 +181,7 @@ export default function InvestigatorDetail() {
                 <div className="truncate font-mono text-[0.75rem] tracking-wide text-[var(--color-accent-2)]">{user.email}</div>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   {user.roles.map((role) => (
-                    <RoleChip key={role} role={role} />
+                    <RoleChip key={role.id} role={role} />
                   ))}
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import type { Role } from "./auth-client";
+import type { CaseScope, FieldAccessLevel, PeopleScope, RoleSummary, ScheduleScope } from "./auth-client";
 
 const CRM_API_URL = import.meta.env.VITE_CRM_API_URL ?? "http://localhost:3000";
 
@@ -66,7 +66,7 @@ export interface CrmUser {
   twoFactorEnabled: boolean;
   createdAt: string;
   region: Region | null;
-  roles: Role[];
+  roles: RoleSummary[];
 }
 
 export interface InvestigatorProfileSummary {
@@ -89,7 +89,7 @@ export interface InvestigatorListItem extends CrmUser {
 export interface Invitation {
   id: string;
   email: string;
-  roles: Role[];
+  roles: RoleSummary[];
   invitedBy: { name: string; email: string } | null;
   expiresAt: string;
   acceptedAt: string | null;
@@ -99,7 +99,7 @@ export interface Invitation {
 
 export interface InvitationPreview {
   email: string;
-  roles: Role[];
+  roles: RoleSummary[];
   expiresAt: string;
 }
 
@@ -108,11 +108,98 @@ export const usersApi = {
   list: () => request<{ users: CrmUser[] }>("/users"),
 };
 
+// ─── Roles & permissions ────────────────────────────────────────────────────
+
+/** A role with everything the Administration editor needs. */
+export interface RoleDetail extends RoleSummary {
+  caseScope: CaseScope;
+  peopleScope: PeopleScope;
+  scheduleScope: ScheduleScope;
+  sortOrder: number;
+  permissions: string[];
+  /** Restrictions only — a field absent from here is unrestricted. */
+  fieldRules: Record<string, FieldAccessLevel>;
+  memberCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PermissionDefinition {
+  key: string;
+  label: string;
+  description: string;
+  requires?: string[];
+}
+
+export interface PermissionGroup {
+  id: string;
+  label: string;
+  description: string;
+  permissions: PermissionDefinition[];
+}
+
+export interface FieldDefinition {
+  key: string;
+  label: string;
+  description: string;
+  maskable: boolean;
+}
+
+export interface FieldGroup {
+  id: string;
+  label: string;
+  description: string;
+  fields: FieldDefinition[];
+}
+
+export interface ScopeOption {
+  value: string;
+  label: string;
+  description: string;
+}
+
+export interface ScopeDefinition {
+  label: string;
+  description: string;
+  options: ScopeOption[];
+}
+
+export interface AccessCatalog {
+  permissionGroups: PermissionGroup[];
+  fieldGroups: FieldGroup[];
+  fieldAccessLevels: FieldAccessLevel[];
+  scopes: {
+    caseScope: ScopeDefinition;
+    peopleScope: ScopeDefinition;
+    scheduleScope: ScopeDefinition;
+  };
+}
+
+export interface RolePayload {
+  name: string;
+  description?: string | null;
+  color?: string | null;
+  caseScope: CaseScope;
+  peopleScope: PeopleScope;
+  scheduleScope: ScheduleScope;
+  permissions: string[];
+  fieldRules: Record<string, FieldAccessLevel>;
+}
+
 export const rolesApi = {
-  assign: (userId: string, role: Role) =>
-    request<{ user: CrmUser }>("/roles/assign", { method: "POST", body: JSON.stringify({ userId, role }) }),
-  revoke: (userId: string, role: Role) =>
-    request<{ user: CrmUser }>("/roles/revoke", { method: "POST", body: JSON.stringify({ userId, role }) }),
+  catalog: () => request<AccessCatalog>("/roles/catalog"),
+  list: () => request<{ roles: RoleDetail[] }>("/roles"),
+  create: (body: RolePayload) => request<{ role: RoleDetail }>("/roles", { method: "POST", body: JSON.stringify(body) }),
+  update: (id: string, body: RolePayload) =>
+    request<{ role: RoleDetail }>(`/roles/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  remove: (id: string) => request<null>(`/roles/${id}`, { method: "DELETE" }),
+  reorder: (roleIds: string[]) =>
+    request<{ roles: RoleDetail[] }>("/roles/reorder", { method: "POST", body: JSON.stringify({ roleIds }) }),
+  setUserRoles: (userId: string, roleIds: string[]) =>
+    request<{ user: CrmUser }>(`/roles/users/${encodeURIComponent(userId)}`, {
+      method: "PUT",
+      body: JSON.stringify({ roleIds }),
+    }),
 };
 
 // ─── Profiles & certifications ──────────────────────────────────────────────
@@ -176,8 +263,8 @@ export const profileApi = {
 };
 
 export const invitationsApi = {
-  create: (email: string, roles: Role[], profile?: InviteProfilePayload) =>
-    request<InviteCreateResult>("/invitations", { method: "POST", body: JSON.stringify({ email, roles, profile }) }),
+  create: (email: string, roleIds: string[], profile?: InviteProfilePayload) =>
+    request<InviteCreateResult>("/invitations", { method: "POST", body: JSON.stringify({ email, roleIds, profile }) }),
   list: () => request<{ invitations: Invitation[] }>("/invitations"),
   revoke: (id: string) => request<null>(`/invitations/${id}`, { method: "DELETE" }),
   resend: (id: string) => request<{ invitation: Invitation }>(`/invitations/${id}/resend`, { method: "POST" }),
@@ -773,7 +860,11 @@ export const scheduleApi = {
 
 /* ── Grid layouts ─────────────────────────────────────────────────────────── */
 
-/** Draggable grids whose placement is saved per user. */
+/**
+ * Draggable grids with saved placement.
+ * - `dashboard` — per user
+ * - `case-detail` — shared house layout (SuperAdmin write), may include pages
+ */
 export type GridSurface = "dashboard" | "case-detail";
 
 export interface GridLayoutItem {
@@ -782,13 +873,21 @@ export interface GridLayoutItem {
   y: number;
   w: number;
   h: number;
+  /** Case-detail carousel page. Omitted on flat surfaces. */
+  pageId?: string;
+}
+
+export interface GridLayoutPage {
+  id: string;
+  name: string;
 }
 
 export interface GridLayoutRecord {
   surface: GridSurface;
-  /** `null` when the user has never customised this surface. */
+  /** `null` when no saved layout exists (client uses its built-in default). */
   items: GridLayoutItem[] | null;
-  source: "user" | "default";
+  pages: GridLayoutPage[] | null;
+  source: "user" | "house" | "default";
   updatedAt: string | null;
 }
 
@@ -799,10 +898,10 @@ export const gridLayoutsApi = {
    * `keepalive` lets a save started during page unload finish — layouts are
    * often dragged and then immediately navigated away from.
    */
-  save: (surface: GridSurface, items: GridLayoutItem[]) =>
+  save: (surface: GridSurface, items: GridLayoutItem[], pages?: GridLayoutPage[] | null) =>
     request<{ layout: GridLayoutRecord }>(`/grid-layouts/${surface}`, {
       method: "PUT",
-      body: JSON.stringify({ items }),
+      body: JSON.stringify(pages && pages.length > 0 ? { items, pages } : { items }),
       keepalive: true,
     }),
   reset: (surface: GridSurface) =>

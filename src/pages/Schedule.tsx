@@ -227,8 +227,8 @@ const ORIENTATION_LS_KEY = "accenty.crm.schedule.orientation";
 const REGION_OPTIONS: (Region | "all")[] = ["all", "tristate", "ca", "texas"];
 
 export default function Schedule() {
-  const { hasRole } = useAuth();
-  const isAdmin = hasRole("admin");
+  const { can } = useAuth();
+  const canManage = can("schedule.manage");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -499,7 +499,7 @@ export default function Schedule() {
 
   /** Start an edge-drag resize on a block. */
   const beginResize = (e: React.PointerEvent, item: PositionedBlock) => {
-    if (!isAdmin) return;
+    if (!canManage) return;
     const edge = (e.currentTarget as HTMLElement).dataset.edge as "start" | "end";
     const bodyEl = (e.currentTarget as HTMLElement).closest("[data-daybody]");
     if (!bodyEl) return;
@@ -589,7 +589,7 @@ export default function Schedule() {
   const blockDragHandlers = (b: ScheduleBlock) => {
     const isTemp = b.id.startsWith("temp-");
     return {
-      draggable: isAdmin && !isTemp,
+      draggable: canManage && !isTemp,
       onDragStart: (e: React.DragEvent) => {
         if (resizingRef.current) {
           e.preventDefault();
@@ -605,10 +605,10 @@ export default function Schedule() {
         setHover(null);
       },
       onClick: () => {
-        if (isAdmin && !isTemp && !suppressClickRef.current) setEditing(b);
+        if (canManage && !isTemp && !suppressClickRef.current) setEditing(b);
       },
       onContextMenu: (e: React.MouseEvent) => {
-        if (!isAdmin || isTemp) return;
+        if (!canManage || isTemp) return;
         e.preventDefault();
         void removeBlock(b.id);
       },
@@ -616,7 +616,7 @@ export default function Schedule() {
   };
 
   const blockTitle = (b: ScheduleBlock) =>
-    `${b.user.name} · ${b.startTime}${b.endTime ? `–${b.endTime}` : " (no end)"} · ${b.case.caseNumber} ${b.case.subjectName}${b.notes ? `\n${b.notes}` : ""}${isAdmin ? "\nClick to edit · drag to move · drag edges to resize · right-click to remove" : ""}`;
+    `${b.user.name} · ${b.startTime}${b.endTime ? `–${b.endTime}` : " (no end)"} · ${b.case.caseNumber} ${b.case.subjectName}${b.notes ? `\n${b.notes}` : ""}${canManage ? "\nClick to edit · drag to move · drag edges to resize · right-click to remove" : ""}`;
 
   /** Center the dragged block on the cursor, snapped and kept inside the grid. */
   const centeredStart = (pointerRawMin: number): number => {
@@ -846,7 +846,7 @@ export default function Schedule() {
         {/* Right column: investigator tray + board */}
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
           {/* Investigator tray */}
-          {isAdmin && (
+          {canManage && (
             <div
               className={cn(
                 "flex shrink-0 items-center gap-2 overflow-x-auto rounded-[0.75rem] border px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
@@ -989,7 +989,7 @@ export default function Schedule() {
                             title={blockTitle(b)}
                             className={cn(
                               "absolute overflow-hidden rounded-[0.4375rem] border px-1.5 py-1 leading-tight transition-colors",
-                              isAdmin && "cursor-grab active:cursor-grabbing",
+                              canManage && "cursor-grab active:cursor-grabbing",
                             )}
                             style={{
                               top: `${pctOf(startMin)}%`,
@@ -1019,7 +1019,7 @@ export default function Schedule() {
                                 {b.case.caseNumber} · {b.case.subjectName.split(" ")[0]}
                               </div>
                             )}
-                            {isAdmin && (
+                            {canManage && (
                               <>
                                 <div
                                   data-edge="start"
@@ -1137,7 +1137,7 @@ export default function Schedule() {
                               title={blockTitle(b)}
                               className={cn(
                                 "absolute flex items-center gap-1 overflow-hidden rounded-[0.4375rem] border px-1.5 leading-tight transition-colors",
-                                isAdmin && "cursor-grab active:cursor-grabbing",
+                                canManage && "cursor-grab active:cursor-grabbing",
                               )}
                               style={{
                                 left: `calc(${pctOf(startMin)}% + 0.0625rem)`,
@@ -1159,7 +1159,7 @@ export default function Schedule() {
                               <span className="ml-auto shrink-0 truncate font-mono text-[0.5rem]" style={{ color: gs.text }}>
                                 {toHHMM(startMin)}–{toHHMM(endMin)}
                               </span>
-                              {isAdmin && (
+                              {canManage && (
                                 <>
                                   <div
                                     data-edge="start"

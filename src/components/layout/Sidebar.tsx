@@ -14,7 +14,7 @@ import {
   Palette,
   PanelLeftClose,
   PanelLeftOpen,
-  Settings,
+  ShieldCheck,
   BotMessageSquare,
   ScrollText,
   Clapperboard,
@@ -53,6 +53,7 @@ import { ConfirmModal } from "@/components/dashboard/ConfirmModal";
 import { invCases, investigators } from "@/lib/mock-data";
 import { pendingCasesApi } from "@/lib/crm-api";
 import { useAuth } from "@/contexts/AuthContext";
+import type { Permission } from "@/lib/auth-client";
 import { getInitials, formatRoleList } from "@/lib/format";
 import accentyLogo from "@/assets/branding/accenty-logo.png";
 
@@ -66,6 +67,8 @@ type Item = {
   icon: LucideIcon;
   badge?: string | number;
   disabled?: boolean;
+  /** Nav entry is shown when the user holds any one of these. Omitted = always visible. */
+  permissions?: Permission[];
 };
 
 type Group = { id: string; label: string; items: Item[] };
@@ -79,32 +82,29 @@ type SidebarState = {
 
 const SIDEBAR_LS_KEY = "accenty.crm.sidebar.layout.v2";
 
-// Nav items only meaningful for staff (admin/investigator) — hidden for plain "user" accounts.
-const STAFF_ONLY_ITEMS = new Set(["/cases", "/schedule", "/investigators", "/calendar", "/video"]);
-// Cases/scheduling are admin-only until investigators get assigned casework — no point showing them an empty list.
-const ADMIN_ONLY_ITEMS = new Set(["/cases", "/schedule"]);
-
+// What each nav entry needs. The dashboard and profile are always available;
+// everything else follows whatever the administrator granted the role.
 const DEFAULT_GROUPS: Group[] = [
   {
     id: "operations",
     label: "Operations",
     items: [
       { to: "/",              label: "Dashboard",    icon: LayoutDashboard },
-      { to: "/cases",         label: "Cases",        icon: FolderOpen,   badge: openCases },
-      { to: "/schedule",      label: "Scheduling",   icon: CalendarClock },
-      { to: "/investigators", label: "Investigators",icon: Users2,        badge: clockedIn > 0 ? `${clockedIn} live` : undefined },
-      { to: "/calendar",      label: "Calendar",     icon: CalendarDays },
+      { to: "/cases",         label: "Cases",        icon: FolderOpen,   badge: openCases, permissions: ["cases.view"] },
+      { to: "/schedule",      label: "Scheduling",   icon: CalendarClock, permissions: ["schedule.view"] },
+      { to: "/investigators", label: "Investigators",icon: Users2,        badge: clockedIn > 0 ? `${clockedIn} live` : undefined, permissions: ["team.view"] },
+      { to: "/calendar",      label: "Calendar",     icon: CalendarDays, permissions: ["schedule.view"] },
     ],
   },
   {
     id: "system",
     label: "System",
     items: [
-      { to: "/documents", label: "Report Generator", icon: ScrollText },
-      { to: "/video", label: "Case Video", icon: Clapperboard },
-      { to: "/assistant", label: "AI Assistant", icon: BotMessageSquare },
+      { to: "/documents", label: "Report Generator", icon: ScrollText, permissions: ["documents.generate"] },
+      { to: "/video", label: "Case Video", icon: Clapperboard, permissions: ["video.use"] },
+      { to: "/assistant", label: "AI Assistant", icon: BotMessageSquare, permissions: ["assistant.use"] },
       { to: "/profile", label: "Profile", icon: CircleUserRound },
-      { to: "/settings", label: "Settings", icon: Settings },
+      { to: "/administration", label: "Administration", icon: ShieldCheck, permissions: ["admin.roles", "admin.users"] },
     ],
   },
 ];
@@ -551,20 +551,19 @@ export default function Sidebar({
   const [bgOpen, setBgOpen] = useState(false);
   const themeButtonRef = useRef<HTMLButtonElement>(null);
   const bgButtonRef = useRef<HTMLButtonElement>(null);
-  const { user, roles, logout } = useAuth();
+  const { user, roles, canAny, logout } = useAuth();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const isAdmin = roles.includes("admin");
-  const isStaff = isAdmin || roles.includes("investigator");
+  const canSeeIntake = canAny("intake.view");
 
   const [pendingCases, setPendingCases] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canSeeIntake) return;
     let cancelled = false;
     pendingCasesApi
       .summary()
@@ -577,7 +576,7 @@ export default function Sidebar({
     return () => {
       cancelled = true;
     };
-  }, [isAdmin]);
+  }, [canSeeIntake]);
 
   const groups = useMemo(() => {
     return sidebarState.folders.map((folder) => ({
@@ -586,16 +585,16 @@ export default function Sidebar({
       items: folder.itemIds
         .map((itemId) => ITEM_MAP[itemId])
         .filter(Boolean)
-        .filter((item) => isStaff || !STAFF_ONLY_ITEMS.has(item.to))
-        .filter((item) => isAdmin || !ADMIN_ONLY_ITEMS.has(item.to))
+        .filter((item) => !item.permissions || canAny(...item.permissions))
         .map((item) => {
-          if (item.to === "/cases" && isAdmin && pendingCases && pendingCases > 0) {
+          if (item.to === "/cases" && canSeeIntake && pendingCases && pendingCases > 0) {
             return { ...item, badge: pendingCases };
           }
           return item;
         }),
     }));
-  }, [sidebarState, isStaff, isAdmin, pendingCases]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sidebarState, canAny, canSeeIntake, pendingCases]);
 
   const updateState = (next: SidebarState) => {
     setSidebarState(next);
