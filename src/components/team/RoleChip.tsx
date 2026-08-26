@@ -1,20 +1,15 @@
 import { cn } from "@/lib/cn";
-import { formatRoleLabel } from "@/lib/format";
-import type { Role } from "@/lib/auth-client";
+import { roleChipStyle } from "@/lib/format";
+import type { RoleSummary } from "@/lib/auth-client";
 
-export function RoleChip({ role }: { role: Role }) {
+export function RoleChip({ role, className }: { role: RoleSummary; className?: string }) {
   return (
     <span
-      className={cn(
-        "rounded-full px-2.5 py-1 text-[0.6875rem] font-medium",
-        role === "admin"
-          ? "bg-[rgba(74,127,255,0.15)] text-[#7aa1ff]"
-          : role === "investigator"
-            ? "bg-[rgba(74,222,128,0.15)] text-[#4ade80]"
-            : "bg-[rgba(148,163,184,0.18)] text-[var(--color-text-mid)]",
-      )}
+      className={cn("rounded-full border px-2.5 py-1 text-[0.6875rem] font-medium", className)}
+      style={roleChipStyle(role)}
+      title={role.description ?? undefined}
     >
-      {formatRoleLabel(role)}
+      {role.name}
     </span>
   );
 }

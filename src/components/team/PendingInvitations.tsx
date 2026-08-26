@@ -98,7 +98,7 @@ export function PendingInvitations({ reloadToken = 0, emptyState = defaultEmptyS
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {inv.roles.map((role) => (
-                    <RoleChip key={role} role={role} />
+                    <RoleChip key={role.id} role={role} />
                   ))}
                 </div>
                 <button

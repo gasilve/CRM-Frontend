@@ -22,18 +22,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { investigatorsApi, invitationsApi, REGION_LABELS, type InvestigatorListItem, type Invitation, type InviteCreateResult, ApiError } from "@/lib/crm-api";
 import { PanelLoader } from "@/components/ui/LoadingState";
 import { ViewToggle, ViewToggleGroup } from "@/components/ui/ViewToggle";
-import type { Role } from "@/lib/auth-client";
+import type { RoleSummary } from "@/lib/auth-client";
+import { roleColor } from "@/lib/format";
 import { RoleChip } from "@/components/team/RoleChip";
 import { CertificationBadges } from "@/components/team/CertificationBadges";
 
 type TeamNotice =
   | { kind: "invitation"; email: string }
   | { kind: "roles_assigned"; email: string; name: string };
-
-const ROLE_FILTER_CONFIG: Record<Extract<Role, "admin" | "investigator">, { label: string; dot: string }> = {
-  admin: { label: "Admin", dot: "#7aa1ff" },
-  investigator: { label: "Investigator", dot: "#4ade80" },
-};
 
 const PER_PAGE = 8;
 
@@ -57,8 +53,8 @@ const personHasCertification = (person: InvestigatorListItem, code: string): boo
 };
 
 export default function Investigators() {
-  const { hasRole } = useAuth();
-  const isAdmin = hasRole("admin");
+  const { canAny, can } = useAuth();
+  const canManageTeam = canAny("team.manage", "team.invite");
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -76,7 +72,7 @@ export default function Investigators() {
     window.history.replaceState({}, "");
   }, [location.state]);
   const [view, setView] = useState<"roster" | "pending">("roster");
-  const [roleFilter, setRoleFilter] = useState<Extract<Role, "admin" | "investigator"> | null>(null);
+  const [roleFilter, setRoleFilter] = useState<string | null>(null);
   const [certFilter, setCertFilter] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -89,7 +85,7 @@ export default function Investigators() {
   };
 
   const loadInvitations = () => {
-    if (!isAdmin) return;
+    if (!can("team.invite")) return;
     invitationsApi
       .list()
       .then((res) => setInvitations(res.invitations))
@@ -100,21 +96,29 @@ export default function Investigators() {
 
   useEffect(loadPeople, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(loadInvitations, [isAdmin]);
+  useEffect(loadInvitations, [canManageTeam]);
   useEffect(() => setPage(1), [view, roleFilter, certFilter]);
 
   const pendingInvites = useMemo(() => invitations?.filter((i) => !i.acceptedAt) ?? [], [invitations]);
 
+  // Roles are client-defined, so the filter chips are whatever the roster uses.
+  const roleFilters = useMemo(() => {
+    const seen = new Map<string, RoleSummary>();
+    for (const p of people ?? []) for (const r of p.roles) seen.set(r.key, r);
+    for (const i of pendingInvites) for (const r of i.roles) seen.set(r.key, r);
+    return [...seen.values()];
+  }, [people, pendingInvites]);
+
   const filteredPeople = useMemo(() => {
     let list = people ?? [];
-    if (roleFilter) list = list.filter((p) => p.roles.includes(roleFilter));
+    if (roleFilter) list = list.filter((p) => p.roles.some((r) => r.key === roleFilter));
     if (certFilter) list = list.filter((p) => personHasCertification(p, certFilter));
     return list;
   }, [people, roleFilter, certFilter]);
 
   const filteredInvites = useMemo(() => {
     let list = pendingInvites;
-    if (roleFilter) list = list.filter((i) => i.roles.includes(roleFilter));
+    if (roleFilter) list = list.filter((i) => i.roles.some((r) => r.key === roleFilter));
     // Certification filter doesn't apply to invites — nobody's earned certs yet.
     return list;
   }, [pendingInvites, roleFilter]);
@@ -166,7 +170,7 @@ export default function Investigators() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {isAdmin && (
+          {can("team.invite") && (
             <ViewToggleGroup>
               <ViewToggle
                 active={view === "roster"}
@@ -183,7 +187,7 @@ export default function Investigators() {
               />
             </ViewToggleGroup>
           )}
-          {isAdmin && (
+          {can("team.invite") && (
             <button
               onClick={() => navigate("/investigators/new")}
               className="flex h-9 items-center gap-2 rounded-[0.625rem] border border-[rgba(74,127,255,0.4)] bg-[var(--color-accent-soft)] px-3.5 text-[0.75rem] text-[var(--color-text-hi)] hover:shadow-[0_0_0_0.1875rem_var(--color-accent-soft)] transition-shadow"
@@ -199,12 +203,12 @@ export default function Investigators() {
       <div className="flex shrink-0 flex-col gap-3">
         {/* Role chips */}
         <div className="flex flex-wrap items-center gap-2">
-          {(["all", "admin", "investigator"] as const).map((r) => {
-            const active = r === "all" ? roleFilter === null : roleFilter === r;
+          {[null, ...roleFilters].map((r) => {
+            const active = r === null ? roleFilter === null : roleFilter === r.key;
             return (
               <button
-                key={r}
-                onClick={() => setRoleFilter(r === "all" ? null : r)}
+                key={r?.key ?? "all"}
+                onClick={() => setRoleFilter(r?.key ?? null)}
                 className={cn(
                   "anim-toggle tap flex items-center gap-1.5 rounded-full border px-3 py-1 text-[0.71875rem] font-medium",
                   active
@@ -212,8 +216,8 @@ export default function Investigators() {
                     : "border-[var(--color-line)] text-[var(--color-text-lo)] hover:text-[var(--color-text-mid)] hover:border-[var(--color-line-2)]",
                 )}
               >
-                {r !== "all" && <span className="h-1.5 w-1.5 rounded-full" style={{ background: ROLE_FILTER_CONFIG[r].dot }} />}
-                {r === "all" ? "All roles" : ROLE_FILTER_CONFIG[r].label}
+                {r && <span className="h-1.5 w-1.5 rounded-full" style={{ background: roleColor(r) }} />}
+                {r?.name ?? "All roles"}
               </button>
             );
           })}
@@ -292,7 +296,7 @@ export default function Investigators() {
                 emptyMessage={
                   people.length > 0
                     ? "No investigators match the current filters."
-                    : isAdmin
+                    : can("team.invite")
                       ? "Invite your field team to get started — they'll set up MFA on first login."
                       : "Ask an administrator to invite field investigators."
                 }
@@ -623,7 +627,7 @@ function InviteRow({
 
       <div className="flex min-w-0 flex-wrap items-center gap-1 overflow-hidden">
         {invitation.roles.map((role) => (
-          <RoleChip key={role} role={role} />
+          <RoleChip key={role.id} role={role} />
         ))}
       </div>
 

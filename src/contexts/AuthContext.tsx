@@ -1,5 +1,16 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { useSession, signOut, asAppSession, type Role } from "@/lib/auth-client";
+import {
+  useSession,
+  signOut,
+  asAppSession,
+  type CaseScope,
+  type EffectiveAccess,
+  type FieldAccessLevel,
+  type PeopleScope,
+  type Permission,
+  type RoleSummary,
+  type ScheduleScope,
+} from "@/lib/auth-client";
 
 interface AuthUser {
   id: string;
@@ -13,36 +24,78 @@ interface AuthContextValue {
   isPending: boolean;
   isAuthenticated: boolean;
   user: AuthUser | null;
-  roles: Role[];
-  hasRole: (role: Role) => boolean;
-  hasAnyRole: (...roles: Role[]) => boolean;
+  roles: RoleSummary[];
+  isSuperadmin: boolean;
+  caseScope: CaseScope;
+  peopleScope: PeopleScope;
+  scheduleScope: ScheduleScope;
+  /** True when the signed-in user holds this permission. */
+  can: (permission: Permission) => boolean;
+  /** True when they hold at least one of these. */
+  canAny: (...permissions: Permission[]) => boolean;
+  /** How much of a protected field they may see — "write" when unrestricted. */
+  fieldAccess: (field: string) => FieldAccessLevel;
+  /** False only when the field is hidden outright. */
+  canSee: (field: string) => boolean;
+  canEdit: (field: string) => boolean;
   logout: () => Promise<void>;
   refresh: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const EMPTY_ACCESS: EffectiveAccess = {
+  roles: [],
+  isSuperadmin: false,
+  permissions: [],
+  caseScope: "none",
+  peopleScope: "self",
+  scheduleScope: "own",
+  fields: {},
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { data, isPending, refetch } = useSession();
   const session = asAppSession(data);
-  const roles = session?.roles ?? [];
+  const access = session?.access ?? EMPTY_ACCESS;
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
+  const value = useMemo<AuthContextValue>(() => {
+    const can = (permission: Permission) => access.isSuperadmin || access.permissions.includes(permission);
+    const fieldAccess = (field: string): FieldAccessLevel =>
+      access.isSuperadmin ? "write" : (access.fields[field] ?? "write");
+
+    return {
       isPending,
       isAuthenticated: !!session,
       user: session?.user ?? null,
-      roles,
-      hasRole: (role) => roles.includes(role),
-      hasAnyRole: (...check) => check.some((role) => roles.includes(role)),
+      roles: access.roles,
+      isSuperadmin: access.isSuperadmin,
+      caseScope: access.caseScope,
+      peopleScope: access.peopleScope,
+      scheduleScope: access.scheduleScope,
+      can,
+      canAny: (...permissions) => permissions.some(can),
+      fieldAccess,
+      canSee: (field) => fieldAccess(field) !== "hidden",
+      canEdit: (field) => fieldAccess(field) === "write",
       logout: async () => {
         await signOut();
       },
       refresh: () => void refetch(),
-    }),
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isPending, session?.user.id, session?.user.twoFactorEnabled, roles.join(",")],
-  );
+  }, [
+    isPending,
+    session?.user.id,
+    session?.user.twoFactorEnabled,
+    access.isSuperadmin,
+    access.permissions.join(","),
+    access.roles.map((r) => r.id).join(","),
+    access.caseScope,
+    access.peopleScope,
+    access.scheduleScope,
+    JSON.stringify(access.fields),
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

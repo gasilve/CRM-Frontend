@@ -8,7 +8,6 @@ import { authClient, INVITE_TOKEN_HEADER } from "@/lib/auth-client";
 import { invitationsApi, type InvitationPreview, ApiError } from "@/lib/crm-api";
 import { useAuth } from "@/contexts/AuthContext";
 
-const ROLE_LABELS: Record<string, string> = { admin: "Administrator", investigator: "Investigator" };
 
 export default function AcceptInvite() {
   const auth = useAuth();
@@ -111,7 +110,7 @@ export default function AcceptInvite() {
     }
   };
 
-  const roleList = preview.roles.map((r) => ROLE_LABELS[r] ?? r).join(", ");
+  const roleList = preview.roles.map((r) => r.name).join(", ");
 
   return (
     <AuthLayout

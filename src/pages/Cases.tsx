@@ -78,8 +78,9 @@ const daysUntil = (iso: string): number => {
 export default function Cases() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { hasRole } = useAuth();
-  const isAdmin = hasRole("admin");
+  const { can } = useAuth();
+  // The "awaiting review" tab is the case-intake inbox, not a case list.
+  const canSeeIntake = can("intake.view");
 
   const [view, setView] = useState<View>("cases");
   const [search, setSearch] = useState("");
@@ -102,14 +103,14 @@ export default function Cases() {
     const handoff = (location.state as { pendingNotice?: string } | null)?.pendingNotice;
     if (!handoff) return;
     setNotice(handoff);
-    if (isAdmin) setView("awaiting");
+    if (canSeeIntake) setView("awaiting");
     window.history.replaceState({}, "");
-  }, [location.state, isAdmin]);
+  }, [location.state, canSeeIntake]);
 
   useEffect(() => setPage(1), [view, search, dueFrom, dueTo]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canSeeIntake) return;
     let cancelled = false;
     pendingCasesApi
       .summary()
@@ -120,14 +121,14 @@ export default function Cases() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, location.key]);
+  }, [canSeeIntake, location.key]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    if (view === "awaiting" && isAdmin) {
+    if (view === "awaiting" && canSeeIntake) {
       pendingCasesApi
         .list({ status: "pending_review", search: search || undefined, page, pageSize: PER_PAGE })
         .then((res) => {
@@ -174,12 +175,12 @@ export default function Cases() {
     return () => {
       cancelled = true;
     };
-  }, [view, isAdmin, search, dueFrom, dueTo, page, location.key]);
+  }, [view, canSeeIntake, search, dueFrom, dueTo, page, location.key]);
 
   const activeTotal = view === "awaiting" ? pendingTotal : total;
   const totalPages = Math.max(1, Math.ceil(activeTotal / PER_PAGE));
   const hasDateFilter = dueFrom !== "" || dueTo !== "";
-  const showingAwaiting = view === "awaiting" && isAdmin;
+  const showingAwaiting = view === "awaiting" && canSeeIntake;
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
@@ -198,7 +199,7 @@ export default function Cases() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {isAdmin && (
+          {canSeeIntake && (
             <ViewToggleGroup>
               <ViewToggle
                 active={view === "cases"}

@@ -6,8 +6,7 @@ export type ServiceHealth = {
   message?: string;
 };
 
-export const DB_UNAVAILABLE_HINT =
-  "Database is unavailable. If you're running locally, start Postgres with: docker compose up -d auth-postgres";
+export const SERVICE_UNAVAILABLE_MESSAGE = "Service temporarily unavailable";
 
 export async function fetchServiceHealth(): Promise<ServiceHealth> {
   try {
@@ -18,17 +17,17 @@ export async function fetchServiceHealth(): Promise<ServiceHealth> {
     };
 
     if (!res.ok || !json.success) {
-      return { ok: false, db: "unknown", message: "Could not reach the API." };
+      return { ok: false, db: "unknown", message: SERVICE_UNAVAILABLE_MESSAGE };
     }
 
     const db = json.payload?.db === "connected" ? "connected" : "down";
     return {
       ok: db === "connected",
       db,
-      message: db === "connected" ? undefined : DB_UNAVAILABLE_HINT,
+      message: db === "connected" ? undefined : SERVICE_UNAVAILABLE_MESSAGE,
     };
   } catch {
-    return { ok: false, db: "unknown", message: "Could not reach the API. Is crm-api running?" };
+    return { ok: false, db: "unknown", message: SERVICE_UNAVAILABLE_MESSAGE };
   }
 }
 

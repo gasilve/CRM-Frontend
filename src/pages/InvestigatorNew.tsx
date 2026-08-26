@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Clock, Loader2, MapPin, Plus, Send } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -7,19 +7,13 @@ import { CredentialCard } from "@/components/team/CredentialCard";
 import { AddCredentialForm, fieldClass, fieldLabelClass } from "@/components/team/AddCredentialForm";
 import {
   invitationsApi,
+  rolesApi,
   ApiError,
   REGION_LABELS,
   type Certification,
   type Region,
+  type RoleDetail,
 } from "@/lib/crm-api";
-import type { Role } from "@/lib/auth-client";
-
-type InvitableRole = Extract<Role, "admin" | "investigator">;
-
-const ROLE_OPTIONS: { value: InvitableRole; label: string; hint: string }[] = [
-  { value: "investigator", label: "Investigator", hint: "Field work, case notes, evidence" },
-  { value: "admin", label: "Administrator", hint: "Full access, manage team & roles" },
-];
 
 const REGION_OPTIONS: (Region | "")[] = ["", "tristate", "ca", "texas"];
 
@@ -36,15 +30,38 @@ export default function InvestigatorNew() {
   const [homeZip, setHomeZip] = useState("");
   const [timezone, setTimezone] = useState("");
   const [region, setRegion] = useState<Region | "">("");
-  const [roles, setRoles] = useState<InvitableRole[]>(["investigator"]);
+  const [roleIds, setRoleIds] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
   const [certs, setCerts] = useState<Certification[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [allRoles, setAllRoles] = useState<RoleDetail[] | null>(null);
 
-  const toggleRole = (role: InvitableRole) =>
-    setRoles((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]));
+  useEffect(() => {
+    let cancelled = false;
+    rolesApi
+      .list()
+      .then((res) => {
+        if (cancelled) return;
+        setAllRoles(res.roles);
+        // Pre-select the lowest-privilege non-system role so the form is usable
+        // without the inviter having to reason about the whole catalog.
+        const fallback = [...res.roles].reverse().find((r) => !r.isSystem);
+        if (fallback) setRoleIds([fallback.id]);
+      })
+      .catch(() => {
+        if (!cancelled) setAllRoles([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const roleOptions = useMemo(() => allRoles ?? [], [allRoles]);
+
+  const toggleRole = (id: string) =>
+    setRoleIds((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]));
 
   const sendInvite = async () => {
     setError(null);
@@ -56,13 +73,13 @@ export default function InvestigatorNew() {
       setError("Enter a valid email address.");
       return;
     }
-    if (roles.length === 0) {
+    if (roleIds.length === 0) {
       setError("Select at least one role.");
       return;
     }
     setSubmitting(true);
     try {
-      const result = await invitationsApi.create(email.trim(), roles, {
+      const result = await invitationsApi.create(email.trim(), roleIds, {
         fullName: fullName.trim(),
         dob: dob || null,
         phone: phone.trim() || null,
@@ -211,11 +228,19 @@ export default function InvestigatorNew() {
                 <div>
                   <span className={fieldLabelClass}>Roles</span>
                   <div className="flex flex-col gap-2">
-                    {ROLE_OPTIONS.map((opt) => {
-                      const checked = roles.includes(opt.value);
+                    {allRoles === null && (
+                      <span className="font-mono text-[0.6875rem] text-[var(--color-text-lo)]">Loading roles…</span>
+                    )}
+                    {allRoles?.length === 0 && (
+                      <span className="font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
+                        No roles are available to assign.
+                      </span>
+                    )}
+                    {roleOptions.map((opt) => {
+                      const checked = roleIds.includes(opt.id);
                       return (
                         <label
-                          key={opt.value}
+                          key={opt.id}
                           className={cn(
                             "flex cursor-pointer items-start gap-3 rounded-[0.625rem] border px-3.5 py-2.5 transition-colors",
                             checked
@@ -226,12 +251,14 @@ export default function InvestigatorNew() {
                           <input
                             type="checkbox"
                             checked={checked}
-                            onChange={() => toggleRole(opt.value)}
+                            onChange={() => toggleRole(opt.id)}
                             className="mt-0.5 accent-[var(--color-accent)]"
                           />
                           <span>
-                            <span className="block text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{opt.label}</span>
-                            <span className="block text-[0.71875rem] text-[var(--color-text-mid)]">{opt.hint}</span>
+                            <span className="block text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{opt.name}</span>
+                            {opt.description && (
+                              <span className="block text-[0.71875rem] text-[var(--color-text-mid)]">{opt.description}</span>
+                            )}
                           </span>
                         </label>
                       );

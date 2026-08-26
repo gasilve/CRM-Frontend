@@ -26,6 +26,36 @@
   width: 100%;
 }
 
+/* Case detail carousel — fixed one-screen page height, all pages mounted
+   side-by-side in a track that slides (tab click, or holding a dragged
+   widget at the edge).
+   The slide MUST animate `left`, not `transform`: GridStack drags an item by
+   giving it `position: fixed`, and a transformed ancestor would become its
+   containing block — the dragged widget would slide away with the page
+   instead of staying under the cursor. */
+.case-detail-grid-shell {
+  overflow: hidden;
+}
+.case-detail-track {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  transition: left 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.case-detail-track-page {
+  height: 100%;
+}
+.case-detail-grid-shell .edge-hint {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.case-detail-grid-shell[data-edge="prev"] .edge-hint-prev,
+.case-detail-grid-shell[data-edge="next"] .edge-hint-next {
+  opacity: 1;
+}
+
 /* Move: drag from anywhere inside the card */
 .dashboard-edit .widget-body {
   cursor: grab;

@@ -9,12 +9,17 @@ import { CaseSubjectHeader } from "@/components/case/CaseSubjectHeader";
 import type { Subject } from "@/lib/mock-data";
 import {
   CASE_DEFAULT_LAYOUT,
+  CASE_DEFAULT_PAGES,
   CASE_LEGACY_LS_KEY,
+  CASE_PAGE_ROWS,
+  createCasePage,
+  normalizeCaseDocument,
   normalizeCaseLayout,
   type CaseLayoutItem,
   type CasePanelCtx,
 } from "./case-detail-widgets";
 import { CaseDetailGrid, type CaseDetailGridHandle } from "./CaseDetailGrid";
+import { CaseDetailPageNav } from "./CaseDetailPageNav";
 import { CaseJournalFolder } from "./case-detail-panels";
 
 const STATUS_CONFIG: Record<CaseStatus, { label: string; dot: string; pill: string; text: string }> = {
@@ -26,22 +31,99 @@ const STATUS_CONFIG: Record<CaseStatus, { label: string; dot: string; pill: stri
 export default function CaseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, hasRole } = useAuth();
-  const isAdmin = hasRole("admin");
+  const { user, can, canSee, canEdit, isSuperadmin, isPending: authPending } = useAuth();
+  const canEditCase = can("cases.edit");
+  const canEditLayout = !authPending && isSuperadmin;
 
   const [kase, setKase] = useState<CaseDetailType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [investigatorOptions, setInvestigatorOptions] = useState<{ id: string; name: string }[]>([]);
+  const [activePageId, setActivePageId] = useState<string>(CASE_DEFAULT_PAGES[0].id);
+  /** Bumped when the layout changes outside of the grids themselves (page delete). */
+  const [gridToken, setGridToken] = useState(0);
 
-  // Layout is per user, not per case — every case detail shares one arrangement.
-  const { layout, persist: persistLayout, revision: layoutRevision } = useGridLayout<CaseLayoutItem>({
+  const {
+    layout,
+    pages,
+    persist: persistLayout,
+    revision: layoutRevision,
+  } = useGridLayout<CaseLayoutItem>({
     surface: "case-detail",
     defaultLayout: CASE_DEFAULT_LAYOUT,
     normalize: normalizeCaseLayout,
+    normalizeDocument: (items, savedPages) => normalizeCaseDocument(items, savedPages),
+    defaultPages: CASE_DEFAULT_PAGES,
     legacyStorageKey: CASE_LEGACY_LS_KEY,
+    editable: canEditLayout,
   });
   const gridHandleRef = useRef<CaseDetailGridHandle | null>(null);
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
+  const pagesRef = useRef(pages);
+  pagesRef.current = pages;
+
+  const resolvedPages = pages ?? CASE_DEFAULT_PAGES;
+
+  useEffect(() => {
+    if (!pages?.length) return;
+    if (!pages.some((p) => p.id === activePageId)) {
+      setActivePageId(pages[0].id);
+    }
+  }, [pages, activePageId]);
+
+  const persistAllItems = useCallback(
+    (items: CaseLayoutItem[]) => {
+      persistLayout(items, pagesRef.current ?? undefined);
+    },
+    [persistLayout],
+  );
+
+  const renamePage = useCallback(
+    (pageId: string, name: string) => {
+      const current = pagesRef.current ?? CASE_DEFAULT_PAGES;
+      const next = current.map((p) => (p.id === pageId ? { ...p, name } : p));
+      persistLayout(layoutRef.current ?? CASE_DEFAULT_LAYOUT, next);
+    },
+    [persistLayout],
+  );
+
+  const addPage = useCallback(() => {
+    const current = pagesRef.current ?? CASE_DEFAULT_PAGES;
+    const page = createCasePage(`Page ${current.length + 1}`);
+    const next = [...current, page];
+    persistLayout(layoutRef.current ?? CASE_DEFAULT_LAYOUT, next);
+    setActivePageId(page.id);
+  }, [persistLayout]);
+
+  const deletePage = useCallback((pageId: string) => {
+    const current = pagesRef.current ?? CASE_DEFAULT_PAGES;
+    if (current.length <= 1) return;
+    const next = current.filter((p) => p.id !== pageId);
+
+    // Rehome the deleted page's widgets onto whichever remaining page still
+    // has room at the bottom, so nothing is squeezed past the row cap.
+    const all = layoutRef.current ?? CASE_DEFAULT_LAYOUT;
+    const bottoms = new Map(
+      next.map((p) => [
+        p.id,
+        all.filter((i) => i.pageId === p.id).reduce((m, i) => Math.max(m, i.y + i.h), 0),
+      ]),
+    );
+    const items = all.map((item) => {
+      if (item.pageId !== pageId) return item;
+      const host =
+        next.find((p) => (bottoms.get(p.id) ?? 0) + item.h <= CASE_PAGE_ROWS) ?? next[0];
+      const y = bottoms.get(host.id) ?? 0;
+      bottoms.set(host.id, y + item.h);
+      return { ...item, pageId: host.id, y };
+    });
+
+    persistLayout(items, next);
+    setActivePageId((cur) => (cur === pageId ? next[0].id : cur));
+    // Live grids own their own state, so a data-only move needs a rebuild.
+    setGridToken((t) => t + 1);
+  }, [persistLayout]);
 
   const load = useCallback(() => {
     if (!id) return;
@@ -106,10 +188,15 @@ export default function CaseDetail() {
 
   const panelCtx: CasePanelCtx = {
     case: kase,
-    isAdmin,
     currentUserId: user?.id ?? "",
     investigatorOptions,
     onRefresh: load,
+    canEdit: canEditCase,
+    canAssign: can("cases.assign"),
+    canPostJournal: can("cases.journal.write"),
+    canModerateJournal: can("cases.journal.moderate"),
+    canSee,
+    canEditField: (field) => canEditCase && canEdit(field),
   };
 
   return (
@@ -130,7 +217,7 @@ export default function CaseDetail() {
               <ArrowLeft size={13} strokeWidth={1.8} />
               Cases
             </button>
-            {isAdmin && (
+            {can("schedule.manage") && (
               <button
                 type="button"
                 onClick={() => navigate(`/schedule?case=${kase.id}`)}
@@ -152,15 +239,30 @@ export default function CaseDetail() {
       />
 
       {layout ? (
-        <CaseDetailGrid
-          layout={layout}
-          mountKey={`${kase.id}:${layoutRevision}`}
-          ctx={panelCtx}
-          gridRef={gridHandleRef}
-          onLayoutPersist={persistLayout}
-        />
+        <>
+          <CaseDetailPageNav
+            pages={resolvedPages}
+            activePageId={activePageId}
+            editable={canEditLayout}
+            onSelect={setActivePageId}
+            onRename={renamePage}
+            onAddPage={canEditLayout ? addPage : undefined}
+            onDeletePage={canEditLayout ? deletePage : undefined}
+          />
+          <CaseDetailGrid
+            pages={resolvedPages}
+            activePageId={activePageId}
+            onActivePageChange={setActivePageId}
+            layout={layout}
+            mountKey={`${kase.id}:${layoutRevision}:${gridToken}:${canEditLayout ? "edit" : "view"}`}
+            ctx={panelCtx}
+            gridRef={gridHandleRef}
+            onLayoutPersist={persistAllItems}
+            editable={canEditLayout}
+          />
+        </>
       ) : (
-        <PanelLoader message="Loading your layout" />
+        <PanelLoader message="Loading layout" />
       )}
 
       <div className="mt-8">
