@@ -1,4 +1,10 @@
 /* â”€â”€ Atmospheric background / surveillance stack â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Root fallback — AppShell keeps this in sync with the sidebar's collapsed
+   state via JS. Defined at :root (not `.surveil-shell`) so elements portaled
+   straight onto `document.body` (action bar, page arrows) can read it too. */
+:root {
+  --app-sidebar-w: 16rem;
+}
 .surveil-shell {
   isolation: isolate;
 }

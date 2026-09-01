@@ -242,11 +242,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only seed
   }, []);
 
+  const themeMeta = THEMES.find((t) => t.id === themeId) ?? THEMES[0];
+
   // Keep vars on <html> during render so the first painted frame already has blur
   // (boot script covers pre-JS; this covers React mount without waiting an effect).
   if (typeof document !== "undefined") {
     document.documentElement.setAttribute("data-theme", themeId);
     document.documentElement.setAttribute("data-glass", glass ? "true" : "false");
+    document.documentElement.style.setProperty("--boot-bg", themeMeta.bg);
+    document.documentElement.style.setProperty("--boot-accent", themeMeta.accent);
     applyGlassOpacityCss(glassOpacity);
     applyGlassBlurCss(glassBlur);
   }
@@ -283,8 +287,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
   }, [glassBlur]);
-
-  const themeMeta = THEMES.find((t) => t.id === themeId) ?? THEMES[0];
 
   return (
     <ThemeContext.Provider

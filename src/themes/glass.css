@@ -329,6 +329,13 @@ html[data-glass="true"] .widget-frame .surface {
   backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate)) !important;
 }
 
+/* Case page widgets — inset shine only; no outer drop shadow on the grid */
+html[data-glass="true"] .case-detail-page .surface {
+  box-shadow:
+    inset 0 0.0625rem 0 var(--glass-shine),
+    inset 0 -0.0625rem 0 rgb(from var(--color-accent) r g b / 0.12) !important;
+}
+
 /* ── Floating sidebar ── */
 html[data-glass="true"] .app-sidebar {
   align-self: stretch;

@@ -29,6 +29,44 @@
           theme && valid.indexOf(theme) !== -1 ? theme : "light-10"
         );
 
+        var palettes = {
+          "dark-5": ["#0a0a0a", "#00adef"],
+          "dark-1": ["#0d1220", "#4a7fff"],
+          "dark-3": ["#091614", "#2dd4bf"],
+          "dark-4": ["#1c1409", "#f59e0b"],
+          "dark-2": ["#16111d", "#a78bfa"],
+          "dark-6": ["#121212", "#d40000"],
+          "dark-16": ["#080a13", "#2b7bff"],
+          "dark-8": ["#0a0a0a", "#d4af37"],
+          "dark-9": ["#0c0617", "#00e5ff"],
+          "dark-10": ["#060915", "#5b7cff"],
+          "dark-11": ["#0a0a0a", "#d40000"],
+          "dark-7": ["#07110f", "#10b981"],
+          "dark-13": ["#050505", "#f8f8f8"],
+          "dark-14": ["#090a0e", "#3bc7ff"],
+          "dark-15": ["#05070d", "#8ea2ff"],
+          "dark-12": ["#0a0a0a", "#ff7a00"],
+          "dark-17": ["#050906", "#7fff00"],
+          "dark-18": ["#010101", "#f3f4f6"],
+          "dark-19": ["#010006", "#b45cff"],
+          "dark-20": ["#06080f", "#6b7280"],
+          "light-10": ["#f3f6ff", "#4864f2"],
+          "light-2": ["#faf7f2", "#6366f1"],
+          "light-3": ["#f6fbfa", "#0d9488"],
+          "light-4": ["#fdf9ff", "#7c3aed"],
+          "light-5": ["#f3ede4", "#d97706"],
+          "light-6": ["#fff3f5", "#ff355e"],
+          "light-7": ["#effcf7", "#10b981"],
+          "light-8": ["#f9f9f7", "#b8921f"],
+          "light-9": ["#f6f2ff", "#00b8ff"],
+          "light-1": ["#f0f4ff", "#3b6ff5"]
+        };
+        var activeTheme = theme && valid.indexOf(theme) !== -1 ? theme : "light-10";
+        var pal = palettes[activeTheme] || palettes["light-10"];
+        root.style.setProperty("--boot-bg", pal[0]);
+        root.style.setProperty("--boot-accent", pal[1]);
+        root.style.backgroundColor = pal[0];
+
         var glassOn = glass === "1" || glass === "true";
         root.setAttribute("data-glass", glassOn ? "true" : "false");
 
@@ -78,10 +116,7 @@
       body {
         margin: 0;
         min-height: 100%;
-        background: #04060c;
-      }
-      html[data-theme^="light"] body {
-        background: #eef1f7;
+        background: var(--boot-bg, #04060c);
       }
     </style>
   </head>
