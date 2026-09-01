@@ -27,6 +27,11 @@ export type DashboardGridHandle = {
   getGrid: () => GridStack | null;
   getEl: () => HTMLDivElement | null;
   releaseWidgetRoot: (id: WidgetId) => void;
+  /** Dock drag in flight — show where it would land if Gridstack isn't already. */
+  previewDockDrop: (id: WidgetId, clientX: number, clientY: number) => void;
+  clearDockPreview: () => void;
+  /** Place a dock widget ourselves. No-op when Gridstack already handled the drop. */
+  dropDockWidget: (id: WidgetId, clientX: number, clientY: number) => boolean;
 };
 
 type Props = {
@@ -125,6 +130,9 @@ function DashboardGridInner({
   const hostRef = useRef<HTMLDivElement>(null);
   const gridInstanceRef = useRef<GridStack | null>(null);
   const initSettledRef = useRef(false);
+  const previewDockRef = useRef<DashboardGridHandle["previewDockDrop"] | null>(null);
+  const clearPreviewRef = useRef<DashboardGridHandle["clearDockPreview"] | null>(null);
+  const dropDockRef = useRef<DashboardGridHandle["dropDockWidget"] | null>(null);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
   const onLayoutPersistRef = useRef(onLayoutPersist);
@@ -141,6 +149,9 @@ function DashboardGridInner({
       getGrid: () => gridInstanceRef.current,
       getEl: () => hostRef.current,
       releaseWidgetRoot,
+      previewDockDrop: (id, x, y) => previewDockRef.current?.(id, x, y),
+      clearDockPreview: () => clearPreviewRef.current?.(),
+      dropDockWidget: (id, x, y) => dropDockRef.current?.(id, x, y) ?? false,
     };
     return () => {
       gridRef.current = null;
@@ -180,7 +191,11 @@ function DashboardGridInner({
       margin: designPx(GRID_MARGIN),
       float: true,
       animate: false,
-      acceptWidgets: ".dock-carousel-item",
+      // Dock cards are NOT .grid-stack-item, so `true` would reject them.
+      // Accept both dock cards and real items.
+      acceptWidgets: (el: Element) =>
+        el.classList.contains("dock-carousel-item") ||
+        el.classList.contains("grid-stack-item"),
       disableResize: false,
       disableDrag: false,
       draggable: { handle: ".widget-body", appendTo: "body" },
@@ -365,20 +380,141 @@ function DashboardGridInner({
       });
     };
 
-    const isDockDrop = (node: GridStackNode) =>
-      node.el?.classList.contains("dock-carousel-item") ||
-      !!(node as GridStackNode & { _isExternal?: boolean })._isExternal;
+    /**
+     * Manual dock placement.
+     *
+     * Gridstack's own external-drop path (droppable `mouseenter` → placeholder →
+     * `dropped`) is fragile on this surface: when it doesn't engage there is no
+     * preview and the card silently springs back. These two helpers drive the
+     * same result from the pointer alone, and stand down whenever Gridstack is
+     * handling the drag itself (i.e. it has inserted its placeholder).
+     */
+    const dockTargetFor = (id: WidgetId, clientX: number, clientY: number) => {
+      const def = WIDGETS[id];
+      if (!def) return null;
+      const rect = hostEl.getBoundingClientRect();
+      if (
+        clientX < rect.left ||
+        clientX > rect.right ||
+        clientY < rect.top ||
+        clientY > rect.bottom
+      ) {
+        return null;
+      }
+      const { w, h } = widgetFootprint(def);
+      const cellW = rect.width / COLUMNS;
+      const cellH = designPx(CELL_HEIGHT);
+      const x = Math.max(
+        0,
+        Math.min(COLUMNS - w, Math.round((clientX - rect.left - (w * cellW) / 2) / cellW)),
+      );
+      const existing = nodesToLayout(grid.save(false) as GridStackNode[]);
+      const y = clampY(existing, Math.max(0, Math.round((clientY - rect.top - (h * cellH) / 2) / cellH)));
+      return { def, x, y, w, h, cellW, cellH };
+    };
+
+    let previewEl: HTMLElement | null = null;
+
+    const clearDockPreview = () => {
+      previewEl?.remove();
+      previewEl = null;
+    };
+
+    const gridIsHandlingDrag = () => !!hostEl.querySelector(".grid-stack-placeholder");
+
+    const previewDockDrop = (id: WidgetId, clientX: number, clientY: number) => {
+      if (gridIsHandlingDrag()) {
+        clearDockPreview();
+        return;
+      }
+      const target = dockTargetFor(id, clientX, clientY);
+      if (!target) {
+        clearDockPreview();
+        return;
+      }
+      if (!previewEl) {
+        previewEl = document.createElement("div");
+        previewEl.className = "dashboard-drop-preview";
+        hostEl.appendChild(previewEl);
+      }
+      // Inset by the grid margin so the outline lines up with real widgets.
+      const m = designPx(GRID_MARGIN);
+      previewEl.style.left = `${target.x * target.cellW + m}px`;
+      previewEl.style.top = `${target.y * target.cellH + m}px`;
+      previewEl.style.width = `${Math.max(0, target.w * target.cellW - m * 2)}px`;
+      previewEl.style.height = `${Math.max(0, target.h * target.cellH - m * 2)}px`;
+    };
+
+    const dropDockWidget = (id: WidgetId, clientX: number, clientY: number) => {
+      clearDockPreview();
+      if (layoutRef.current.some((item) => item.id === id)) return false;
+      if ((grid.save(false) as GridStackNode[]).some((n) => n.id === id)) return false;
+      const target = dockTargetFor(id, clientX, clientY);
+      if (!target) return false;
+
+      replacingDockDrop = true;
+      try {
+        grid.addWidget({
+          id,
+          x: target.x,
+          y: target.y,
+          w: target.w,
+          h: target.h,
+          minW: target.def.minW,
+          minH: target.def.minH,
+        });
+        applyMaxRow(nodesToLayout(grid.save(false) as GridStackNode[]));
+      } finally {
+        replacingDockDrop = false;
+      }
+      placedDockIds.add(id);
+
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        onAfterDropRef.current?.();
+        syncLayout();
+      });
+      return true;
+    };
+
+    previewDockRef.current = previewDockDrop;
+    clearPreviewRef.current = clearDockPreview;
+    dropDockRef.current = dropDockWidget;
+
+    const nodeId = (node: GridStackNode): string | undefined => {
+      const raw = node.id ?? node.el?.getAttribute("gs-id");
+      return typeof raw === "string" && raw.length > 0 ? raw : undefined;
+    };
+
+  /** GridStack clears `_isExternal` before `dropped`, so also treat unknown ids as dock drops. */
+    const isDockDrop = (node: GridStackNode) => {
+      if (node.el?.classList.contains("dock-carousel-item")) return true;
+      if ((node as GridStackNode & { _isExternal?: boolean })._isExternal) return true;
+      const id = nodeId(node) as WidgetId | undefined;
+      if (!id || !WIDGETS[id]) return false;
+      return !layoutRef.current.some((item) => item.id === id);
+    };
 
     const onDropped = (
       _e: Event,
       _prev: GridStackNode | undefined,
       newNode: GridStackNode,
     ) => {
-      if (isDockDrop(newNode)) {
+      if (newNode && isDockDrop(newNode)) {
         replaceDockDropWithWidget(newNode);
         return;
       }
       syncLayout();
+    };
+
+    const onAdded = (_e: Event, nodes?: GridStackNode[]) => {
+      if (replacingDockDrop || !initSettledRef.current) return;
+      for (const node of nodes ?? []) {
+        if (isDockDrop(node)) {
+          replaceDockDropWithWidget(node);
+          return;
+        }
+      }
     };
 
     const onDragStart = (_e: Event, el: HTMLElement) => {
@@ -428,6 +564,7 @@ function DashboardGridInner({
 
     grid.on("dropped", onDropped);
     grid.on("removed", onRemoved);
+    grid.on("added", onAdded);
     grid.on("dragstart", onDragStart);
     grid.on("drag", onDrag);
     grid.on("dragstop", onDragStop);
@@ -437,6 +574,10 @@ function DashboardGridInner({
     return () => {
       cancelled = true;
       initSettledRef.current = false;
+      clearDockPreview();
+      previewDockRef.current = null;
+      clearPreviewRef.current = null;
+      dropDockRef.current = null;
       window.removeEventListener("resize", syncCellMetrics);
       document.body.classList.remove("dashboard-widget-dragging");
       document.removeEventListener("contextmenu", onCancelDragPointer, true);
@@ -444,6 +585,7 @@ function DashboardGridInner({
       try {
         grid.off("dropped");
         grid.off("removed");
+        grid.off("added");
         grid.off("dragstart");
         grid.off("drag");
         grid.off("dragstop");
@@ -454,7 +596,9 @@ function DashboardGridInner({
       gridInstanceRef.current = null;
       hostEl.innerHTML = "";
       unmountAllWidgetRoots();
-      delete GridStack.renderCB;
+      // GridStack.renderCB is global — left in place on purpose. The next grid
+      // surface to mount overwrites it; deleting here can race a sibling
+      // surface's mount and leave its dock-dropped widgets rendered empty.
     };
   }, [mountKey]);
 

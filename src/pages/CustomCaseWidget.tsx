@@ -1,0 +1,561 @@
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { ChevronDown, GripVertical, Lock, Pencil, Puzzle, X } from "lucide-react";
+import { cn } from "@/lib/cn";
+import { caseFieldEntry, caseFieldGroups } from "./case-field-catalog";
+import { CUSTOM_WIDGET_MAX_FIELDS, normalizeWidgetColumns, type CasePanelCtx, type CustomCaseWidgetDef, type CustomWidgetColumns } from "./case-detail-widgets";
+import { Field, PanelShell } from "./case-detail-panels";
+
+// ─── Layout preview icons (builder display picker) ───────────────────────────
+
+function LayoutIconList({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 28 18" fill="none" className={cn("h-[1.125rem] w-7", className)} aria-hidden>
+      <rect x="2" y="2" width="24" height="3" rx="1" fill="currentColor" />
+      <rect x="2" y="7.5" width="24" height="3" rx="1" fill="currentColor" />
+      <rect x="2" y="13" width="24" height="3" rx="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function LayoutIconGrid({ cols, className }: { cols: 2 | 3; className?: string }) {
+  const rows = 2;
+  const gap = 2;
+  const pad = 2;
+  const totalW = 28;
+  const totalH = 18;
+  const cellW = (totalW - pad * 2 - gap * (cols - 1)) / cols;
+  const cellH = (totalH - pad * 2 - gap * (rows - 1)) / rows;
+  const cells = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      cells.push(
+        <rect
+          key={`${r}-${c}`}
+          x={pad + c * (cellW + gap)}
+          y={pad + r * (cellH + gap)}
+          width={cellW}
+          height={cellH}
+          rx="0.75"
+          fill="currentColor"
+        />,
+      );
+    }
+  }
+  return (
+    <svg viewBox={`0 0 ${totalW} ${totalH}`} fill="none" className={cn("h-[1.125rem] w-7", className)} aria-hidden>
+      {cells}
+    </svg>
+  );
+}
+
+function customWidgetFieldLayoutClass(columns: CustomWidgetColumns): string {
+  if (columns === 2) return "grid grid-cols-2 gap-x-4 gap-y-2.5";
+  if (columns === 3) return "grid grid-cols-3 gap-x-4 gap-y-2.5";
+  return "space-y-2.5";
+}
+
+// ─── Renderer (lives inside a grid item) ─────────────────────────────────────
+
+export function CustomCaseWidget({ ctx, id }: { ctx: CasePanelCtx; id: string }) {
+  const def = ctx.getCustomWidget(id);
+
+  const action = ctx.onEditCustomWidget ? (
+    <div className="flex items-center gap-1.5">
+      {def && !def.persisted && (
+        <span
+          className="rounded-full bg-[var(--color-ink-3)] px-1.5 py-0.5 font-mono text-[0.5rem] uppercase tracking-wider text-[var(--color-text-lo)]"
+          title="Draft — removing this widget deletes it. Drag it onto the bookmark to keep it for reuse."
+        >
+          draft
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => ctx.onEditCustomWidget?.(id)}
+        className="text-[var(--color-text-lo)] transition-colors hover:text-[var(--color-accent-2)]"
+        title="Edit widget"
+      >
+        <Pencil size={12} strokeWidth={1.8} />
+      </button>
+    </div>
+  ) : undefined;
+
+  if (!def) {
+    return (
+      <PanelShell title="Widget" icon={<Puzzle size={11} strokeWidth={1.8} />} action={action}>
+        <div className="grid h-full place-items-center font-mono text-[0.65625rem] text-[var(--color-text-lo)]">
+          This widget was deleted.
+        </div>
+      </PanelShell>
+    );
+  }
+
+  return (
+    <PanelShell title={def.title} icon={<Puzzle size={11} strokeWidth={1.8} />} action={action}>
+      {def.fields.length === 0 ? (
+        <div className="grid h-full place-items-center gap-1 text-center">
+          <span className="font-mono text-[0.65625rem] text-[var(--color-text-lo)]">
+            Empty widget
+            {ctx.onEditCustomWidget ? " — use the pencil to add fields." : "."}
+          </span>
+        </div>
+      ) : (
+        <div className={customWidgetFieldLayoutClass(normalizeWidgetColumns(def.columns))}>
+          {def.fields.map((f, i) => {
+            const entry = caseFieldEntry(f.key);
+            if (!entry) return null;
+            if (entry.rbacField && !ctx.canSee(entry.rbacField)) {
+              return (
+                <div key={`${f.key}-${i}`}>
+                  <div className="mb-0.5 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+                    {f.label}
+                  </div>
+                  <div
+                    className="inline-flex items-center gap-1 font-mono text-[0.71875rem] text-[var(--color-text-lo)]"
+                    title="Hidden by your role's privacy settings"
+                  >
+                    <Lock size={9} strokeWidth={2} />
+                    Restricted
+                  </div>
+                </div>
+              );
+            }
+            return <Field key={`${f.key}-${i}`} label={f.label} value={entry.resolve(ctx.case)} mono={false} />;
+          })}
+        </div>
+      )}
+    </PanelShell>
+  );
+}
+
+// ─── Builder modal (SuperAdmin only, rendered at page level) ─────────────────
+
+/** Stable row id for dnd-kit — survives reorders without remounting / bounce-back. */
+type BuilderFieldRow = { dragId: string; key: string; label: string };
+
+function newBuilderFieldRow(key: string, label: string): BuilderFieldRow {
+  return { dragId: crypto.randomUUID(), key, label };
+}
+
+function toPersistedFields(rows: BuilderFieldRow[]): { key: string; label: string }[] {
+  return rows.map(({ key, label }) => ({ key, label }));
+}
+
+function BuilderSelect({
+  className,
+  children,
+  ...props
+}: ComponentProps<"select">) {
+  return (
+    <div className="relative min-w-0">
+      <select {...props} className={cn("widget-builder-select", className)}>
+        {children}
+      </select>
+      <ChevronDown
+        size={13}
+        strokeWidth={2.5}
+        className="widget-builder-select-chevron"
+        aria-hidden
+      />
+    </div>
+  );
+}
+
+type SortableFieldRowProps = {
+  id: string;
+  label: string;
+  fieldKey: string;
+  inputCls: string;
+  valueOptions: ReactNode;
+  onLabelChange: (value: string) => void;
+  onKeyChange: (value: string) => void;
+  onRemove: () => void;
+};
+
+function SortableFieldRow({
+  id,
+  label,
+  fieldKey,
+  inputCls,
+  valueOptions,
+  onLabelChange,
+  onKeyChange,
+  onRemove,
+}: SortableFieldRowProps) {
+  const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
+    id,
+    animateLayoutChanges: () => false,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition: isDragging ? transition : undefined,
+      }}
+      className={cn("widget-builder-field-row", isDragging && "widget-builder-field-row--dragging")}
+    >
+      <div className="widget-builder-field-row__aside widget-builder-field-row__aside--start grid place-items-center">
+        <button
+          type="button"
+          className="widget-builder-field-row__drag"
+          aria-label="Drag to reorder"
+          title="Drag to reorder"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={14} strokeWidth={2} />
+        </button>
+      </div>
+      <div className="widget-builder-field-row__main">
+        <input
+          value={label}
+          maxLength={80}
+          onChange={(e) => onLabelChange(e.target.value)}
+          className={inputCls}
+          placeholder="Field name"
+        />
+        <BuilderSelect value={fieldKey} onChange={(e) => onKeyChange(e.target.value)} className={inputCls}>
+          {valueOptions}
+        </BuilderSelect>
+      </div>
+      <div className="widget-builder-field-row__aside widget-builder-field-row__aside--end grid place-items-center">
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-[var(--color-text-lo)] hover:text-[var(--color-neg)]"
+          title="Remove field"
+        >
+          <X size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+type BuilderProps = {
+  open: boolean;
+  def: CustomCaseWidgetDef | null;
+  /** RBAC visibility for the signed-in admin — hides catalog entries they cannot see. */
+  canSee: (field: string) => boolean;
+  /** Saves to the board on every edit — the builder never holds unsaved state. */
+  onChange: (def: CustomCaseWidgetDef) => void;
+  onClose: () => void;
+};
+
+export function CustomWidgetBuilderModal({ open, def, canSee, onChange, onClose }: BuilderProps) {
+  const [title, setTitle] = useState("");
+  const [fields, setFields] = useState<BuilderFieldRow[]>([]);
+  const [columns, setColumns] = useState<CustomWidgetColumns>(1);
+  const [persisted, setPersisted] = useState(false);
+  /** The next, not-yet-committed row — becomes a real field once both sides are filled. */
+  const [draftLabel, setDraftLabel] = useState("");
+  const [draftKey, setDraftKey] = useState("");
+
+  // Snapshot the widget as it was when this editing session began, so
+  // "Cancel changes" can undo every auto-saved edit made since — not just
+  // reset the form to whatever the board currently holds.
+  const sessionIdRef = useRef<string | null>(null);
+  const initialDefRef = useRef<CustomCaseWidgetDef | null>(null);
+
+  useEffect(() => {
+    if (!open || !def) {
+      sessionIdRef.current = null;
+      return;
+    }
+    if (sessionIdRef.current === def.id) return;
+    sessionIdRef.current = def.id;
+    initialDefRef.current = def;
+    setTitle(def.title);
+    setFields(def.fields.filter((f) => caseFieldEntry(f.key)).map((f) => newBuilderFieldRow(f.key, f.label)));
+    setColumns(normalizeWidgetColumns(def.columns));
+    setPersisted(def.persisted === true);
+    setDraftLabel("");
+    setDraftKey("");
+  }, [open, def]);
+
+  /** Pushes the current draft to the board immediately — no explicit save needed. */
+  const emitChange = (
+    nextTitle: string,
+    nextFields: BuilderFieldRow[],
+    nextColumns: CustomWidgetColumns = columns,
+  ) => {
+    if (!def) return;
+    onChange({
+      id: def.id,
+      type: "custom",
+      title: nextTitle.length > 0 ? nextTitle : "Widget",
+      fields: toPersistedFields(nextFields),
+      columns: nextColumns,
+      persisted,
+    });
+  };
+
+  const setColumnsAndEmit = (nextColumns: CustomWidgetColumns) => {
+    setColumns(nextColumns);
+    emitChange(title, fields, nextColumns);
+  };
+
+  const groups = useMemo(
+    () =>
+      caseFieldGroups()
+        .map(({ group, fields: entries }) => ({
+          group,
+          fields: entries.filter((e) => !e.rbacField || canSee(e.rbacField)),
+        }))
+        .filter((g) => g.fields.length > 0),
+    [canSee],
+  );
+
+  const fieldSortIds = useMemo(() => fields.map((f) => f.dragId), [fields]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const onFieldDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = fieldSortIds.indexOf(String(active.id));
+    const newIndex = fieldSortIds.indexOf(String(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
+    const next = arrayMove(fields, oldIndex, newIndex);
+    setFields(next);
+    emitChange(title, next);
+  };
+
+  const cancelChanges = () => {
+    if (initialDefRef.current) onChange(initialDefRef.current);
+    onClose();
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") cancelChanges();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  if (!open || !def) return null;
+
+  const updateField = (index: number, patch: Partial<{ key: string; label: string }>) => {
+    const next = fields.map((f, i) => (i === index ? { ...f, ...patch } : f));
+    setFields(next);
+    emitChange(title, next);
+  };
+
+  const removeField = (index: number) => {
+    const next = fields.filter((_, i) => i !== index);
+    setFields(next);
+    emitChange(title, next);
+  };
+
+  /** Commits the draft row into `fields` once both sides are filled, then clears it. */
+  const commitDraftIfReady = (label: string, key: string) => {
+    if (!label.trim() || !key || !caseFieldEntry(key)) return;
+    const next = [...fields, newBuilderFieldRow(key, label.trim().slice(0, 80))];
+    setFields(next);
+    emitChange(title, next);
+    setDraftLabel("");
+    setDraftKey("");
+  };
+
+  const onDraftLabelChange = (v: string) => {
+    setDraftLabel(v);
+    commitDraftIfReady(v, draftKey);
+  };
+
+  const onDraftKeyChange = (v: string) => {
+    setDraftKey(v);
+    commitDraftIfReady(draftLabel, v);
+  };
+
+  const saveAndClose = () => {
+    emitChange(title, fields);
+    onClose();
+  };
+
+  const inputCls =
+    "rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2.5 py-1.5 text-[0.78125rem] text-[var(--color-text-hi)] focus:outline-none focus:border-[var(--color-accent-soft)]";
+
+  const valueOptions = (
+    <>
+      <option value="">Select data…</option>
+      {groups.map(({ group, fields: entries }) => (
+        <optgroup key={group} label={group}>
+          {entries.map((e) => (
+            <option key={e.key} value={e.key}>
+              {e.label}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </>
+  );
+
+  return createPortal(
+    // Backdrop is intentionally inert — this modal only closes via the footer
+    // buttons (or Escape), never an accidental click outside it.
+    <div className="dashboard-modal-backdrop">
+      <div className="dashboard-modal dashboard-modal--builder surface flex flex-col gap-5 rounded-[0.875rem]">
+        <div className="flex shrink-0 items-center justify-between">
+          <h2 className="dashboard-modal__title">Custom widget</h2>
+          <button
+            type="button"
+            onClick={cancelChanges}
+            className="grid h-8 w-8 place-items-center rounded-full text-[var(--color-text-lo)] transition-colors hover:bg-[var(--color-ink-3)] hover:text-[var(--color-text-hi)]"
+            aria-label="Close"
+          >
+            <X size={18} strokeWidth={1.8} />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1.5">
+            <span className="font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+              Widget title
+            </span>
+            <input
+              autoFocus
+              value={title}
+              onChange={(e) => {
+                const v = e.target.value;
+                setTitle(v);
+                emitChange(v, fields);
+              }}
+              maxLength={80}
+              placeholder="e.g. Quick facts"
+              className={inputCls}
+            />
+          </label>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+              Display
+            </span>
+            <div className="widget-builder-layout-picker flex overflow-hidden rounded-[0.5rem] border border-[var(--color-line-2)]">
+              {(
+                [
+                  { value: 1 as const, label: "List", icon: <LayoutIconList /> },
+                  { value: 2 as const, label: "2 columns", icon: <LayoutIconGrid cols={2} /> },
+                  { value: 3 as const, label: "3 columns", icon: <LayoutIconGrid cols={3} /> },
+                ] as const
+              ).map(({ value, label, icon }, index) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setColumnsAndEmit(value)}
+                  aria-pressed={columns === value}
+                  aria-label={label}
+                  title={label}
+                  className={cn(
+                    "anim-toggle tap grid h-10 flex-1 place-items-center",
+                    index > 0 && "border-l border-[var(--color-line-2)]",
+                    columns === value
+                      ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]"
+                      : "text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]",
+                  )}
+                >
+                  {icon}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="widget-builder-fields flex flex-col gap-2">
+            <span className="font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+              Fields · {fields.length}/{CUSTOM_WIDGET_MAX_FIELDS}
+            </span>
+
+            {fields.length > 0 && (
+              <div className="widget-builder-field-row widget-builder-field-row--head font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+                <div className="widget-builder-field-row__main">
+                  <span>Name</span>
+                  <span>Value</span>
+                </div>
+              </div>
+            )}
+
+            {fields.length > 0 && (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onFieldDragEnd}>
+                <SortableContext items={fieldSortIds} strategy={verticalListSortingStrategy}>
+                  <div className="flex flex-col gap-2">
+                    {fields.map((f, i) => (
+                      <SortableFieldRow
+                        key={f.dragId}
+                        id={f.dragId}
+                        label={f.label}
+                        fieldKey={f.key}
+                        inputCls={inputCls}
+                        valueOptions={valueOptions}
+                        onLabelChange={(v) => updateField(i, { label: v })}
+                        onKeyChange={(v) => updateField(i, { key: v })}
+                        onRemove={() => removeField(i)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+
+            {fields.length < CUSTOM_WIDGET_MAX_FIELDS && (
+              <div className="widget-builder-field-row">
+                <div className="widget-builder-field-row__main">
+                  <input
+                    value={draftLabel}
+                    maxLength={80}
+                    onChange={(e) => onDraftLabelChange(e.target.value)}
+                    className={inputCls}
+                    placeholder="Field name"
+                  />
+                  <BuilderSelect value={draftKey} onChange={(e) => onDraftKeyChange(e.target.value)} className={inputCls}>
+                    {valueOptions}
+                  </BuilderSelect>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="dashboard-modal__footer shrink-0">
+          <div className="dashboard-modal__actions">
+            <button
+              type="button"
+              onClick={cancelChanges}
+              className="dashboard-modal-btn dashboard-modal-btn--danger"
+            >
+              Cancel changes
+            </button>
+            <button type="button" onClick={saveAndClose} className="dashboard-modal-btn dashboard-modal-btn--primary">
+              Save widget
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}

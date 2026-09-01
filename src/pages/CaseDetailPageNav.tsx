@@ -50,7 +50,7 @@ export function CaseDetailPageNav({
   };
 
   return (
-    <div className="mb-3 flex items-center gap-1 overflow-x-auto">
+    <div className="mb-2 flex shrink-0 items-center gap-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
       {pages.map((page) => {
         const active = page.id === activePageId;
         if (editingId === page.id) {

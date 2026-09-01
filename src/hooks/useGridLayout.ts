@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import {
   gridLayoutsApi,
   type GridLayoutItem,
   type GridLayoutPage,
+  type GridLayoutWidget,
   type GridSurface,
 } from "@/lib/crm-api";
 
@@ -16,25 +17,27 @@ type Options<T extends GridLayoutItem> = {
   /**
    * When false, layout is read-only: no API saves, no legacy migration, and
    * `persist` / `reset` are local no-ops against the server. Used for shared
-   * surfaces (case-detail) for non–SuperAdmin users.
+   * surfaces (case-detail) for nonΓÇôSuperAdmin users.
    */
   editable?: boolean;
   /** When set, this surface persists carousel pages with the item list. */
   defaultPages?: GridLayoutPage[];
   /**
-   * Normalize items + optional saved pages into a coherent document.
-   * Required when `defaultPages` is provided.
+   * Normalize items + optional saved pages + optional saved custom-widget
+   * definitions into a coherent document. Required when `defaultPages` is set.
    */
   normalizeDocument?: (
     items: T[],
     pages: GridLayoutPage[] | null | undefined,
-  ) => { items: T[]; pages: GridLayoutPage[] };
+    widgets: GridLayoutWidget[] | null | undefined,
+  ) => { items: T[]; pages: GridLayoutPage[]; widgets?: GridLayoutWidget[] };
 };
 
 export type GridLayoutState<T extends GridLayoutItem> = {
   layout: T[] | null;
   pages: GridLayoutPage[] | null;
-  persist: (items: T[], pages?: GridLayoutPage[]) => void;
+  widgets: GridLayoutWidget[] | null;
+  persist: (items: T[], pages?: GridLayoutPage[], widgets?: GridLayoutWidget[]) => void;
   reset: () => void;
   revision: number;
   error: string | null;
@@ -73,6 +76,7 @@ export function useGridLayout<T extends GridLayoutItem>({
   // Start with defaults so pages render immediately; sync saved layout when the API responds.
   const [layout, setLayout] = useState<T[] | null>(() => normalize(defaultLayout));
   const [pages, setPages] = useState<GridLayoutPage[] | null>(() => defaultPages ?? null);
+  const [widgets, setWidgets] = useState<GridLayoutWidget[] | null>(null);
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,28 +86,42 @@ export function useGridLayout<T extends GridLayoutItem>({
   normalizeDocRef.current = normalizeDocument;
   const defaultPagesRef = useRef(defaultPages);
   defaultPagesRef.current = defaultPages;
-  const pendingRef = useRef<{ items: T[]; pages?: GridLayoutPage[] } | null>(null);
+  const pendingRef = useRef<{ items: T[]; pages?: GridLayoutPage[]; widgets?: GridLayoutWidget[] } | null>(null);
   const timerRef = useRef<number | null>(null);
   const seenUpdatedAtRef = useRef<string | null>(null);
   const editableRef = useRef(editable);
   editableRef.current = editable;
   const pagesRef = useRef<GridLayoutPage[] | null>(null);
   pagesRef.current = pages;
+  const widgetsRef = useRef<GridLayoutWidget[] | null>(null);
+  widgetsRef.current = widgets;
 
-  const applyDocument = useCallback((items: T[], savedPages: GridLayoutPage[] | null | undefined) => {
-    if (normalizeDocRef.current && defaultPagesRef.current) {
-      const doc = normalizeDocRef.current(items, savedPages ?? defaultPagesRef.current);
-      setLayout(doc.items);
-      setPages(doc.pages);
-      pagesRef.current = doc.pages;
-      return doc;
-    }
-    const normalized = normalizeRef.current(items);
-    setLayout(normalized);
-    setPages(null);
-    pagesRef.current = null;
-    return { items: normalized, pages: null as GridLayoutPage[] | null };
-  }, []);
+  const applyDocument = useCallback(
+    (
+      items: T[],
+      savedPages: GridLayoutPage[] | null | undefined,
+      savedWidgets: GridLayoutWidget[] | null | undefined,
+    ) => {
+      if (normalizeDocRef.current && defaultPagesRef.current) {
+        const doc = normalizeDocRef.current(items, savedPages ?? defaultPagesRef.current, savedWidgets);
+        setLayout(doc.items);
+        setPages(doc.pages);
+        pagesRef.current = doc.pages;
+        const w = doc.widgets ?? [];
+        setWidgets(w);
+        widgetsRef.current = w;
+        return { items: doc.items, pages: doc.pages, widgets: w };
+      }
+      const normalized = normalizeRef.current(items);
+      setLayout(normalized);
+      setPages(null);
+      pagesRef.current = null;
+      setWidgets(null);
+      widgetsRef.current = null;
+      return { items: normalized, pages: null as GridLayoutPage[] | null, widgets: null as GridLayoutWidget[] | null };
+    },
+    [],
+  );
 
   const flush = useCallback(() => {
     if (timerRef.current !== null) {
@@ -118,8 +136,9 @@ export function useGridLayout<T extends GridLayoutItem>({
     if (!pending) return;
     pendingRef.current = null;
     const pagesToSave = pending.pages ?? pagesRef.current ?? undefined;
+    const widgetsToSave = pending.widgets ?? widgetsRef.current ?? undefined;
     gridLayoutsApi
-      .save(surface, pending.items, pagesToSave)
+      .save(surface, pending.items, pagesToSave, widgetsToSave)
       .then(({ layout: record }) => {
         seenUpdatedAtRef.current = record.updatedAt;
       })
@@ -139,15 +158,15 @@ export function useGridLayout<T extends GridLayoutItem>({
         if (record.items) {
           clearLegacyLayout(legacyStorageKey);
           seenUpdatedAtRef.current = record.updatedAt;
-          applyDocument(record.items as T[], record.pages);
+          applyDocument(record.items as T[], record.pages, record.widgets);
           return;
         }
 
         const legacy = editableRef.current ? readLegacyLayout<T>(legacyStorageKey) : null;
         if (legacy) {
-          const doc = applyDocument(legacy, defaultPagesRef.current);
+          const doc = applyDocument(legacy, defaultPagesRef.current, null);
           gridLayoutsApi
-            .save(surface, doc.items, doc.pages ?? undefined)
+            .save(surface, doc.items, doc.pages ?? undefined, doc.widgets ?? undefined)
             .then(({ layout: saved }) => {
               seenUpdatedAtRef.current = saved.updatedAt;
               clearLegacyLayout(legacyStorageKey);
@@ -159,12 +178,12 @@ export function useGridLayout<T extends GridLayoutItem>({
         }
 
         if (editableRef.current) clearLegacyLayout(legacyStorageKey);
-        applyDocument(defaultLayout, defaultPagesRef.current);
+        applyDocument(defaultLayout, defaultPagesRef.current, null);
       })
       .catch((err: unknown) => {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Could not load your saved layout.");
-        applyDocument(defaultLayout, defaultPagesRef.current);
+        applyDocument(defaultLayout, defaultPagesRef.current, null);
       });
 
     return () => {
@@ -184,13 +203,13 @@ export function useGridLayout<T extends GridLayoutItem>({
           if (!record.items) {
             if (seenUpdatedAtRef.current === null) return;
             seenUpdatedAtRef.current = null;
-            applyDocument(defaultLayout, defaultPagesRef.current);
+            applyDocument(defaultLayout, defaultPagesRef.current, null);
             setRevision((r) => r + 1);
             return;
           }
           if (record.updatedAt === seenUpdatedAtRef.current) return;
           seenUpdatedAtRef.current = record.updatedAt;
-          applyDocument(record.items as T[], record.pages);
+          applyDocument(record.items as T[], record.pages, record.widgets);
           setRevision((r) => r + 1);
         })
         .catch(() => {});
@@ -206,20 +225,29 @@ export function useGridLayout<T extends GridLayoutItem>({
   }, [surface, applyDocument]);
 
   const persist = useCallback(
-    (items: T[], nextPages?: GridLayoutPage[]) => {
+    (items: T[], nextPages?: GridLayoutPage[], nextWidgets?: GridLayoutWidget[]) => {
       const pagesForDoc = nextPages ?? pagesRef.current ?? defaultPagesRef.current;
+      const widgetsForDoc = nextWidgets ?? widgetsRef.current ?? undefined;
       const doc =
         normalizeDocRef.current && pagesForDoc
-          ? normalizeDocRef.current(items, pagesForDoc)
-          : { items: normalizeRef.current(items), pages: nextPages ?? pagesRef.current };
+          ? normalizeDocRef.current(items, pagesForDoc, widgetsForDoc)
+          : {
+              items: normalizeRef.current(items),
+              pages: nextPages ?? pagesRef.current,
+              widgets: widgetsForDoc,
+            };
 
       setLayout(doc.items);
       if (doc.pages) {
         setPages(doc.pages);
         pagesRef.current = doc.pages;
       }
+      if (doc.widgets !== undefined) {
+        setWidgets(doc.widgets ?? null);
+        widgetsRef.current = doc.widgets ?? null;
+      }
       if (!editableRef.current) return;
-      pendingRef.current = { items: doc.items, pages: doc.pages ?? undefined };
+      pendingRef.current = { items: doc.items, pages: doc.pages ?? undefined, widgets: doc.widgets ?? undefined };
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
       timerRef.current = window.setTimeout(flush, SAVE_DEBOUNCE_MS);
     },
@@ -233,7 +261,7 @@ export function useGridLayout<T extends GridLayoutItem>({
     }
     pendingRef.current = null;
     seenUpdatedAtRef.current = null;
-    applyDocument(defaultLayout, defaultPagesRef.current);
+    applyDocument(defaultLayout, defaultPagesRef.current, null);
     setRevision((r) => r + 1);
     clearLegacyLayout(legacyStorageKey);
     if (!editableRef.current) return;
@@ -241,5 +269,5 @@ export function useGridLayout<T extends GridLayoutItem>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surface, legacyStorageKey, applyDocument]);
 
-  return { layout, pages, persist, reset, revision, error };
+  return { layout, pages, widgets, persist, reset, revision, error };
 }

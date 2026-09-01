@@ -56,6 +56,27 @@ body.dashboard-dock-placing .dashboard-add-fab {
   padding: 1.75rem 2rem 1.625rem;
   animation: motion-modal-in var(--motion-base) var(--motion-ease) backwards;
 }
+.dashboard-modal--builder {
+  width: min(44rem, 96vw);
+  max-height: none;
+  padding: 1.875rem 2.125rem 1.75rem;
+  overflow: visible;
+}
+.dashboard-modal__footer {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+.dashboard-modal__hint {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-lo);
+  text-align: center;
+}
 .dashboard-modal__title {
   font-family: var(--font-display);
   font-size: 2rem;
@@ -78,12 +99,16 @@ body.dashboard-dock-placing .dashboard-add-fab {
 .dashboard-modal__actions {
   margin-top: 1.625rem;
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 0.625rem;
 }
 .dashboard-modal-btn {
   height: 2.625rem;
   padding: 0 1.375rem;
+  white-space: nowrap;
+  flex-shrink: 0;
   transform-origin: center;
   border-radius: var(--radius-tile);
   border: 0.0625rem solid var(--color-line-2);
@@ -115,6 +140,80 @@ body.dashboard-dock-placing .dashboard-add-fab {
   border-color: color-mix(in srgb, var(--color-neg) 55%, transparent);
   background: color-mix(in srgb, var(--color-neg) 18%, transparent);
   box-shadow: 0 0 0 0.1875rem color-mix(in srgb, var(--color-neg) 12%, transparent);
+}
+.dashboard-modal-btn--primary {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  background:
+    linear-gradient(180deg, var(--color-surface-shine), transparent 60%),
+    var(--color-accent-soft);
+  color: var(--color-text-hi);
+}
+.dashboard-modal-btn--primary:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 60%, transparent);
+  box-shadow: 0 0 0 0.1875rem var(--color-accent-soft);
+}
+
+/* Custom widget builder — reorder + delete sit in the modal's horizontal
+   padding; name/value columns share the same width as the title input. */
+.widget-builder-field-row {
+  position: relative;
+}
+.widget-builder-field-row--head {
+  padding-bottom: 0.125rem;
+}
+.widget-builder-field-row__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5rem;
+  min-width: 0;
+}
+.widget-builder-field-row__aside {
+  position: absolute;
+  top: 50%;
+  width: 1.25rem;
+  transform: translateY(-50%);
+}
+.widget-builder-field-row__aside--start {
+  left: -1.625rem;
+}
+.widget-builder-field-row__aside--end {
+  right: -1.625rem;
+}
+.widget-builder-field-row--dragging {
+  z-index: 2;
+  opacity: 0.55;
+}
+.widget-builder-field-row__drag {
+  display: grid;
+  place-items: center;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-text-lo);
+  cursor: grab;
+  touch-action: none;
+  transition: color 150ms ease;
+}
+.widget-builder-field-row__drag:hover {
+  color: var(--color-accent-2);
+}
+.widget-builder-field-row__drag:active {
+  cursor: grabbing;
+}
+.widget-builder-select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  padding-right: 2rem;
+  cursor: pointer;
+}
+.widget-builder-select-chevron {
+  pointer-events: none;
+  position: absolute;
+  right: 0.625rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-accent-2);
 }
 
 /* Drop-target glow when dragging from dock */
@@ -236,6 +335,13 @@ body.dashboard-widget-dragging .widget-dock-shell:not(.is-open) {
   margin-inline: 3.125rem;
   overflow: visible;
 }
+/* Center the row when its cards fit within the lane. Only safe while there's
+   nothing to scroll — once it overflows the JS scroll math assumes the strip
+   starts flush against the left edge. */
+.widget-dock-lane--center {
+  display: flex;
+  justify-content: center;
+}
 
 .widget-dock-viewport--scrollable {
   position: relative;
@@ -268,6 +374,7 @@ body.dashboard-widget-dragging .widget-dock-shell:not(.is-open) {
 }
 .widget-dock-strip {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: flex-end;
   justify-content: flex-start;
   gap: 1.25rem;

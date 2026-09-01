@@ -36,7 +36,7 @@ export function Field({ label, value, mono = true }: { label: string; value: str
   );
 }
 
-function PanelShell({ title, icon, children, className, action }: { title: string; icon?: ReactNode; children: ReactNode; className?: string; action?: ReactNode }) {
+export function PanelShell({ title, icon, children, className, action }: { title: string; icon?: ReactNode; children: ReactNode; className?: string; action?: ReactNode }) {
   return (
     <div className={cn("surface flex h-full min-h-0 flex-col overflow-hidden", className)}>
       <div className="eyebrow shrink-0 border-b border-[var(--color-line)] px-4 py-2.5 flex items-center gap-2">
@@ -845,6 +845,90 @@ export function CaseJournalFolder({ ctx }: { ctx: CasePanelCtx }) {
   );
 }
 
+function DaySummaryBlock({
+  ctx,
+  dateIso,
+  summary,
+  canPost,
+}: {
+  ctx: CasePanelCtx;
+  dateIso: string;
+  summary: string | null;
+  canPost: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await casesApi.setDaySummary(ctx.case.id, dateIso, draft.trim() || null);
+      setEditing(false);
+      ctx.onRefresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!summary && !canPost) return null;
+
+  return (
+    <div className="rounded-[0.625rem] border border-[var(--color-line-2)] bg-[var(--color-ink-1)]/40 p-3">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+          Day summary
+        </span>
+        {canPost && !editing && (
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(summary ?? "");
+              setEditing(true);
+            }}
+            className="font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-accent-2)] hover:text-[var(--color-text-hi)]"
+          >
+            {summary ? "Edit" : "Write"}
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div className="mt-1.5 flex flex-col gap-1.5">
+          <textarea
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="How did the day wrap up?"
+            className="min-h-[3.5rem] resize-none rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1.5 text-[0.75rem] text-[var(--color-text-hi)] focus:outline-none"
+          />
+          <div className="flex items-center justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className="rounded-[0.5rem] border border-[var(--color-line)] px-2.5 py-1 text-[0.625rem] text-[var(--color-text-lo)]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={save}
+              disabled={busy}
+              className="flex items-center gap-1 rounded-[0.5rem] bg-[var(--color-accent-soft)] px-2.5 py-1 text-[0.625rem] font-medium text-[var(--color-text-hi)] disabled:opacity-50"
+            >
+              {busy && <Loader2 size={10} className="animate-spin" />}
+              Save
+            </button>
+          </div>
+        </div>
+      ) : summary ? (
+        <p className="mt-1 whitespace-pre-wrap text-[0.75rem] leading-relaxed text-[var(--color-text-mid)]">{summary}</p>
+      ) : (
+        <p className="mt-1 font-mono text-[0.625rem] text-[var(--color-text-lo)]">No wrap-up written for this day.</p>
+      )}
+    </div>
+  );
+}
+
 function DayFolderContent({
   ctx,
   day,
@@ -853,7 +937,7 @@ function DayFolderContent({
   onPosted,
 }: {
   ctx: CasePanelCtx;
-  day: { id: string; date: string; entries: CaseDayEntry[] } | null;
+  day: { id: string; date: string; summary: string | null; entries: CaseDayEntry[] } | null;
   pendingDate: string | null;
   canPost: boolean;
   onPosted: () => void;
@@ -902,6 +986,8 @@ function DayFolderContent({
           {entries.length} entr{entries.length === 1 ? "y" : "ies"}
         </span>
       </div>
+
+      <DaySummaryBlock ctx={ctx} dateIso={dateIso} summary={day?.summary ?? null} canPost={canPost} />
 
       {photos.length > 0 && (
         <div className="flex flex-wrap gap-2">

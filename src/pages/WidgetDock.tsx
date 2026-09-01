@@ -33,7 +33,7 @@ type Props = {
   open: boolean;
   hiddenIds: Set<WidgetId>;
   gridRef: React.MutableRefObject<DashboardGridHandle | null>;
-  gridMountKey: number;
+  gridMountKey: string | number;
   onClose: () => void;
   onPlacingChange?: (placing: boolean) => void;
 };
@@ -64,15 +64,21 @@ export default function WidgetDock({
   const onPlacingChangeRef = useRef(onPlacingChange);
   onPlacingChangeRef.current = onPlacingChange;
 
+  /** Widget being dragged out of the dock, and where the pointer last was. */
+  const placingIdRef = useRef<WidgetId | null>(null);
+  const pointerRef = useRef({ x: 0, y: 0 });
+
   const finishPlacementDrag = useCallback(() => {
     if (!placingDragRef.current) return;
     placingDragRef.current = false;
     setPlacingDrag(false);
+    placingIdRef.current = null;
     shellRef.current?.classList.remove("is-dock-placing");
     document.body.classList.remove("dashboard-dock-placing");
+    gridRef.current?.clearDockPreview();
     cleanupDockDragIn(dockWidgetIdsRef.current);
     onPlacingChangeRef.current?.(false);
-  }, []);
+  }, [gridRef]);
 
   const isDockHelperDragging = useCallback(
     () =>
@@ -129,9 +135,10 @@ export default function WidgetDock({
     const shellEl = shellRef.current;
     let moveCleanup: (() => void) | null = null;
 
-    const beginPlacementDrag = () => {
+    const beginPlacementDrag = (widgetId: WidgetId | null) => {
       if (placingDragRef.current) return;
       placingDragRef.current = true;
+      placingIdRef.current = widgetId;
       setPlacingDrag(true);
       shellEl?.classList.add("is-dock-placing");
       document.body.classList.add("dashboard-dock-placing");
@@ -145,13 +152,14 @@ export default function WidgetDock({
       ) as HTMLElement | null;
       if (!item) return;
 
+      const widgetId = item.getAttribute("data-dock-widget") as WidgetId | null;
       const startX = e.clientX;
       const startY = e.clientY;
 
       const onMove = (me: PointerEvent) => {
         if (Math.hypot(me.clientX - startX, me.clientY - startY) < 6) return;
         cleanup();
-        beginPlacementDrag();
+        beginPlacementDrag(widgetId);
       };
 
       const onUp = () => cleanup();
@@ -173,6 +181,46 @@ export default function WidgetDock({
       document.removeEventListener("pointerdown", onPointerDown, true);
     };
   }, [open, onClose]);
+
+  /**
+   * Own the dock→grid gesture from the pointer: Gridstack's external-drop path
+   * can stay silent (no placeholder, no drop), which is what "dragging a widget
+   * out does nothing" looks like. We preview the landing spot while it does,
+   * and place the widget after the pointer is up if nothing arrived.
+   */
+  useEffect(() => {
+    if (!placingDrag) return;
+
+    const onMove = (e: PointerEvent) => {
+      pointerRef.current = { x: e.clientX, y: e.clientY };
+      const id = placingIdRef.current;
+      if (id) gridRef.current?.previewDockDrop(id, e.clientX, e.clientY);
+    };
+
+    const onUp = (e: PointerEvent) => {
+      const id = placingIdRef.current;
+      const x = e.clientX || pointerRef.current.x;
+      const y = e.clientY || pointerRef.current.y;
+      gridRef.current?.clearDockPreview();
+      if (!id) return;
+      // Dropped on the trash — the user is cancelling, not placing.
+      if (document.body.classList.contains("dashboard-trash-hovered")) return;
+      // Let Gridstack's own drop land first; dropDockWidget no-ops if it did.
+      window.setTimeout(() => gridRef.current?.dropDockWidget(id, x, y), 80);
+    };
+
+    const onCancel = () => gridRef.current?.clearDockPreview();
+
+    document.addEventListener("pointermove", onMove, true);
+    document.addEventListener("pointerup", onUp, true);
+    document.addEventListener("pointercancel", onCancel, true);
+    return () => {
+      document.removeEventListener("pointermove", onMove, true);
+      document.removeEventListener("pointerup", onUp, true);
+      document.removeEventListener("pointercancel", onCancel, true);
+      gridRef.current?.clearDockPreview();
+    };
+  }, [placingDrag, gridRef]);
 
   // Measure the live grid width so previews use the real col:row aspect ratio
   const [actualGridWidth, setActualGridWidth] = useState<number | undefined>();
@@ -260,11 +308,15 @@ export default function WidgetDock({
     strip.style.transform = `translateX(${-scrollOffsetRef.current}px)`;
   }, [getScrollBounds]);
 
+  /** Center the row when it fits; once it overflows, scrolling math needs it left-aligned. */
+  const [overflowing, setOverflowing] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     scrollOffsetRef.current = 0;
     applyScroll();
-  }, [open, availableWidgets, applyScroll]);
+    setOverflowing(getScrollBounds().maxScroll > 0);
+  }, [open, availableWidgets, applyScroll, getScrollBounds]);
 
   useEffect(() => {
     if (!open) return;
@@ -440,6 +492,8 @@ export default function WidgetDock({
 
   const showInner = open || placingDrag;
 
+  if (!showInner) return null;
+
   const dock = (
     <div
       ref={shellRef}
@@ -459,7 +513,7 @@ export default function WidgetDock({
           </p>
         ) : (
           <div ref={viewportRef} className="widget-dock-viewport widget-dock-viewport--scrollable">
-            <div ref={laneRef} className="widget-dock-lane">
+            <div ref={laneRef} className={cn("widget-dock-lane", !overflowing && "widget-dock-lane--center")}>
               <div
                 ref={stripRef}
                 className="widget-dock-strip"

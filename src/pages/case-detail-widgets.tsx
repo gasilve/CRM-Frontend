@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   User, Briefcase, Tag, MapPin, Car, Users2, ScrollText,
 } from "lucide-react";
-import type { CaseDetail } from "@/lib/crm-api";
+import type { CaseDetail, GridLayoutWidget } from "@/lib/crm-api";
 import {
   AddressesMapPanel,
   AssignmentPanel,
@@ -34,8 +34,12 @@ export type CasePage = {
   name: string;
 };
 
+/** SuperAdmin-built widget definition, stored in the layout document. */
+export type CustomCaseWidgetDef = GridLayoutWidget;
+
+/** Layout item ids are premade panel ids or `custom-*` widget-def ids. */
 export type CaseLayoutItem = {
-  id: CasePanelId;
+  id: string;
   pageId: string;
   x: number;
   y: number;
@@ -57,6 +61,11 @@ export type CasePanelCtx = {
   canSee: (field: string) => boolean;
   /** True only when the field is fully writable for the viewer's role. */
   canEditField: (field: string) => boolean;
+
+  /** Resolves a custom widget definition by layout id. Reads live state. */
+  getCustomWidget: (id: string) => CustomCaseWidgetDef | null;
+  /** Present only for SuperAdmins in edit mode — opens the widget builder. */
+  onEditCustomWidget?: (id: string) => void;
 };
 
 export type CasePanelDef = {
@@ -65,63 +74,132 @@ export type CasePanelDef = {
   icon: LucideIcon;
   minH: number;
   minW: number;
+  /** Dock footprint. INVARIANT: defaultW >= minW and defaultH >= minH. */
+  defaultW: number;
+  defaultH: number;
   render: (ctx: CasePanelCtx) => ReactNode;
 };
 
 export const CASE_PANELS: Record<CasePanelId, CasePanelDef> = {
   "subject-photo": {
     id: "subject-photo", label: "Photo", icon: User,
-    minH: 4, minW: 2,
+    minH: 4, minW: 2, defaultW: 3, defaultH: 6,
     render: (ctx) => <SubjectPhotoPanel ctx={ctx} />,
   },
   identity: {
     id: "identity", label: "Identity", icon: User,
-    minH: 3, minW: 2,
+    minH: 3, minW: 2, defaultW: 3, defaultH: 3,
     render: (ctx) => <IdentityPanel ctx={ctx} />,
   },
   work: {
     id: "work", label: "Work", icon: Briefcase,
-    minH: 3, minW: 2,
+    minH: 3, minW: 2, defaultW: 3, defaultH: 3,
     render: (ctx) => <WorkPanel ctx={ctx} />,
   },
   "client-adjuster": {
     id: "client-adjuster", label: "Client", icon: Briefcase,
-    minH: 3, minW: 2,
+    minH: 3, minW: 2, defaultW: 3, defaultH: 3,
     render: (ctx) => <ClientAdjusterPanel ctx={ctx} />,
   },
   "case-info": {
     id: "case-info", label: "Assignment details", icon: Briefcase,
-    minH: 3, minW: 3,
+    minH: 3, minW: 3, defaultW: 6, defaultH: 3,
     render: (ctx) => <CaseInfoPanel ctx={ctx} />,
   },
   tags: {
     id: "tags", label: "Tags", icon: Tag,
-    minH: 2, minW: 2,
+    minH: 2, minW: 2, defaultW: 3, defaultH: 3,
     render: (ctx) => <TagsPanel ctx={ctx} />,
   },
   assignment: {
     id: "assignment", label: "Assignment", icon: Users2,
-    minH: 2, minW: 2,
+    minH: 2, minW: 2, defaultW: 3, defaultH: 3,
     render: (ctx) => <AssignmentPanel ctx={ctx} />,
   },
   "addresses-map": {
     id: "addresses-map", label: "Addresses & map", icon: MapPin,
-    minH: 4, minW: 2,
+    minH: 4, minW: 2, defaultW: 3, defaultH: 6,
     render: (ctx) => <AddressesMapPanel ctx={ctx} />,
   },
   vehicles: {
     id: "vehicles", label: "Vehicles", icon: Car,
-    minH: 3, minW: 3,
+    minH: 3, minW: 3, defaultW: 6, defaultH: 3,
     render: (ctx) => <VehiclesPanel ctx={ctx} />,
   },
   description: {
     id: "description", label: "Description", icon: ScrollText,
-    minH: 2, minW: 2,
+    minH: 2, minW: 2, defaultW: 3, defaultH: 3,
     render: (ctx) => <DescriptionPanel ctx={ctx} />,
   },
 };
 
 export const CASE_PANEL_LIST = Object.values(CASE_PANELS);
+
+// ─── Custom widgets ─────────────────────────────────────────────────────────
+
+export const CUSTOM_WIDGET_PREFIX = "custom-";
+/** Dock template id — dropping it creates a brand-new custom widget. */
+export const CUSTOM_WIDGET_TEMPLATE_ID = "custom-template";
+export const CUSTOM_WIDGET_MIN_W = 2;
+export const CUSTOM_WIDGET_MIN_H = 2;
+export const CUSTOM_WIDGET_DEFAULT_W = 3;
+export const CUSTOM_WIDGET_DEFAULT_H = 3;
+export const CUSTOM_WIDGET_MAX_FIELDS = 12;
+/** How many columns the widget uses when rendering its fields. */
+export type CustomWidgetColumns = 1 | 2 | 3;
+
+export function normalizeWidgetColumns(value: unknown): CustomWidgetColumns {
+  return value === 2 || value === 3 ? value : 1;
+}
+
+export function isCustomWidgetId(id: string): boolean {
+  return id.startsWith(CUSTOM_WIDGET_PREFIX) && id !== CUSTOM_WIDGET_TEMPLATE_ID;
+}
+
+export function newCustomWidgetId(): string {
+  return `${CUSTOM_WIDGET_PREFIX}${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+}
+
+/**
+ * Belongs to the dock's blank template. A widget keeps this title until it is
+ * named, so it can never be saved to the reusable list under it — otherwise the
+ * list would fill up with indistinguishable "New widget" entries.
+ */
+export const RESERVED_WIDGET_TITLE = "New widget";
+
+export function isReservedWidgetTitle(title: string): boolean {
+  return title.trim().toLowerCase() === RESERVED_WIDGET_TITLE.toLowerCase();
+}
+
+export function sameWidgetTitle(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+export function createCustomWidgetDef(title = RESERVED_WIDGET_TITLE): CustomCaseWidgetDef {
+  return { id: newCustomWidgetId(), type: "custom", title, fields: [], columns: 1, persisted: false };
+}
+
+/** Label for any placeable widget — premade or custom. */
+export function caseWidgetLabel(id: string, widgets: CustomCaseWidgetDef[] | null | undefined): string {
+  const panel = CASE_PANELS[id as CasePanelId];
+  if (panel) return panel.label;
+  return widgets?.find((w) => w.id === id)?.title ?? "Widget";
+}
+
+type WidgetSizing = { minW: number; minH: number; defaultW: number; defaultH: number };
+
+export function caseWidgetSizing(id: string): WidgetSizing {
+  const panel = CASE_PANELS[id as CasePanelId];
+  if (panel) return { minW: panel.minW, minH: panel.minH, defaultW: panel.defaultW, defaultH: panel.defaultH };
+  return {
+    minW: CUSTOM_WIDGET_MIN_W,
+    minH: CUSTOM_WIDGET_MIN_H,
+    defaultW: CUSTOM_WIDGET_DEFAULT_W,
+    defaultH: CUSTOM_WIDGET_DEFAULT_H,
+  };
+}
+
+// ─── Grid geometry ──────────────────────────────────────────────────────────
 
 export const CASE_COLUMNS = 12;
 /** Design px at 1920 — convert with designPx() when configuring GridStack. */
@@ -166,12 +244,14 @@ function newPageId(): string {
 
 /** Clamp a widget into the page row budget. */
 function clampItem(
-  raw: { id: CasePanelId; pageId?: string; x?: number; y?: number; w?: number; h?: number },
+  raw: { id: string; pageId?: string; x?: number; y?: number; w?: number; h?: number },
   pageId: string,
 ): CaseLayoutItem {
-  const def = CASE_PANELS[raw.id];
-  const w = Number.isFinite(raw.w) ? Math.max(def.minW, Math.min(CASE_COLUMNS, Math.floor(raw.w!))) : def.minW;
-  let h = Number.isFinite(raw.h) ? Math.max(def.minH, Math.floor(raw.h!)) : def.minH;
+  const sizing = caseWidgetSizing(raw.id);
+  const w = Number.isFinite(raw.w)
+    ? Math.max(sizing.minW, Math.min(CASE_COLUMNS, Math.floor(raw.w!)))
+    : sizing.defaultW;
+  let h = Number.isFinite(raw.h) ? Math.max(sizing.minH, Math.floor(raw.h!)) : sizing.defaultH;
   h = Math.min(h, CASE_PAGE_ROWS);
   const x = Number.isFinite(raw.x) ? Math.max(0, Math.min(CASE_COLUMNS - w, Math.floor(raw.x!))) : 0;
   let y = Number.isFinite(raw.y) ? Math.max(0, Math.floor(raw.y!)) : 0;
@@ -179,14 +259,47 @@ function clampItem(
   return { id: raw.id, pageId, x, y, w, h };
 }
 
+function sanitizeWidgets(widgets: CustomCaseWidgetDef[] | null | undefined): CustomCaseWidgetDef[] {
+  if (!widgets?.length) return [];
+  const seen = new Set<string>();
+  const out: CustomCaseWidgetDef[] = [];
+  for (const w of widgets) {
+    if (!w || typeof w.id !== "string" || !isCustomWidgetId(w.id) || seen.has(w.id)) continue;
+    seen.add(w.id);
+    out.push({
+      id: w.id,
+      type: "custom",
+      title: typeof w.title === "string" && w.title.trim() ? w.title.slice(0, 80) : "Widget",
+      fields: Array.isArray(w.fields)
+        ? w.fields
+            .filter((f) => f && typeof f.key === "string" && f.key.length > 0)
+            .slice(0, CUSTOM_WIDGET_MAX_FIELDS)
+            .map((f) => ({ key: f.key, label: typeof f.label === "string" && f.label ? f.label.slice(0, 80) : f.key }))
+        : [],
+      columns: normalizeWidgetColumns(w.columns),
+      persisted: w.persisted === true,
+    });
+  }
+  return out;
+}
+
 /**
- * Normalize a saved (or legacy flat) layout into pages + items. Legacy rows
- * without pageId are split: anything that would overflow page 1 goes to page 2.
+ * Normalize a saved (or legacy flat) layout into pages + items + widget defs.
+ *
+ * Unlike the pre-dock era this does NOT force missing premade panels back in —
+ * a panel absent from the layout is simply "removed" and lives in the dock.
+ * Items whose id is neither a premade panel nor a known custom widget are
+ * dropped (stale ids from an older catalog).
  */
 export function normalizeCaseDocument(
   items: Array<Partial<CaseLayoutItem> & { id: string }>,
   pages?: CasePage[] | null,
-): { pages: CasePage[]; items: CaseLayoutItem[] } {
+  widgets?: CustomCaseWidgetDef[] | null,
+): { pages: CasePage[]; items: CaseLayoutItem[]; widgets: CustomCaseWidgetDef[] } {
+  const cleanWidgets = sanitizeWidgets(widgets);
+  const customIds = new Set(cleanWidgets.map((w) => w.id));
+  const isKnown = (id: string) => Boolean(CASE_PANELS[id as CasePanelId]) || customIds.has(id);
+
   const hasPageIds = items.some((i) => typeof i.pageId === "string" && i.pageId.length > 0);
 
   let nextPages: CasePage[] =
@@ -201,7 +314,7 @@ export function normalizeCaseDocument(
   }
 
   const pageIds = new Set(nextPages.map((p) => p.id));
-  const seen = new Set<CasePanelId>();
+  const seen = new Set<string>();
   const out: CaseLayoutItem[] = [];
 
   if (!hasPageIds) {
@@ -216,55 +329,27 @@ export function normalizeCaseDocument(
     const page2 = nextPages[1].id;
 
     for (const raw of items) {
-      const id = raw.id as CasePanelId;
-      if (!CASE_PANELS[id] || seen.has(id)) continue;
-      seen.add(id);
+      if (!isKnown(raw.id) || seen.has(raw.id)) continue;
+      seen.add(raw.id);
+      const sizing = caseWidgetSizing(raw.id);
       const y = Number.isFinite(raw.y) ? Math.floor(raw.y!) : 0;
-      const h = Number.isFinite(raw.h) ? Math.floor(raw.h!) : CASE_PANELS[id].minH;
+      const h = Number.isFinite(raw.h) ? Math.floor(raw.h!) : sizing.minH;
       if (y + h <= CASE_PAGE_ROWS) {
-        out.push(clampItem({ ...raw, id }, page1));
+        out.push(clampItem(raw, page1));
       } else {
-        out.push(clampItem({ ...raw, id, y: 0 }, page2));
+        out.push(clampItem({ ...raw, y: 0 }, page2));
       }
     }
   } else {
     for (const raw of items) {
-      const id = raw.id as CasePanelId;
-      if (!CASE_PANELS[id] || seen.has(id)) continue;
-      seen.add(id);
-      let pageId = raw.pageId && pageIds.has(raw.pageId) ? raw.pageId : nextPages[0].id;
-      if (!pageIds.has(pageId)) {
-        pageId = nextPages[0].id;
-      }
-      out.push(clampItem({ ...raw, id }, pageId));
+      if (!isKnown(raw.id) || seen.has(raw.id)) continue;
+      seen.add(raw.id);
+      const pageId = raw.pageId && pageIds.has(raw.pageId) ? raw.pageId : nextPages[0].id;
+      out.push(clampItem(raw, pageId));
     }
   }
 
-  for (const def of CASE_PANEL_LIST) {
-    if (seen.has(def.id)) continue;
-    const fallback = CASE_DEFAULT_LAYOUT.find((i) => i.id === def.id);
-    const pageId =
-      fallback && pageIds.has(fallback.pageId) ? fallback.pageId : nextPages[nextPages.length - 1].id;
-    const onPage = out.filter((i) => i.pageId === pageId);
-    const bottom = onPage.reduce((m, i) => Math.max(m, i.y + i.h), 0);
-    const h = fallback?.h ?? def.minH;
-    const y = bottom + h <= CASE_PAGE_ROWS ? bottom : 0;
-    out.push(
-      clampItem(
-        {
-          id: def.id,
-          pageId,
-          x: fallback?.x ?? 0,
-          y,
-          w: fallback?.w ?? def.minW,
-          h,
-        },
-        pageId,
-      ),
-    );
-  }
-
-  return { pages: nextPages, items: out };
+  return { pages: nextPages, items: out, widgets: cleanWidgets };
 }
 
 /** @deprecated Prefer normalizeCaseDocument — kept for call sites that only need items. */
@@ -276,15 +361,15 @@ export function normalizeCaseLayout(
 
 export function layoutToCaseGridWidgets(items: CaseLayoutItem[]) {
   return items.map((item) => {
-    const def = CASE_PANELS[item.id];
+    const sizing = caseWidgetSizing(item.id);
     return {
       id: item.id,
       x: item.x,
       y: item.y,
       w: item.w,
       h: item.h,
-      minW: def.minW,
-      minH: def.minH,
+      minW: sizing.minW,
+      minH: sizing.minH,
       maxW: CASE_COLUMNS,
       // A page is one screen — a widget can never be taller than that.
       maxH: CASE_PAGE_ROWS,

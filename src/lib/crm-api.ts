@@ -314,6 +314,17 @@ export interface CaseAddress {
   isPrimary: boolean;
 }
 
+export type CasePersonRelationship =
+  | "cohabitant"
+  | "neighbor"
+  | "family"
+  | "coworker"
+  | "visitor"
+  | "passer_by"
+  | "other";
+
+export type PersonVehicleRole = "owner" | "driver" | "passenger" | "observed_in";
+
 export interface CaseVehicle {
   id: string;
   make: string | null;
@@ -325,6 +336,40 @@ export interface CaseVehicle {
   vin: string | null;
   photoUrl: string | null;
   notes: string | null;
+  registeredOwner: string | null;
+  /** People linked to this vehicle (owner/driver/…). Present on case detail. */
+  personLinks?: {
+    id: string;
+    role: PersonVehicleRole;
+    person: { id: string; name: string; relationship: CasePersonRelationship };
+  }[];
+}
+
+export interface CasePersonVehicleLink {
+  id: string;
+  role: PersonVehicleRole;
+  vehicle: {
+    id: string;
+    make: string | null;
+    model: string | null;
+    year: number | null;
+    color: string | null;
+    licensePlate: string | null;
+  };
+}
+
+/** An additional person on the case (not the subject — that stays on Case). */
+export interface CasePerson {
+  id: string;
+  name: string;
+  relationship: CasePersonRelationship;
+  photoUrl: string | null;
+  phone: string | null;
+  address: string | null;
+  notes: string | null;
+  vehicleLinks: CasePersonVehicleLink[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CaseParticipant {
@@ -363,6 +408,8 @@ export interface CaseDayEntry {
 export interface CaseDay {
   id: string;
   date: string;
+  /** End-of-day wrap-up, when written. */
+  summary: string | null;
   entries: CaseDayEntry[];
 }
 
@@ -409,8 +456,10 @@ export interface CaseDetail extends CaseListItem {
   subjectLanguage: string | null;
   subjectDescription: string | null;
   vehicles: CaseVehicle[];
+  people: CasePerson[];
   presurveillance: CasePresurveillance | null;
   days: CaseDay[];
+  situationSummary: string | null;
   createdBy: CaseParticipant | null;
   createdAt: string;
   updatedAt: string;
@@ -460,8 +509,18 @@ export interface CaseVehicleInput {
   licensePlate?: string;
   state?: string;
   vin?: string;
-  photoUrl?: string;
+  photoUrl?: string | null;
   notes?: string;
+  registeredOwner?: string | null;
+}
+
+export interface CasePersonInput {
+  name: string;
+  relationship?: CasePersonRelationship;
+  photoUrl?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  notes?: string | null;
 }
 
 export interface CreateCasePayload {
@@ -562,6 +621,33 @@ export const casesApi = {
     request<{ days: CaseDay[] }>(`/cases/${id}/days/entries`, { method: "POST", body: JSON.stringify(body) }),
   deleteDayEntry: (id: string, dayId: string, entryId: string) =>
     request<null>(`/cases/${id}/days/${dayId}/entries/${entryId}`, { method: "DELETE" }),
+
+  addPerson: (id: string, body: CasePersonInput) =>
+    request<{ person: CasePerson }>(`/cases/${id}/people`, { method: "POST", body: JSON.stringify(body) }),
+  updatePerson: (id: string, personId: string, body: CasePersonInput) =>
+    request<{ person: CasePerson }>(`/cases/${id}/people/${personId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deletePerson: (id: string, personId: string) => request<null>(`/cases/${id}/people/${personId}`, { method: "DELETE" }),
+  linkPersonVehicle: (id: string, personId: string, vehicleId: string, role: PersonVehicleRole) =>
+    request<{ person: CasePerson }>(`/cases/${id}/people/${personId}/vehicles`, {
+      method: "POST",
+      body: JSON.stringify({ vehicleId, role }),
+    }),
+  unlinkPersonVehicle: (id: string, personId: string, linkId: string) =>
+    request<null>(`/cases/${id}/people/${personId}/vehicles/${linkId}`, { method: "DELETE" }),
+
+  updateSituationSummary: (id: string, situationSummary: string | null) =>
+    request<{ id: string; situationSummary: string | null }>(`/cases/${id}/summary`, {
+      method: "PATCH",
+      body: JSON.stringify({ situationSummary }),
+    }),
+  setDaySummary: (id: string, date: string, summary: string | null) =>
+    request<{ day: { id: string; date: string; summary: string | null } }>(`/cases/${id}/days/summary`, {
+      method: "PUT",
+      body: JSON.stringify({ date, summary }),
+    }),
 };
 
 // ─── Case ingest — pending proposals ────────────────────────────────────────
@@ -882,11 +968,24 @@ export interface GridLayoutPage {
   name: string;
 }
 
+/** A SuperAdmin-built custom widget: a titled list of catalog fields. */
+export interface GridLayoutWidget {
+  id: string;
+  type: "custom";
+  title: string;
+  fields: { key: string; label: string }[];
+  /** Field layout — 1 list, 2 or 3 column grid. Defaults to list. */
+  columns?: 1 | 2 | 3;
+  /** True once explicitly kept for reuse — false/undefined means it's a draft. */
+  persisted?: boolean;
+}
+
 export interface GridLayoutRecord {
   surface: GridSurface;
   /** `null` when no saved layout exists (client uses its built-in default). */
   items: GridLayoutItem[] | null;
   pages: GridLayoutPage[] | null;
+  widgets: GridLayoutWidget[] | null;
   source: "user" | "house" | "default";
   updatedAt: string | null;
 }
@@ -898,10 +997,19 @@ export const gridLayoutsApi = {
    * `keepalive` lets a save started during page unload finish — layouts are
    * often dragged and then immediately navigated away from.
    */
-  save: (surface: GridSurface, items: GridLayoutItem[], pages?: GridLayoutPage[] | null) =>
+  save: (
+    surface: GridSurface,
+    items: GridLayoutItem[],
+    pages?: GridLayoutPage[] | null,
+    widgets?: GridLayoutWidget[] | null,
+  ) =>
     request<{ layout: GridLayoutRecord }>(`/grid-layouts/${surface}`, {
       method: "PUT",
-      body: JSON.stringify(pages && pages.length > 0 ? { items, pages } : { items }),
+      body: JSON.stringify({
+        items,
+        ...(pages && pages.length > 0 ? { pages } : {}),
+        ...(widgets && widgets.length > 0 ? { widgets } : {}),
+      }),
       keepalive: true,
     }),
   reset: (surface: GridSurface) =>

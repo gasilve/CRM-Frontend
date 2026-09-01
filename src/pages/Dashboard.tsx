@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DashboardAddFab } from "@/components/dashboard/DashboardAddFab";
-import { DragTrash } from "@/components/dashboard/DragTrash";
+import { DragDock } from "@/components/dashboard/DragDock";
 import { PanelLoader } from "@/components/ui/LoadingState";
 import { useGridLayout } from "@/hooks/useGridLayout";
 import {
@@ -124,7 +124,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="relative pb-28">
+    <div className="relative">
       <div className="page-header mb-4">
         <h1 className="page-title editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">
           Dashboard
@@ -173,10 +173,10 @@ export default function Dashboard() {
         onClick={toggleDock}
       />
 
-      <DragTrash
+      <DragDock
         visible={draggingWidgetId !== null || dockPlacing}
-        hovered={trashHovered}
-        onHoverChange={(hovered) => {
+        trashHovered={trashHovered}
+        onTrashHoverChange={(hovered) => {
           trashHoveredRef.current = hovered;
           setTrashHovered(hovered);
         }}
@@ -186,7 +186,7 @@ export default function Dashboard() {
         open={dockOpen}
         hiddenIds={hiddenIds}
         gridRef={gridHandleRef}
-        gridMountKey={mountKey}
+        gridMountKey={`${mountKey}:${layoutRevision}`}
         onClose={() => setDockOpen(false)}
         onPlacingChange={setDockPlacing}
       />

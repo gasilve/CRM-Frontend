@@ -5,11 +5,14 @@ import Sidebar from "./Sidebar";
 import { LiveBackground } from "./LiveBackground";
 
 const FULL_BLEED_ROUTES = ["/assistant", "/video"];
+/** No saved scroll room needed — these pages size their own content to fit. */
+const NO_SCROLL_ROUTES = ["/cases/"];
 const SIDEBAR_COLLAPSED_LS_KEY = "accenty.crm.sidebar.collapsed";
 
 export default function AppShell() {
   const { pathname } = useLocation();
   const fullBleed = FULL_BLEED_ROUTES.some((r) => pathname.startsWith(r));
+  const noScroll = fullBleed || NO_SCROLL_ROUTES.some((r) => pathname.startsWith(r));
   const [navOpen, setNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -18,6 +21,13 @@ export default function AppShell() {
       return false;
     }
   });
+
+  // Keeps `--app-sidebar-w` in sync at :root so elements portaled straight
+  // onto `document.body` (case action bar, page arrows) can position
+  // themselves relative to the content pane rather than the whole viewport.
+  useEffect(() => {
+    document.documentElement.style.setProperty("--app-sidebar-w", collapsed ? "3.25rem" : "16rem");
+  }, [collapsed]);
 
   const toggleCollapsed = () => {
     setCollapsed((v) => {
@@ -126,7 +136,9 @@ export default function AppShell() {
           className={
             fullBleed
               ? "app-main flex-1 overflow-hidden"
-              : "app-main flex-1 overflow-y-auto px-7 py-6"
+              : noScroll
+                ? "app-main flex-1 overflow-hidden px-7 py-6"
+                : "app-main flex-1 overflow-y-auto px-7 py-6"
           }
         >
           {/* Fade only — no transform. A transformed ancestor breaks GridStack's

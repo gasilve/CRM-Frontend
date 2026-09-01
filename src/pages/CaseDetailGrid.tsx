@@ -3,12 +3,16 @@ import { createRoot, type Root } from "react-dom/client";
 import { GridStack, type GridStackNode, type GridStackOptions } from "gridstack";
 import { settleGridMetrics } from "@/lib/grid-stack-host";
 import { designPx } from "@/lib/rem";
+import { caseWidgetDebug, type DragDropTarget } from "@/lib/case-widget-debug";
 import {
   CASE_CELL_HEIGHT,
   CASE_COLUMNS,
   CASE_GRID_MARGIN,
   CASE_PAGE_ROWS,
   CASE_PANELS,
+  CUSTOM_WIDGET_TEMPLATE_ID,
+  caseWidgetSizing,
+  isCustomWidgetId,
   itemsForPage,
   layoutToCaseGridWidgets,
   type CaseLayoutItem,
@@ -16,6 +20,7 @@ import {
   type CasePanelCtx,
   type CasePanelId,
 } from "./case-detail-widgets";
+import { CustomCaseWidget } from "./CustomCaseWidget";
 
 export type CaseDetailGridHandle = {
   getGrid: () => GridStack | null;
@@ -39,10 +44,20 @@ type Props = {
   /** Called (debounced) with the full cross-page item list whenever anything settles. */
   onLayoutPersist: (items: CaseLayoutItem[]) => void;
   editable?: boolean;
+  /** Fired when a placed widget starts / stops being dragged (drag-to-trash). */
+  onWidgetDragStart?: (id: string | null) => void;
+  /** Return true when trash/bookmark handled the drop — grid sync is skipped. */
+  onWidgetDragStop?: (id: string | null, dropTarget: DragDropTarget) => boolean | void;
+  /**
+   * A dock drop with the "new custom widget" template landed — the parent must
+   * register a fresh widget definition synchronously and return its id (or
+   * null to reject the drop).
+   */
+  onCreateCustomWidget?: () => string | null;
 };
 
 const panelRoots = new WeakMap<HTMLElement, Root>();
-const hostById = new Map<CasePanelId, HTMLElement>();
+const hostById = new Map<string, HTMLElement>();
 const allRoots = new Set<Root>();
 const pendingUnmounts = new Set<Root>();
 
@@ -75,9 +90,13 @@ function unmountAll() {
   roots.forEach(scheduleUnmount);
 }
 
-function renderPanel(host: HTMLElement, id: CasePanelId, ctx: CasePanelCtx) {
-  const def = CASE_PANELS[id];
-  if (!def) return;
+function isRenderableWidget(id: string): boolean {
+  return Boolean(CASE_PANELS[id as CasePanelId]) || isCustomWidgetId(id);
+}
+
+function renderPanel(host: HTMLElement, id: string, ctx: CasePanelCtx) {
+  const def = CASE_PANELS[id as CasePanelId];
+  if (!def && !isCustomWidgetId(id)) return;
 
   const prev = hostById.get(id);
   if (prev && prev !== host) releaseHost(prev);
@@ -92,7 +111,9 @@ function renderPanel(host: HTMLElement, id: CasePanelId, ctx: CasePanelCtx) {
 
   root.render(
     <div className="widget-frame h-full w-full">
-      <div className="widget-body h-full w-full">{def.render(ctx)}</div>
+      <div className="widget-body h-full w-full">
+        {def ? def.render(ctx) : <CustomCaseWidget ctx={ctx} id={id} />}
+      </div>
     </div>,
   );
 }
@@ -107,7 +128,7 @@ function nodesToLayout(nodes: GridStackNode[], pageId: string): CaseLayoutItem[]
   return nodes
     .filter((n) => typeof n.id === "string" && n.id.length > 0)
     .map((n) => ({
-      id: n.id as CasePanelId,
+      id: n.id as string,
       pageId,
       x: n.x ?? 0,
       y: n.y ?? 0,
@@ -126,6 +147,9 @@ function CaseDetailGridInner({
   gridRef,
   onLayoutPersist,
   editable = false,
+  onWidgetDragStart,
+  onWidgetDragStop,
+  onCreateCustomWidget,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -139,12 +163,18 @@ function CaseDetailGridInner({
   const ctxRef = useRef(ctx);
   const persistRef = useRef(onLayoutPersist);
   const onActivePageChangeRef = useRef(onActivePageChange);
+  const onDragStartRef = useRef(onWidgetDragStart);
+  const onDragStopRef = useRef(onWidgetDragStop);
+  const onCreateCustomRef = useRef(onCreateCustomWidget);
   pagesRef.current = pages;
   activePageIdRef.current = activePageId;
   layoutRef.current = layout;
   ctxRef.current = ctx;
   persistRef.current = onLayoutPersist;
   onActivePageChangeRef.current = onActivePageChange;
+  onDragStartRef.current = onWidgetDragStart;
+  onDragStopRef.current = onWidgetDragStop;
+  onCreateCustomRef.current = onCreateCustomWidget;
 
   // Slide the track whenever the active page changes (tab click, or an
   // edge-hold flip during a drag) — this is the carousel motion.
@@ -167,8 +197,8 @@ function CaseDetailGridInner({
     unmountAll();
 
     GridStack.renderCB = (el, node) => {
-      const id = (node.id ?? el.getAttribute("gs-id")) as CasePanelId | null;
-      if (!id || !CASE_PANELS[id]) return;
+      const id = (node.id ?? el.getAttribute("gs-id")) as string | null;
+      if (!id || !isRenderableWidget(id)) return;
       renderPanel(el, id, ctxRef.current);
     };
 
@@ -186,6 +216,8 @@ function CaseDetailGridInner({
     let dwellDir: "prev" | "next" | null = null;
     let edgeLatched = false;
     let dragActive = false;
+    let draggingId: string | null = null;
+    let replacingDockDrop = false;
 
     const clearDwell = () => {
       if (dwellTimer !== null) {
@@ -241,11 +273,34 @@ function CaseDetailGridInner({
     // GridStack's own 'drag' event only fires when the widget actually lands
     // on a new cell, so it goes quiet exactly when you park a widget against
     // the edge. Track the pointer ourselves for the whole gesture instead.
-    const onPointerMove = (ev: PointerEvent) => updateEdgeHint(ev.clientX);
+    let lastPointer = { x: 0, y: 0 };
+    const onPointerMove = (ev: PointerEvent) => {
+      lastPointer = { x: ev.clientX, y: ev.clientY };
+      updateEdgeHint(ev.clientX);
+    };
+
+    const hitDropTarget = (x: number, y: number): DragDropTarget => {
+      const unsaveHit = document.querySelector(".drag-unsave-hit");
+      if (unsaveHit) {
+        const r = unsaveHit.getBoundingClientRect();
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return "unsave";
+      }
+      const trashHit = document.querySelector(".drag-trash-hit");
+      if (trashHit) {
+        const r = trashHit.getBoundingClientRect();
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return "trash";
+      }
+      const saveHit = document.querySelector(".drag-save-hit");
+      if (saveHit) {
+        const r = saveHit.getBoundingClientRect();
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return "save";
+      }
+      return null;
+    };
 
     let syncQueued = false;
     const resyncAll = () => {
-      if (cancelled) return;
+      if (cancelled || replacingDockDrop) return;
       // Only persist once every currently mounted page has finished its
       // initial settle — otherwise a page still loading would read back as
       // empty and we'd wipe its widgets from the saved document.
@@ -271,7 +326,7 @@ function CaseDetailGridInner({
       });
     };
 
-    const endDragTracking = (sync = false) => {
+  const endDragTracking = (sync = false, pointer?: { x: number; y: number }) => {
       if (!dragActive) return;
       dragActive = false;
       window.removeEventListener("pointermove", onPointerMove);
@@ -279,18 +334,40 @@ function CaseDetailGridInner({
       window.removeEventListener("pointercancel", onPointerUp);
       document.body.classList.remove("dashboard-widget-dragging");
       resetDrag();
-      if (sync) queueSync();
+      const id = draggingId;
+      draggingId = null;
+      const pt = pointer ?? lastPointer;
+      const dropTarget = hitDropTarget(pt.x, pt.y);
+      caseWidgetDebug.log("endDragTracking", { id, sync, dropTarget, x: pt.x, y: pt.y });
+      // Finish the drag on the next frame so GridStack can complete dragstop
+      // before bookmark/trash handlers mutate layout state.
+      requestAnimationFrame(() => {
+        let skipSync = false;
+        if (id !== null) {
+          try {
+            skipSync = onDragStopRef.current?.(id, dropTarget) === true;
+          } catch (err) {
+            caseWidgetDebug.error("onWidgetDragStop threw", err);
+          }
+        }
+        caseWidgetDebug.log("endDragTracking rAF", { id, dropTarget, skipSync, sync });
+        if (sync && !skipSync) queueSync();
+      });
     };
 
-    const onPointerUp = () => endDragTracking(true);
+    const onPointerUp = (ev: PointerEvent) => {
+      endDragTracking(true, { x: ev.clientX, y: ev.clientY });
+    };
 
-    const beginDragTracking = () => {
+    const beginDragTracking = (id: string | null) => {
       dragActive = true;
+      draggingId = id;
       document.body.classList.add("dashboard-widget-dragging");
       resetDrag();
       window.addEventListener("pointermove", onPointerMove);
       window.addEventListener("pointerup", onPointerUp);
       window.addEventListener("pointercancel", onPointerUp);
+      onDragStartRef.current?.(id);
     };
 
     const buildOpts = (): GridStackOptions => ({
@@ -308,19 +385,98 @@ function CaseDetailGridInner({
         ? {
             draggable: { handle: ".widget-body", appendTo: "body" },
             resizable: { handles: "n,e,s,w,se,sw,ne,nw" },
-            acceptWidgets: true,
+            // Dock cards are NOT .grid-stack-item, so `true` would reject them
+            // (gridstack matches that class when given a boolean). Accept both
+            // dock cards and real items dragged over from sibling page grids.
+            acceptWidgets: (el: Element) =>
+              el.classList.contains("dock-carousel-item") || el.classList.contains("grid-stack-item"),
           }
         : {}),
     });
 
+    /**
+     * A dock item just landed on this grid. GridStack inserted the dock's DOM
+     * clone — swap it for a properly sized real widget (creating the custom
+     * widget definition first when the "new widget" template was dropped).
+     */
+    const replaceDockDrop = (grid: GridStack, newNode: GridStackNode) => {
+      const el = newNode.el as HTMLElement | undefined;
+      let id = (newNode.id ?? el?.getAttribute("gs-id")) as string | null;
+      if (!id) return;
+
+      if (id === CUSTOM_WIDGET_TEMPLATE_ID) {
+        id = onCreateCustomRef.current?.() ?? null;
+      }
+      // Refuse duplicates of a widget that is already placed somewhere.
+      const alreadyPlaced = id !== null && layoutRef.current.some((i) => i.id === id);
+
+      replacingDockDrop = true;
+      try {
+        grid.batchUpdate(true);
+        if (el && el.parentElement) {
+          try {
+            grid.removeWidget(el, true, false);
+          } catch {
+            el.remove();
+          }
+        }
+        if (id && !alreadyPlaced && isRenderableWidget(id)) {
+          const sizing = caseWidgetSizing(id);
+          const h = Math.min(sizing.defaultH, CASE_PAGE_ROWS);
+          const y = Math.max(0, Math.min(newNode.y ?? 0, CASE_PAGE_ROWS - h));
+          grid.addWidget({
+            id,
+            x: newNode.x ?? 0,
+            y,
+            w: sizing.defaultW,
+            h,
+            minW: sizing.minW,
+            minH: sizing.minH,
+            maxW: CASE_COLUMNS,
+            maxH: CASE_PAGE_ROWS,
+          });
+        }
+        grid.batchUpdate(false);
+      } finally {
+        replacingDockDrop = false;
+      }
+      queueSync();
+    };
+
+    const isDockDrop = (node: GridStackNode) => {
+      if (node.el?.classList.contains("dock-carousel-item")) return true;
+      if ((node as GridStackNode & { _isExternal?: boolean })._isExternal) return true;
+      const id = (node.id ?? node.el?.getAttribute("gs-id")) as string | null;
+      if (!id) return false;
+      if (id === CUSTOM_WIDGET_TEMPLATE_ID) return true;
+      if (isCustomWidgetId(id)) {
+        return !layoutRef.current.some((item) => item.id === id);
+      }
+      if (CASE_PANELS[id as CasePanelId]) {
+        return !layoutRef.current.some((item) => item.id === id);
+      }
+      return false;
+    };
+
     const attachGridEvents = (grid: GridStack) => {
       if (!editable) return;
-      grid.on("dragstart", beginDragTracking);
+      grid.on("dragstart", (_e: Event, el: HTMLElement) => {
+        const item = el as HTMLElement & { gridstackNode?: GridStackNode };
+        const id = (item.gridstackNode?.id ?? item.getAttribute("gs-id")) as string | null;
+        beginDragTracking(id && isRenderableWidget(id) ? id : null);
+      });
       grid.on("dragstop", () => endDragTracking(true));
       grid.on("resizestop", queueSync);
       grid.on("change", queueSync);
       grid.on("added", queueSync);
       grid.on("removed", queueSync);
+      grid.on("dropped", (_e: Event, _prev: GridStackNode | undefined, newNode: GridStackNode) => {
+        if (newNode && isDockDrop(newNode)) {
+          replaceDockDrop(grid, newNode);
+          return;
+        }
+        queueSync();
+      });
     };
 
     const detachGridEvents = (grid: GridStack) => {
@@ -331,6 +487,7 @@ function CaseDetailGridInner({
         grid.off("change");
         grid.off("added");
         grid.off("removed");
+        grid.off("dropped");
       } catch {
         /* ignore */
       }
@@ -399,13 +556,10 @@ function CaseDetailGridInner({
       gridsRef.current.clear();
       gridRef.current = null;
       unmountAll();
-      if (GridStack.renderCB) {
-        try {
-          delete (GridStack as { renderCB?: unknown }).renderCB;
-        } catch {
-          /* ignore */
-        }
-      }
+      // NOTE: GridStack.renderCB is a global — deliberately NOT deleted here.
+      // Whichever grid surface mounts next overwrites it; deleting could race
+      // another surface's mount (case ↔ dashboard) and leave dropped widgets
+      // rendering empty.
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- full rebuild via mountKey only
   }, [mountKey, gridRef, editable]);
@@ -437,13 +591,10 @@ function CaseDetailGridInner({
     });
   }, [ctx.case.id, ctx]);
 
-  const height = caseGridShellHeightPx();
-
   return (
     <div
       ref={shellRef}
-      className="case-detail-grid-shell relative"
-      style={{ height, maxHeight: height }}
+      className="case-detail-grid-shell relative h-full min-h-0"
     >
       <div
         className="edge-hint edge-hint-prev pointer-events-none absolute inset-y-0 left-0 z-20 w-14 bg-gradient-to-r from-[var(--color-accent)]/25 to-transparent"
