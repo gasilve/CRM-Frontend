@@ -51,8 +51,8 @@ import { BackgroundPicker } from "./BackgroundPicker";
 import { ThemePicker } from "./ThemePicker";
 import { ConfirmModal } from "@/components/dashboard/ConfirmModal";
 import { invCases, investigators } from "@/lib/mock-data";
-import { pendingCasesApi } from "@/lib/crm-api";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePendingIntake } from "@/contexts/PendingIntakeContext";
 import type { Permission } from "@/lib/auth-client";
 import { getInitials, formatRoleList } from "@/lib/format";
 import accentyLogo from "@/assets/branding/accenty-logo.png";
@@ -559,24 +559,7 @@ export default function Sidebar({
   );
 
   const canSeeIntake = canAny("intake.view");
-
-  const [pendingCases, setPendingCases] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!canSeeIntake) return;
-    let cancelled = false;
-    pendingCasesApi
-      .summary()
-      .then((res) => {
-        if (!cancelled) setPendingCases(res.pendingReview);
-      })
-      .catch(() => {
-        /* the badge is decoration — a failed count must not break the nav */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [canSeeIntake]);
+  const { pendingReview: pendingCases } = usePendingIntake();
 
   const groups = useMemo(() => {
     return sidebarState.folders.map((folder) => ({

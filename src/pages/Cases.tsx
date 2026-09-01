@@ -26,6 +26,7 @@ import { PendingCasesTable } from "@/components/cases/PendingCasesTable";
 import { TableSkeleton } from "@/components/ui/LoadingState";
 import { ViewToggle, ViewToggleGroup } from "@/components/ui/ViewToggle";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePendingIntake } from "@/contexts/PendingIntakeContext";
 
 type View = "cases" | "awaiting";
 
@@ -81,6 +82,8 @@ export default function Cases() {
   const { can } = useAuth();
   // The "awaiting review" tab is the case-intake inbox, not a case list.
   const canSeeIntake = can("intake.view");
+  const { pendingReview, setPendingReview } = usePendingIntake();
+  const pendingReviewCount = pendingReview ?? 0;
 
   const [view, setView] = useState<View>("cases");
   const [search, setSearch] = useState("");
@@ -93,7 +96,6 @@ export default function Cases() {
 
   const [pendingItems, setPendingItems] = useState<PendingCaseListItem[] | null>(null);
   const [pendingTotal, setPendingTotal] = useState(0);
-  const [pendingReviewCount, setPendingReviewCount] = useState(0);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -110,20 +112,6 @@ export default function Cases() {
   useEffect(() => setPage(1), [view, search, dueFrom, dueTo]);
 
   useEffect(() => {
-    if (!canSeeIntake) return;
-    let cancelled = false;
-    pendingCasesApi
-      .summary()
-      .then((res) => {
-        if (!cancelled) setPendingReviewCount(res.pendingReview);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [canSeeIntake, location.key]);
-
-  useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -135,7 +123,7 @@ export default function Cases() {
           if (cancelled) return;
           setPendingItems(res.pendingCases);
           setPendingTotal(res.total);
-          setPendingReviewCount(res.total);
+          setPendingReview(res.total);
         })
         .catch((err) => {
           if (cancelled) return;
@@ -216,7 +204,7 @@ export default function Cases() {
               />
             </ViewToggleGroup>
           )}
-          <WeatherStrip />
+          {!loading && <WeatherStrip />}
         </div>
       </div>
 
