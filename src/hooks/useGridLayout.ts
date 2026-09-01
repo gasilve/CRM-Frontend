@@ -70,8 +70,9 @@ export function useGridLayout<T extends GridLayoutItem>({
   defaultPages,
   normalizeDocument,
 }: Options<T>): GridLayoutState<T> {
-  const [layout, setLayout] = useState<T[] | null>(null);
-  const [pages, setPages] = useState<GridLayoutPage[] | null>(defaultPages ? null : null);
+  // Start with defaults so pages render immediately; sync saved layout when the API responds.
+  const [layout, setLayout] = useState<T[] | null>(() => normalize(defaultLayout));
+  const [pages, setPages] = useState<GridLayoutPage[] | null>(() => defaultPages ?? null);
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
