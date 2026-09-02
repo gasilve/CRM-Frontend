@@ -1,90 +1,122 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  MapPin,
+  ArrowDown,
+  ArrowUp,
   ChevronLeft,
   ChevronRight,
+  Columns3,
   Search,
+  SlidersHorizontal,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { getInitials } from "@/lib/format";
 import { SERVICE_LABELS } from "@/lib/mock-data";
 import {
   casesApi,
+  gridLayoutsApi,
+  REGION_LABELS,
   type CaseListItem,
-  type CaseStatus,
+  type CasePriority,
   type CaseService,
+  type CaseSortField,
+  type CaseStatus,
+  type Region,
 } from "@/lib/crm-api";
 import { WeatherStrip } from "@/components/cases/WeatherStrip";
 import { TableSkeleton } from "@/components/ui/LoadingState";
 import { useQuery } from "@/lib/query-cache";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  columnsFromLayout,
+  getColumnDef,
+  type CaseColumnDef,
+  type CaseColumnSetting,
+} from "@/components/cases/case-table-columns";
+import { CustomizeColumnsModal } from "@/components/cases/CustomizeColumnsModal";
 
 const PER_PAGE = 8;
 
-const CASES_COLS =
-  "grid grid-cols-[5.25rem_3.25rem_minmax(9.5rem,1.25fr)_minmax(7rem,0.9fr)_5rem_minmax(7.5rem,0.95fr)_minmax(8.5rem,1.05fr)_3rem_minmax(6.5rem,0.85fr)_5.25rem] items-center gap-x-2 px-5";
+const ROW_BASE = "grid items-center gap-x-2 px-5";
 
-const STATUS_CONFIG: Record<CaseStatus, { label: string; dot: string; pill: string; pillText: string }> = {
-  open: { label: "Open", dot: "#4ade80", pill: "rgba(74,222,128,0.15)", pillText: "#4ade80" },
-  suspended: { label: "Suspended", dot: "#f59e0b", pill: "rgba(245,158,11,0.15)", pillText: "#f59e0b" },
-  closed: { label: "Closed", dot: "#5b6680", pill: "rgba(91,102,128,0.15)", pillText: "#7a8499" },
+type SortState = { key: CaseSortField; dir: "asc" | "desc" } | null;
+
+type Filters = {
+  status: CaseStatus | "";
+  priority: CasePriority | "";
+  service: CaseService | "";
+  region: Region | "";
+  dueFrom: string;
+  dueTo: string;
 };
 
-const PRIORITY_CONFIG = {
-  rush: { label: "RUSH", bg: "rgba(248,113,113,0.16)", text: "#f87171" },
-  asap: { label: "ASAP", bg: "rgba(251,146,60,0.16)", text: "#fb923c" },
-  standard: { label: "STD", bg: "var(--color-ink-3)", text: "var(--color-text-lo)" },
-} as const;
+const EMPTY_FILTERS: Filters = { status: "", priority: "", service: "", region: "", dueFrom: "", dueTo: "" };
 
-const SERVICE_COLORS: Record<CaseService, { bg: string; text: string }> = {
-  SURV: { bg: "rgba(74,127,255,0.16)", text: "#7aa1ff" },
-  WC: { bg: "rgba(167,139,250,0.16)", text: "#a78bfa" },
-  FMLA: { bg: "rgba(45,212,191,0.16)", text: "#2dd4bf" },
-  BG: { bg: "rgba(148,163,184,0.16)", text: "#94a3b8" },
-  DOM: { bg: "rgba(251,113,133,0.16)", text: "#fb7185" },
-  SOC: { bg: "rgba(192,132,252,0.16)", text: "#c084fc" },
-  DIS: { bg: "rgba(251,191,36,0.16)", text: "#fbbf24" },
-  LOC: { bg: "rgba(74,222,128,0.16)", text: "#4ade80" },
-  PS: { bg: "rgba(34,211,238,0.16)", text: "#22d3ee" },
-  LIA: { bg: "rgba(244,114,182,0.16)", text: "#f472b6" },
-};
+const countActiveFilters = (f: Filters): number =>
+  [f.status, f.priority, f.service, f.region, f.dueFrom || f.dueTo ? "due" : ""].filter(Boolean).length;
 
-const DAY_MS = 86_400_000;
+/** A configured column resolved against the catalog (renamed headers applied). */
+type ResolvedColumn = { def: CaseColumnDef; label: string };
 
-const fmtShortDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString(undefined, { month: "2-digit", day: "2-digit", year: "2-digit" });
-
-const daysUntil = (iso: string): number => {
-  const due = new Date(iso);
-  const today = new Date();
-  due.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due.getTime() - today.getTime()) / DAY_MS);
-};
+const resolveColumns = (settings: CaseColumnSetting[]): ResolvedColumn[] =>
+  settings
+    .map((s) => {
+      const def = getColumnDef(s.id);
+      return def ? { def, label: s.label?.trim() || def.label } : null;
+    })
+    .filter((c): c is ResolvedColumn => c !== null);
 
 export default function Cases() {
   const navigate = useNavigate();
+  const { isSuperadmin } = useAuth();
 
   const [search, setSearch] = useState("");
-  const [dueFrom, setDueFrom] = useState("");
-  const [dueTo, setDueTo] = useState("");
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [sort, setSort] = useState<SortState>(null);
   const [page, setPage] = useState(1);
+  const [customizing, setCustomizing] = useState(false);
 
-  useEffect(() => setPage(1), [search, dueFrom, dueTo]);
+  useEffect(() => setPage(1), [search, filters, sort]);
+
+  // Shared column configuration (house layout, SuperAdmin-editable).
+  const layoutQuery = useQuery("cases-table:columns", async () => (await gridLayoutsApi.get("cases-table")).layout, {
+    staleMs: 5 * 60_000,
+  });
+  const columnSettings = useMemo(() => columnsFromLayout(layoutQuery.data?.items), [layoutQuery.data]);
+  const columns = useMemo(() => resolveColumns(columnSettings), [columnSettings]);
+  const rowStyle: CSSProperties = useMemo(
+    () => ({ gridTemplateColumns: columns.map((c) => c.def.track).join(" ") }),
+    [columns],
+  );
 
   // Cached per filter combination: revisiting the page (or paging back and
   // forth) renders instantly from cache while a background fetch refreshes it.
-  const query = useQuery(
-    `cases:list:${search}:${dueFrom}:${dueTo}:${page}`,
-    () =>
-      casesApi.list({
-        search: search || undefined,
-        dueFrom: dueFrom || undefined,
-        dueTo: dueTo || undefined,
-        page,
-        pageSize: PER_PAGE,
-      }),
+  const queryKey = [
+    "cases:list",
+    search,
+    filters.status,
+    filters.priority,
+    filters.service,
+    filters.region,
+    filters.dueFrom,
+    filters.dueTo,
+    sort ? `${sort.key}.${sort.dir}` : "",
+    page,
+  ].join(":");
+  const query = useQuery(queryKey, () =>
+    casesApi.list({
+      search: search || undefined,
+      status: filters.status || undefined,
+      priority: filters.priority || undefined,
+      service: filters.service || undefined,
+      region: filters.region || undefined,
+      dueFrom: filters.dueFrom || undefined,
+      dueTo: filters.dueTo || undefined,
+      sortBy: sort?.key,
+      sortDir: sort?.dir,
+      page,
+      pageSize: PER_PAGE,
+    }),
   );
 
   const items = query.data?.cases ?? null;
@@ -93,7 +125,9 @@ export default function Cases() {
   const error = query.error;
 
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
-  const hasDateFilter = dueFrom !== "" || dueTo !== "";
+
+  const toggleSort = (key: CaseSortField) =>
+    setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
@@ -121,36 +155,19 @@ export default function Cases() {
           />
         </div>
 
-        <div className="ml-auto flex items-center gap-1.5">
-            <span className="font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">Due</span>
-            <input
-              type="date"
-              value={dueFrom}
-              onChange={(e) => setDueFrom(e.target.value)}
-              aria-label="Due from"
-              className="rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1.5 text-[0.71875rem] text-[var(--color-text-hi)] focus:outline-none focus:border-[var(--color-accent)]"
-            />
-            <span className="text-[0.71875rem] text-[var(--color-text-lo)]">–</span>
-            <input
-              type="date"
-              value={dueTo}
-              onChange={(e) => setDueTo(e.target.value)}
-              aria-label="Due to"
-              className="rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1.5 text-[0.71875rem] text-[var(--color-text-hi)] focus:outline-none focus:border-[var(--color-accent)]"
-            />
-            {hasDateFilter && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDueFrom("");
-                  setDueTo("");
-                }}
-                aria-label="Clear date filter"
-                className="grid h-7 w-7 place-items-center rounded-[0.5rem] text-[var(--color-text-lo)] transition-colors hover:bg-[var(--color-ink-3)] hover:text-[var(--color-text-hi)]"
-              >
-                <X size={12} strokeWidth={1.8} />
-              </button>
-            )}
+        <div className="ml-auto flex items-center gap-2">
+          <FiltersButton filters={filters} onChange={setFilters} />
+          {isSuperadmin && (
+            <button
+              type="button"
+              onClick={() => setCustomizing(true)}
+              title="Customize columns"
+              aria-label="Customize columns"
+              className="grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] text-[var(--color-text-lo)] transition-colors hover:border-[var(--color-accent-soft)] hover:text-[var(--color-text-hi)]"
+            >
+              <Columns3 size={13} strokeWidth={1.8} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -163,12 +180,17 @@ export default function Cases() {
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         <div className="min-h-0 flex-1 overflow-hidden">
           {loading ? (
-            <TableSkeleton
-              colClass={CASES_COLS}
-              headers={["Due", "!", "Subject", "Type", "Claim", "Location", "Client / Adjuster", "Days", "Investigator", "Status"]}
-            />
+            <TableSkeleton colClass={ROW_BASE} colStyle={rowStyle} headers={columns.map((c) => c.label)} />
           ) : (
-            <CasesTable key={`cases-${page}`} items={items ?? []} onRowClick={(id) => navigate(`/cases/${id}`)} />
+            <CasesTable
+              key={`cases-${page}`}
+              items={items ?? []}
+              columns={columns}
+              rowStyle={rowStyle}
+              sort={sort}
+              onSort={toggleSort}
+              onRowClick={(id) => navigate(`/cases/${id}`)}
+            />
           )}
         </div>
 
@@ -210,26 +232,193 @@ export default function Cases() {
           </div>
         )}
       </div>
+
+      <CustomizeColumnsModal
+        open={customizing}
+        columns={columnSettings}
+        onClose={() => setCustomizing(false)}
+        onSaved={(layout) => layoutQuery.mutate(layout)}
+      />
     </div>
   );
 }
 
-function CasesTable({ items, onRowClick }: { items: CaseListItem[]; onRowClick: (id: string) => void }) {
+// ─── Filters popover ─────────────────────────────────────────────────────────
+
+const filterSelectClass =
+  "w-full rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2.5 py-1.5 text-[0.75rem] text-[var(--color-text-hi)] focus:outline-none focus:border-[var(--color-accent)]";
+const filterLabelClass = "mb-1 block text-[0.5625rem] font-medium uppercase tracking-wider text-[var(--color-text-lo)]";
+
+function FiltersButton({ filters, onChange }: { filters: Filters; onChange: (f: Filters) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const active = countActiveFilters(filters);
+  const set = <K extends keyof Filters>(key: K, value: Filters[K]) => onChange({ ...filters, [key]: value });
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "inline-flex h-8 items-center gap-1.5 rounded-[0.5rem] border px-3 text-[0.75rem] transition-colors",
+          active > 0 || open
+            ? "border-[var(--color-accent-soft)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
+            : "border-[var(--color-line-2)] bg-[var(--color-ink-3)] text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]",
+        )}
+      >
+        <SlidersHorizontal size={12} strokeWidth={1.8} />
+        Filters
+        {active > 0 && (
+          <span className="grid h-4 min-w-[1rem] place-items-center rounded-full bg-[var(--color-accent)] px-1 font-mono text-[0.5625rem] font-semibold text-white">
+            {active}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="surface anim-modal absolute right-0 top-full z-30 mt-2 w-72 rounded-[0.75rem] border border-[var(--color-line-2)] p-4 shadow-[0_1rem_2.5rem_rgba(0,0,0,0.45)]">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={filterLabelClass}>Region</label>
+              <select className={filterSelectClass} value={filters.region} onChange={(e) => set("region", e.target.value as Region | "")}>
+                <option value="">All</option>
+                {(Object.entries(REGION_LABELS) as [Region, string][]).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={filterLabelClass}>Status</label>
+              <select className={filterSelectClass} value={filters.status} onChange={(e) => set("status", e.target.value as CaseStatus | "")}>
+                <option value="">All</option>
+                <option value="open">Open</option>
+                <option value="suspended">Suspended</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+            <div>
+              <label className={filterLabelClass}>Priority</label>
+              <select className={filterSelectClass} value={filters.priority} onChange={(e) => set("priority", e.target.value as CasePriority | "")}>
+                <option value="">All</option>
+                <option value="rush">Rush</option>
+                <option value="asap">ASAP</option>
+                <option value="standard">Standard</option>
+              </select>
+            </div>
+            <div>
+              <label className={filterLabelClass}>Type</label>
+              <select className={filterSelectClass} value={filters.service} onChange={(e) => set("service", e.target.value as CaseService | "")}>
+                <option value="">All</option>
+                {(Object.entries(SERVICE_LABELS) as [CaseService, string][]).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className={filterLabelClass}>Due between</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={filters.dueFrom}
+                  onChange={(e) => set("dueFrom", e.target.value)}
+                  aria-label="Due from"
+                  className={filterSelectClass}
+                />
+                <span className="text-[0.71875rem] text-[var(--color-text-lo)]">–</span>
+                <input
+                  type="date"
+                  value={filters.dueTo}
+                  onChange={(e) => set("dueTo", e.target.value)}
+                  aria-label="Due to"
+                  className={filterSelectClass}
+                />
+              </div>
+            </div>
+          </div>
+
+          {active > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange(EMPTY_FILTERS)}
+              className="mt-3 inline-flex items-center gap-1 text-[0.6875rem] text-[var(--color-text-lo)] transition-colors hover:text-[var(--color-text-hi)]"
+            >
+              <X size={11} strokeWidth={1.8} />
+              Clear all filters
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Table ───────────────────────────────────────────────────────────────────
+
+function CasesTable({
+  items,
+  columns,
+  rowStyle,
+  sort,
+  onSort,
+  onRowClick,
+}: {
+  items: CaseListItem[];
+  columns: ResolvedColumn[];
+  rowStyle: CSSProperties;
+  sort: SortState;
+  onSort: (key: CaseSortField) => void;
+  onRowClick: (id: string) => void;
+}) {
   const slots = Array.from({ length: PER_PAGE }, (_, i) => items[i] ?? null);
 
   return (
     <div className="surface flex h-full min-h-0 flex-col overflow-hidden p-0">
-      <div className={cn(CASES_COLS, "shrink-0 border-b border-[var(--color-line)] py-2.5")}>
-        <span className="eyebrow">Due</span>
-        <span className="eyebrow">!</span>
-        <span className="eyebrow">Subject</span>
-        <span className="eyebrow">Type</span>
-        <span className="eyebrow">Claim</span>
-        <span className="eyebrow">Location</span>
-        <span className="eyebrow">Client / Adjuster</span>
-        <span className="eyebrow text-center">Days</span>
-        <span className="eyebrow">Investigator</span>
-        <span className="eyebrow">Status</span>
+      <div className={cn(ROW_BASE, "shrink-0 border-b border-[var(--color-line)] py-2.5")} style={rowStyle}>
+        {columns.map(({ def, label }) =>
+          def.sortKey ? (
+            <button
+              key={def.id}
+              type="button"
+              onClick={() => onSort(def.sortKey!)}
+              title={`Sort by ${label}`}
+              className={cn(
+                "eyebrow flex items-center gap-1 text-left transition-colors hover:text-[var(--color-text-hi)]",
+                def.center && "justify-center",
+                sort?.key === def.sortKey && "text-[var(--color-text-hi)]",
+              )}
+            >
+              <span className="truncate">{label}</span>
+              {sort?.key === def.sortKey &&
+                (sort.dir === "asc" ? (
+                  <ArrowUp size={10} strokeWidth={2} className="shrink-0 text-[var(--color-accent-2)]" />
+                ) : (
+                  <ArrowDown size={10} strokeWidth={2} className="shrink-0 text-[var(--color-accent-2)]" />
+                ))}
+            </button>
+          ) : (
+            <span key={def.id} className={cn("eyebrow truncate", def.center && "text-center")}>
+              {label}
+            </span>
+          ),
+        )}
       </div>
 
       {items.length === 0 ? (
@@ -243,7 +432,14 @@ function CasesTable({ items, onRowClick }: { items: CaseListItem[]; onRowClick: 
         >
           {slots.map((c, i) =>
             c ? (
-              <TableRow key={c.id} c={c} onClick={() => onRowClick(c.id)} showDivider={i < PER_PAGE - 1} />
+              <TableRow
+                key={c.id}
+                c={c}
+                columns={columns}
+                rowStyle={rowStyle}
+                onClick={() => onRowClick(c.id)}
+                showDivider={i < PER_PAGE - 1}
+              />
             ) : (
               <div key={`pad-${i}`} aria-hidden className={cn(i < PER_PAGE - 1 && "border-b border-[var(--color-line)]")} />
             ),
@@ -254,43 +450,19 @@ function CasesTable({ items, onRowClick }: { items: CaseListItem[]; onRowClick: 
   );
 }
 
-function DueCell({ c }: { c: CaseListItem }) {
-  if (!c.dueDate) {
-    return <span className="font-mono text-[0.65625rem] text-[var(--color-text-lo)]">—</span>;
-  }
-  const left = daysUntil(c.dueDate);
-  const closed = c.status === "closed";
-  const overdue = !closed && left < 0;
-  const soon = !closed && left >= 0 && left <= 7;
-  return (
-    <div className="min-w-0">
-      <div
-        className={cn(
-          "font-mono text-[0.71875rem] font-medium leading-tight",
-          overdue ? "text-[var(--color-neg)]" : soon ? "text-[#fb923c]" : "text-[var(--color-text-hi)]",
-        )}
-      >
-        {fmtShortDate(c.dueDate)}
-      </div>
-      <div
-        className={cn(
-          "font-mono text-[0.5625rem] uppercase tracking-wide leading-tight",
-          overdue ? "text-[var(--color-neg)]" : soon ? "text-[#fb923c]" : "text-[var(--color-text-lo)]",
-        )}
-      >
-        {closed ? "closed" : overdue ? "overdue" : `${left}d left`}
-      </div>
-    </div>
-  );
-}
-
-function TableRow({ c, onClick, showDivider }: { c: CaseListItem; onClick: () => void; showDivider: boolean }) {
-  const cfg = STATUS_CONFIG[c.status];
-  const pri = PRIORITY_CONFIG[c.priority];
-  const primaryAddress = c.addresses[0];
-  const location = [primaryAddress?.city, primaryAddress?.state ?? c.state].filter(Boolean).join(", ");
-  const inv = c.assignments[0]?.user ?? null;
-
+function TableRow({
+  c,
+  columns,
+  rowStyle,
+  onClick,
+  showDivider,
+}: {
+  c: CaseListItem;
+  columns: ResolvedColumn[];
+  rowStyle: CSSProperties;
+  onClick: () => void;
+  showDivider: boolean;
+}) {
   return (
     <div
       role="button"
@@ -303,89 +475,18 @@ function TableRow({ c, onClick, showDivider }: { c: CaseListItem; onClick: () =>
         }
       }}
       className={cn(
-        CASES_COLS,
+        ROW_BASE,
         "h-full min-h-0 cursor-pointer overflow-hidden transition-colors hover:bg-white/[0.022]",
         showDivider && "border-b border-[var(--color-line)]",
       )}
+      style={rowStyle}
     >
-      <DueCell c={c} />
-      <div>
-        <span
-          className="inline-block rounded-[0.3125rem] px-1.5 py-0.5 font-mono text-[0.53125rem] font-semibold tracking-wider"
-          style={{ background: pri.bg, color: pri.text }}
-        >
-          {pri.label}
-        </span>
-      </div>
-      <div className="min-w-0">
-        <div className="truncate text-[0.8125rem] font-medium leading-tight text-[var(--color-text-hi)]">{c.subjectName}</div>
-        <div className="truncate font-mono text-[0.625rem] leading-tight text-[var(--color-text-lo)]">
-          {c.subjectDob ? `DOB ${c.subjectDob.slice(0, 10)}` : c.caseNumber}
+      {columns.map(({ def }) => (
+        <div key={def.id} className="min-w-0">
+          {def.render(c)}
         </div>
-      </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-1 overflow-hidden">
-        <ServicePill service={c.service} />
-        {c.reopened && (
-          <span className="inline-block rounded-full border border-[var(--color-line-2)] px-1.5 py-0.5 text-[0.5625rem] text-[var(--color-text-lo)]">
-            Reopen
-          </span>
-        )}
-      </div>
-      <div className="truncate font-mono text-[0.6875rem] text-[var(--color-text-mid)]">{c.claimNumber ?? "—"}</div>
-      <div className="flex min-w-0 items-center gap-1">
-        {location ? (
-          <>
-            <MapPin size={10} strokeWidth={1.8} className="shrink-0 text-[var(--color-text-lo)]" />
-            <span className="truncate text-[0.71875rem] text-[var(--color-text-mid)]">{location}</span>
-          </>
-        ) : (
-          <span className="font-mono text-[0.65625rem] text-[var(--color-text-lo)]">—</span>
-        )}
-      </div>
-      <div className="min-w-0">
-        <div className="truncate text-[0.75rem] leading-tight text-[var(--color-text-hi)]">{c.client?.company ?? "—"}</div>
-        <div className="truncate text-[0.65625rem] leading-tight text-[var(--color-text-lo)]">{c.adjusterName ?? ""}</div>
-      </div>
-      <div className="text-center font-mono text-[0.8125rem] font-semibold text-[var(--color-accent-2)]">
-        {c.daysAllotted ?? "—"}
-      </div>
-      <div className="flex min-w-0 items-center gap-1.5">
-        {inv ? (
-          <>
-            <span
-              className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[0.5625rem] font-medium text-white"
-              style={{ background: "linear-gradient(135deg,#4a7fff,#7aa1ff)" }}
-              title={inv.name}
-            >
-              {getInitials(inv.name)}
-            </span>
-            <span className="truncate text-[0.71875rem] text-[var(--color-text-mid)]">{inv.name.split(" ")[0]}</span>
-            {c.assignments.length > 1 && (
-              <span className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">+{c.assignments.length - 1}</span>
-            )}
-          </>
-        ) : (
-          <span className="font-mono text-[0.65625rem] text-[var(--color-text-lo)]">—</span>
-        )}
-      </div>
-      <div className="flex items-center gap-1.5">
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: cfg.dot }} />
-        <span className="text-[0.71875rem] text-[var(--color-text-mid)]">{cfg.label}</span>
-      </div>
+      ))}
     </div>
-  );
-}
-
-function ServicePill({ service }: { service: CaseService }) {
-  const colors = SERVICE_COLORS[service];
-  return (
-    <span
-      className="inline-block rounded-full px-2 py-0.5 text-[0.59375rem] font-medium tracking-wide"
-      style={{ background: colors.bg, color: colors.text }}
-      title={SERVICE_LABELS[service]}
-    >
-      {SERVICE_LABELS[service]}
-    </span>
   );
 }
 
