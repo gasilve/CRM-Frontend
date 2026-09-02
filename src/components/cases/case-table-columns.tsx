@@ -124,8 +124,11 @@ export type CaseColumnId =
 export interface CaseColumnDef {
   id: CaseColumnId;
   label: string;
-  /** CSS grid track for this column. */
-  track: string;
+  /**
+   * Relative flex weight for this column's grid track (`minmax(2.75rem, Nfr)`).
+   * Drag-resizing in the table adjusts this per column, shared across users.
+   */
+  defaultWidth: number;
   /** Server sort field when the header is clickable. */
   sortKey?: CaseSortField;
   center?: boolean;
@@ -133,11 +136,11 @@ export interface CaseColumnDef {
 }
 
 export const CASE_COLUMNS: CaseColumnDef[] = [
-  { id: "due", label: "Due", track: "5.25rem", sortKey: "dueDate", render: (c) => <DueCell c={c} /> },
+  { id: "due", label: "Due", defaultWidth: 9, sortKey: "dueDate", render: (c) => <DueCell c={c} /> },
   {
     id: "location",
     label: "State / City",
-    track: "minmax(7.5rem,0.95fr)",
+    defaultWidth: 12,
     sortKey: "state",
     render: (c) => {
       const { city, state } = locationOf(c);
@@ -157,7 +160,7 @@ export const CASE_COLUMNS: CaseColumnDef[] = [
   {
     id: "subject",
     label: "Subject",
-    track: "minmax(9.5rem,1.25fr)",
+    defaultWidth: 18,
     sortKey: "subjectName",
     render: (c) => (
       <div className="min-w-0">
@@ -171,14 +174,14 @@ export const CASE_COLUMNS: CaseColumnDef[] = [
   {
     id: "claim",
     label: "Claim",
-    track: "minmax(6.5rem,0.9fr)",
+    defaultWidth: 11,
     sortKey: "claimNumber",
     render: (c) => <div className="truncate font-mono text-[0.6875rem] text-[var(--color-text-mid)]">{c.claimNumber ?? "—"}</div>,
   },
   {
     id: "assigned",
     label: "Assigned",
-    track: "5.25rem",
+    defaultWidth: 9,
     sortKey: "dateOpened",
     render: (c) => (
       <span className="font-mono text-[0.71875rem] text-[var(--color-text-mid)]">{fmtShortDate(assignedDate(c))}</span>
@@ -187,7 +190,7 @@ export const CASE_COLUMNS: CaseColumnDef[] = [
   {
     id: "region",
     label: "Region",
-    track: "5.75rem",
+    defaultWidth: 10,
     sortKey: "region",
     render: (c) =>
       c.region ? (
@@ -201,7 +204,7 @@ export const CASE_COLUMNS: CaseColumnDef[] = [
   {
     id: "priority",
     label: "!",
-    track: "3.25rem",
+    defaultWidth: 5,
     sortKey: "priority",
     render: (c) => {
       const pri = PRIORITY_CONFIG[c.priority];
@@ -218,7 +221,7 @@ export const CASE_COLUMNS: CaseColumnDef[] = [
   {
     id: "type",
     label: "Type",
-    track: "minmax(7rem,0.9fr)",
+    defaultWidth: 11,
     sortKey: "service",
     render: (c) => (
       <div className="flex min-w-0 flex-wrap items-center gap-1 overflow-hidden">
@@ -234,7 +237,7 @@ export const CASE_COLUMNS: CaseColumnDef[] = [
   {
     id: "client",
     label: "Client / Adjuster",
-    track: "minmax(8.5rem,1.05fr)",
+    defaultWidth: 13,
     render: (c) => (
       <div className="min-w-0">
         <div className="truncate text-[0.75rem] leading-tight text-[var(--color-text-hi)]">{c.client?.company ?? "—"}</div>
@@ -245,7 +248,7 @@ export const CASE_COLUMNS: CaseColumnDef[] = [
   {
     id: "days",
     label: "Days",
-    track: "3rem",
+    defaultWidth: 5,
     center: true,
     render: (c) => (
       <div className="text-center font-mono text-[0.8125rem] font-semibold text-[var(--color-accent-2)]">{c.daysAllotted ?? "—"}</div>
@@ -254,7 +257,7 @@ export const CASE_COLUMNS: CaseColumnDef[] = [
   {
     id: "investigator",
     label: "Investigator",
-    track: "minmax(6.5rem,0.85fr)",
+    defaultWidth: 11,
     render: (c) => {
       const inv = c.assignments[0]?.user ?? null;
       if (!inv) return <Dash />;
@@ -278,7 +281,7 @@ export const CASE_COLUMNS: CaseColumnDef[] = [
   {
     id: "status",
     label: "Status",
-    track: "5.25rem",
+    defaultWidth: 9,
     sortKey: "status",
     render: (c) => {
       const cfg = STATUS_CONFIG[c.status];
@@ -293,13 +296,13 @@ export const CASE_COLUMNS: CaseColumnDef[] = [
   {
     id: "policy",
     label: "Policy",
-    track: "minmax(6rem,0.8fr)",
+    defaultWidth: 10,
     render: (c) => <div className="truncate font-mono text-[0.6875rem] text-[var(--color-text-mid)]">{c.policyNumber ?? "—"}</div>,
   },
   {
     id: "opened",
     label: "Opened",
-    track: "5.25rem",
+    defaultWidth: 9,
     sortKey: "dateOpened",
     render: (c) => <span className="font-mono text-[0.71875rem] text-[var(--color-text-mid)]">{fmtShortDate(c.dateOpened)}</span>,
   },
@@ -314,25 +317,37 @@ export const DEFAULT_CASE_COLUMNS: CaseColumnId[] = ["due", "location", "subject
 
 // ─── Saved configuration (grid-layouts `cases-table` surface) ───────────────
 
-/** One configured column: catalog id plus an optional header rename. */
+/** Column weight is clamped to this range so a resize never collapses a column. */
+export const MIN_COLUMN_WIDTH = 3;
+export const MAX_COLUMN_WIDTH = 40;
+
+/** One configured column: catalog id, optional header rename, optional drag-resized weight. */
 export interface CaseColumnSetting {
   id: CaseColumnId;
   label?: string;
+  width?: number;
 }
 
 export const defaultColumnSettings = (): CaseColumnSetting[] => DEFAULT_CASE_COLUMNS.map((id) => ({ id }));
 
+export const widthOf = (col: CaseColumnSetting): number => col.width ?? COLUMN_BY_ID.get(col.id)?.defaultWidth ?? 8;
+
 /**
- * Decode the saved layout: `x` carries the order, `label` a rename. Unknown
- * ids (removed catalog columns) are dropped; an empty result falls back to
- * the default set so the table never renders headerless.
+ * Decode the saved layout: `x` carries the order, `w` the drag-resized width
+ * weight, `label` a rename. Unknown ids (removed catalog columns) are
+ * dropped; an empty result falls back to the default set so the table never
+ * renders headerless.
  */
 export const columnsFromLayout = (items: GridLayoutItem[] | null | undefined): CaseColumnSetting[] => {
   if (!items || items.length === 0) return defaultColumnSettings();
   const known = items
     .filter((item) => COLUMN_BY_ID.has(item.id as CaseColumnId))
     .sort((a, b) => a.x - b.x)
-    .map((item) => ({ id: item.id as CaseColumnId, ...(item.label ? { label: item.label } : {}) }));
+    .map((item) => ({
+      id: item.id as CaseColumnId,
+      ...(item.label ? { label: item.label } : {}),
+      ...(typeof item.w === "number" && item.w >= MIN_COLUMN_WIDTH ? { width: item.w } : {}),
+    }));
   return known.length > 0 ? known : defaultColumnSettings();
 };
 
@@ -341,7 +356,7 @@ export const layoutFromColumns = (columns: CaseColumnSetting[]): GridLayoutItem[
     id: col.id,
     x: index,
     y: 0,
-    w: 1,
+    w: Math.round(widthOf(col)),
     h: 1,
     ...(col.label && col.label.trim() && col.label.trim() !== COLUMN_BY_ID.get(col.id)?.label
       ? { label: col.label.trim() }
