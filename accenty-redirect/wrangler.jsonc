@@ -1,0 +1,17 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "accenty-redirect",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-10-08",
+  "account_id": "918909924ab9196c85b14a64c59db7e7",
+  "routes": [
+    {
+      "pattern": "accenty.ai/*",
+      "zone_name": "accenty.ai"
+    },
+    {
+      "pattern": "www.accenty.ai/*",
+      "zone_name": "accenty.ai"
+    }
+  ]
+}
