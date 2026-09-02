@@ -91,7 +91,7 @@ export default function Register() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={inputClass}
-            placeholder="you@accenty.ai"
+            placeholder="you@truecognition.ai"
           />
         </div>
         <div>

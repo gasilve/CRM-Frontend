@@ -103,7 +103,7 @@ export function ImageComparisonModal({
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--color-line)] px-5 py-3.5">
           <div className="min-w-0">
             <div className="text-[0.9375rem] font-semibold tracking-tight text-[var(--color-text-hi)]">
-              Accenty AI
+              True Cognition
             </div>
             <div className="font-mono text-[0.5625rem] uppercase tracking-[0.28em] text-[var(--color-text-lo)]">
               Visual comparison

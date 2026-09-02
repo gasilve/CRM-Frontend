@@ -11,8 +11,8 @@ export default function FullScreenLoader({ message = "Loading" }: FullScreenLoad
       <div className="boot-atmo boot-atmo-scan" aria-hidden />
 
       <div className="boot-card">
-        <p className="boot-eyebrow">Accenty CRM</p>
-        <h1 className="boot-title">Accenty</h1>
+        <p className="boot-eyebrow">True Cognition CRM</p>
+        <h1 className="boot-title">True Cognition</h1>
         <div className="boot-progress" aria-hidden>
           <span className="boot-progress__beam" />
         </div>

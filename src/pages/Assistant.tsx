@@ -26,7 +26,7 @@ const OPENING: Message = {
   id: "sys-0",
   role: "assistant",
   content:
-    "Hello. I'm your Accenty intelligence assistant.\n\nI'm here to help you capture information about your firm — your operations, case workflows, client relationships, investigator structure, and anything else relevant. The more context you share, the better I can tailor the system to your needs.\n\nLet's start simple: **how would you describe your firm and the primary type of work you handle?**",
+    "Hello. I'm your True Cognition intelligence assistant.\n\nI'm here to help you capture information about your firm — your operations, case workflows, client relationships, investigator structure, and anything else relevant. The more context you share, the better I can tailor the system to your needs.\n\nLet's start simple: **how would you describe your firm and the primary type of work you handle?**",
   ts: new Date(),
 };
 
@@ -35,7 +35,7 @@ const FOLLOW_UPS: string[] = [
   "Understood. And when it comes to clients — are they mostly corporate entities, legal firms, or private individuals? How do billing conversations usually go?",
   "I see. How do investigators currently report their activity in the field — time logs, location check-ins, written reports? What matters most to you there?",
   "That gives me a clear picture. One last area: what does a typical month look like in terms of volume? Roughly how many active cases, and how many investigators on the roster?",
-  "Thank you — that's everything I need for now. I'll forward this briefing to the Accenty backend for processing. You'll be able to review the extracted profile before anything is finalised.\n\n*This conversation has been queued for backend review.*",
+  "Thank you — that's everything I need for now. I'll forward this briefing to the True Cognition backend for processing. You'll be able to review the extracted profile before anything is finalised.\n\n*This conversation has been queued for backend review.*",
 ];
 
 let followUpIndex = 0;

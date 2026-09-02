@@ -74,7 +74,7 @@ export default function LedgerDesign({ view }: { view: PendingCaseView }) {
         <header>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <div className="eyebrow text-[0.6875rem] tracking-[0.42em] text-[var(--color-text-hi)]">Accenty</div>
+              <div className="eyebrow text-[0.6875rem] tracking-[0.42em] text-[var(--color-text-hi)]">True Cognition</div>
               <div className="mt-1 font-mono text-[0.59375rem] uppercase tracking-[0.2em] text-[var(--color-text-lo)]">
                 Investigative services
               </div>

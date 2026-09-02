@@ -60,7 +60,7 @@ export default function ForgotPassword() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={inputClass}
-            placeholder="you@accenty.ai"
+            placeholder="you@truecognition.ai"
           />
         </div>
         <button type="submit" disabled={loading} className={primaryButtonClass}>

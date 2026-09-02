@@ -779,7 +779,7 @@ export default function Sidebar({
       <div className="relative flex h-[var(--shell-chrome-height)] shrink-0 items-center justify-center px-3">
         <img
           src={accentyLogo}
-          alt="Accenty AI"
+          alt="True Cognition"
           className="h-[4.875rem] w-auto max-w-[16.125rem] object-contain"
         />
         {onToggleCollapsed && (
