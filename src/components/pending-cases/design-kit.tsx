@@ -25,6 +25,8 @@ export interface PendingCaseActions {
   openAccept: () => void;
   openReject: () => void;
   fetchFiles: () => void;
+  /** Opens the shared preview modal on one attachment. */
+  openFile: (fileId: string) => void;
   openAcceptedCase: () => void;
   setSubject: (patch: Partial<ProposalSubject>) => void;
   setAssignment: (patch: Partial<ProposalAssignment>) => void;

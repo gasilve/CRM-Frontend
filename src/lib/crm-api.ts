@@ -32,7 +32,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     cache: "no-store",
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
+      // Only declare a content type when there is a body. A GET with no custom
+      // headers is a "simple" CORS request, so the browser skips the OPTIONS
+      // preflight — that alone halves the request count for reads.
+      ...(init?.body !== undefined ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
   });
@@ -49,6 +52,36 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return json.payload as T;
 }
+
+/**
+ * Fetches binary content (attachments) instead of the JSON envelope.
+ *
+ * Goes through `fetch` rather than pointing an <img>/<iframe> straight at the
+ * URL so the session cookie is always attached, regardless of how the browser
+ * treats credentials on subresource requests.
+ */
+async function requestBlob(path: string): Promise<Blob> {
+  const res = await fetch(`${CRM_API_URL}${path}`, { cache: "no-store", credentials: "include" });
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    try {
+      const json = (await res.json()) as ApiEnvelope<unknown>;
+      if (json?.message) message = json.message;
+    } catch {
+      /* binary endpoints fail with a JSON envelope, but don't count on it */
+    }
+    throw new ApiError(message, res.status);
+  }
+  return res.blob();
+}
+
+/** Absolute URL for a file — used for "download" links, which need a real href. */
+export const fileDownloadUrl = (path: string): string => `${CRM_API_URL}${path}?download=1`;
+
+export const caseFilePath = (caseId: string, fileId: string): string => `/cases/${caseId}/files/${fileId}`;
+
+export const pendingCaseFilePath = (pendingCaseId: string, fileId: string): string =>
+  `/pending-cases/${pendingCaseId}/files/${fileId}`;
 
 export type Region = "ca" | "tristate" | "texas";
 
@@ -459,10 +492,30 @@ export interface CaseDetail extends CaseListItem {
   people: CasePerson[];
   presurveillance: CasePresurveillance | null;
   days: CaseDay[];
+  files: CaseFile[];
   situationSummary: string | null;
   createdBy: CaseParticipant | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * A document on a live case, carried over from the proposal on accept. A row
+ * with no `storageKey` is known-but-unheld — the API answers its download with
+ * a placeholder image rather than a 404.
+ */
+export interface CaseFile {
+  id: string;
+  filename: string;
+  contentType: string | null;
+  sizeBytes: number | null;
+  sha256: string | null;
+  extracted: Record<string, unknown> | null;
+  storage: string;
+  storageKey: string | null;
+  source: string;
+  error: string | null;
+  createdAt: string;
 }
 
 export interface CaseSummary {
@@ -602,6 +655,9 @@ export const casesApi = {
     }),
   deleteVehicle: (id: string, vehicleId: string) =>
     request<null>(`/cases/${id}/vehicles/${vehicleId}`, { method: "DELETE" }),
+
+  listFiles: (id: string) => request<{ files: CaseFile[] }>(`/cases/${id}/files`),
+  fileBlob: (id: string, fileId: string) => requestBlob(caseFilePath(id, fileId)),
 
   assign: (id: string, userId: string, role = "investigator") =>
     request<{ assignment: CaseAssignment }>(`/cases/${id}/assignments`, {
@@ -842,6 +898,7 @@ export const pendingCasesApi = {
     }),
   retryFiles: (id: string) =>
     request<{ pendingCase: PendingCaseDetail }>(`/pending-cases/${id}/retry-files`, { method: "POST" }),
+  fileBlob: (id: string, fileId: string) => requestBlob(pendingCaseFilePath(id, fileId)),
 };
 
 export const clientsApi = {

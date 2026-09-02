@@ -281,14 +281,19 @@ export default function CommandDesign({ view }: { view: PendingCaseView }) {
             )}
 
             {pendingCase.files.map((file) => (
-              <div key={file.id} className="rounded-[0.375rem] border border-[var(--color-line)] px-3 py-2">
+              <button
+                key={file.id}
+                type="button"
+                onClick={() => actions.openFile(file.id)}
+                className="block w-full rounded-[0.375rem] border border-[var(--color-line)] px-3 py-2 text-left transition-colors hover:border-[var(--color-accent)]"
+              >
                 <div className="truncate font-mono text-[0.71875rem] text-[var(--color-text-hi)]">{file.filename}</div>
                 <div className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
                   {fmtBytes(file.sizeBytes)} · {file.storage}
                   {file.contentType ? ` · ${file.contentType}` : ""}
                 </div>
                 {file.error && <div className="font-mono text-[0.59375rem] text-[var(--color-neg)]">{file.error}</div>}
-              </div>
+              </button>
             ))}
 
             {proposal.attachments.length > 0 && (

@@ -299,16 +299,22 @@ export default function LedgerDesign({ view }: { view: PendingCaseView }) {
                   : "No attachments accompanied this proposal."}
               </p>
             ) : (
-              <dl className="anim-stagger anim-stagger-tight">
+              <div className="anim-stagger anim-stagger-tight">
                 {pendingCase.files.map((file) => (
-                  <LeaderRow
+                  <button
                     key={file.id}
-                    label={file.filename}
-                    value={`${fmtBytes(file.sizeBytes)} · ${file.storage}`}
-                    mono
-                  />
+                    type="button"
+                    onClick={() => actions.openFile(file.id)}
+                    className="flex w-full items-baseline gap-2 border-b border-dotted border-[var(--color-line-2)] py-2 text-left transition-colors last:border-b-0 hover:bg-white/[0.03]"
+                  >
+                    <span className="shrink-0 text-[0.75rem] text-[var(--color-text-lo)]">{file.filename}</span>
+                    <span className="min-w-4 flex-1" />
+                    <span className="min-w-0 break-words text-right font-mono text-[0.71875rem] text-[var(--color-text-hi)]">
+                      {fmtBytes(file.sizeBytes)} · {file.storage}
+                    </span>
+                  </button>
                 ))}
-              </dl>
+              </div>
             )}
           </div>
         </Article>

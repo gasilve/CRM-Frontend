@@ -286,15 +286,17 @@ export default function AtlasDesign({ view }: { view: PendingCaseView }) {
               </p>
             ) : (
               pendingCase.files.map((file) => (
-                <div
+                <button
                   key={file.id}
-                  className="rounded-[0.625rem] border border-[var(--color-line)] bg-[var(--color-ink-3)]/40 px-3 py-2"
+                  type="button"
+                  onClick={() => actions.openFile(file.id)}
+                  className="block w-full rounded-[0.625rem] border border-[var(--color-line)] bg-[var(--color-ink-3)]/40 px-3 py-2 text-left transition-colors hover:border-[var(--color-accent)]"
                 >
                   <div className="truncate text-[0.75rem] text-[var(--color-text-hi)]">{file.filename}</div>
                   <div className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
                     {fmtBytes(file.sizeBytes)} · {file.storage}
                   </div>
-                </div>
+                </button>
               ))
             )}
           </div>

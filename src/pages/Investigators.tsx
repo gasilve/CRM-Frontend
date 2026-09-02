@@ -20,6 +20,7 @@ import { getCertifications, hasCertification, CERTIFICATION_CATALOG, type Certif
 import { formatHomeAddressShort, formatTimezone } from "@/lib/timezones";
 import { useAuth } from "@/contexts/AuthContext";
 import { investigatorsApi, invitationsApi, REGION_LABELS, type InvestigatorListItem, type Invitation, type InviteCreateResult, ApiError } from "@/lib/crm-api";
+import { fetchQuery, getCached } from "@/lib/query-cache";
 import { PanelLoader } from "@/components/ui/LoadingState";
 import { ViewToggle, ViewToggleGroup } from "@/components/ui/ViewToggle";
 import type { RoleSummary } from "@/lib/auth-client";
@@ -58,8 +59,14 @@ export default function Investigators() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [people, setPeople] = useState<InvestigatorListItem[] | null>(null);
-  const [invitations, setInvitations] = useState<Invitation[] | null>(null);
+  // Seeded from the shared cache so revisits paint instantly; the mount
+  // effects below still refetch in the background to pick up changes.
+  const [people, setPeople] = useState<InvestigatorListItem[] | null>(
+    () => getCached<{ investigators: InvestigatorListItem[] }>("investigators:list")?.investigators ?? null,
+  );
+  const [invitations, setInvitations] = useState<Invitation[] | null>(
+    () => getCached<{ invitations: Invitation[] }>("invitations:list")?.invitations ?? null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<TeamNotice | null>(null);
 
@@ -78,16 +85,14 @@ export default function Investigators() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const loadPeople = () => {
-    investigatorsApi
-      .list()
+    fetchQuery("investigators:list", () => investigatorsApi.list())
       .then((res) => setPeople(res.investigators))
       .catch((err) => setError(err instanceof ApiError ? err.message : "Could not load investigators."));
   };
 
   const loadInvitations = () => {
     if (!can("team.invite")) return;
-    invitationsApi
-      .list()
+    fetchQuery("invitations:list", () => invitationsApi.list())
       .then((res) => setInvitations(res.invitations))
       .catch(() => {
         /* non-fatal — pending toggle just stays empty */

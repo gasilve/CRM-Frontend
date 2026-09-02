@@ -318,7 +318,12 @@ export default function DossierDesign({ view }: { view: PendingCaseView }) {
                 </p>
               ) : (
                 pendingCase.files.map((file) => (
-                  <div key={file.id} className="flex items-start gap-2">
+                  <button
+                    key={file.id}
+                    type="button"
+                    onClick={() => actions.openFile(file.id)}
+                    className="flex w-full items-start gap-2 rounded-[0.375rem] px-1 py-1 text-left transition-colors hover:bg-white/[0.04]"
+                  >
                     <Paperclip size={11} className="mt-1 shrink-0 text-[var(--color-text-lo)]" />
                     <div className="min-w-0">
                       <div className="truncate text-[0.75rem] text-[var(--color-text-hi)]">{file.filename}</div>
@@ -326,7 +331,7 @@ export default function DossierDesign({ view }: { view: PendingCaseView }) {
                         {fmtBytes(file.sizeBytes)} · {file.storage}
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>

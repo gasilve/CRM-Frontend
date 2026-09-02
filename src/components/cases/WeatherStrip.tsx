@@ -6,7 +6,8 @@ import {
 } from "lucide-react";
 import { BeamLoader, LoadingCaption } from "@/components/ui/LoadingState";
 import { cn } from "@/lib/cn";
-import { weatherApi, type WeatherReading, type WeeklyWeather } from "@/lib/crm-api";
+import { weatherApi } from "@/lib/crm-api";
+import { useQuery } from "@/lib/query-cache";
 
 export function weatherIcon(code: number, isDay = true) {
   if (code === 0) return isDay ? Sun : Moon;
@@ -82,15 +83,11 @@ const MAX_WEEK_OFFSET = 1;
 // ─── Compact strip (trigger) ──────────────────────────────────────────────────
 
 export function WeatherStrip() {
-  const [readings, setReadings] = useState<WeatherReading[] | null>(null);
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    weatherApi
-      .list()
-      .then((res) => setReadings(res.readings))
-      .catch(() => {});
-  }, []);
+  // Weather barely changes minute to minute — cache it so remounts are free.
+  const { data } = useQuery("weather:current", () => weatherApi.list(), { staleMs: 10 * 60_000 });
+  const readings = data?.readings ?? null;
 
   if (!readings || readings.length === 0) return null;
 
@@ -128,29 +125,12 @@ export function WeatherStrip() {
 function WeatherModal({ onClose }: { onClose: () => void }) {
   const thisMonday = useMemo(() => mondayOf(new Date()), []);
   const [monday, setMonday] = useState(thisMonday);
-  const [groups, setGroups] = useState<WeeklyWeather[] | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const weekOffset = Math.round((new Date(`${monday}T00:00:00`).getTime() - new Date(`${thisMonday}T00:00:00`).getTime()) / (7 * DAY_MS));
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    weatherApi
-      .weekly(monday)
-      .then((res) => {
-        if (!cancelled) setGroups(res.groups);
-      })
-      .catch(() => {
-        if (!cancelled) setGroups([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [monday]);
+  const weekly = useQuery(`weather:weekly:${monday}`, () => weatherApi.weekly(monday), { staleMs: 10 * 60_000 });
+  const groups = weekly.data?.groups ?? (weekly.error ? [] : null);
+  const loading = weekly.loading;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

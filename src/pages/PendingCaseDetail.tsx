@@ -1,138 +1,123 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, ArrowRight, FileDown, Inbox, Loader2, Pencil } from "lucide-react";
 import { PanelLoader } from "@/components/ui/LoadingState";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePendingIntake } from "@/contexts/PendingIntakeContext";
 import { SERVICE_LABELS } from "@/lib/mock-data";
 import { ConfirmModal } from "@/components/dashboard/ConfirmModal";
-import { DesignSwitcher, loadDesign, saveDesign } from "@/components/pending-cases/DesignSwitcher";
-import { PENDING_CASE_DESIGNS, type DesignId } from "@/components/pending-cases/designs";
-import {
-  EMPTY_VEHICLE,
-  fieldClass,
-  type BusyAction,
-  type PendingCaseView,
-} from "@/components/pending-cases/design-kit";
+import { CaseSubjectHeader } from "@/components/case/CaseSubjectHeader";
+import { useGridLayout } from "@/hooks/useGridLayout";
+import { invalidateQueries, useQuery } from "@/lib/query-cache";
+import { proposalToCaseDetail } from "@/lib/pending-case-view";
+import { fieldClass } from "@/components/pending-cases/design-kit";
 import {
   pendingCasesApi,
+  pendingCaseFilePath,
+  fileDownloadUrl,
   ApiError,
   REGION_LABELS,
   type AcceptPendingCasePayload,
   type CasePriority,
   type CaseService,
   type PendingCaseDetail as PendingCase,
-  type ProposalAssignment,
-  type ProposalSubject,
-  type ProposalVehicle,
   type Region,
 } from "@/lib/crm-api";
+import type { Subject } from "@/lib/mock-data";
+import {
+  CASE_DEFAULT_LAYOUT,
+  CASE_DEFAULT_PAGES,
+  normalizeCaseDocument,
+  normalizeCaseLayout,
+  type CaseLayoutItem,
+  type CasePanelCtx,
+  type CustomCaseWidgetDef,
+} from "./case-detail-widgets";
+import { CaseDetailGrid, type CaseDetailGridHandle } from "./CaseDetailGrid";
+import { CaseDetailPageNav } from "./CaseDetailPageNav";
+import { CasePageArrows } from "@/components/case/CasePageArrows";
 
 const SERVICES: CaseService[] = ["SURV", "WC", "FMLA", "BG", "DOM", "SOC", "DIS", "LOC", "PS", "LIA"];
 const PRIORITIES: CasePriority[] = ["standard", "asap", "rush"];
 const REGIONS: Region[] = ["ca", "tristate", "texas"];
 
-type Draft = {
-  claimNumber: string;
-  subject: ProposalSubject;
-  assignment: ProposalAssignment;
-  vehicles: ProposalVehicle[];
+const STATUS_PILL: Record<string, { label: string; bg: string; text: string; dot: string }> = {
+  pending_review: { label: "Pending review", bg: "rgba(245,158,11,0.16)", text: "#f59e0b", dot: "#f59e0b" },
+  accepted: { label: "Accepted", bg: "rgba(74,222,128,0.15)", text: "#4ade80", dot: "#4ade80" },
+  rejected: { label: "Rejected", bg: "rgba(248,113,113,0.15)", text: "#f87171", dot: "#f87171" },
 };
-
-const toDraft = (pendingCase: PendingCase): Draft => ({
-  claimNumber: pendingCase.proposal.claimNumber ?? "",
-  subject: { ...pendingCase.proposal.subject },
-  assignment: { ...pendingCase.proposal.assignment },
-  vehicles: pendingCase.proposal.vehicles.map((vehicle) => ({ ...vehicle })),
-});
 
 /** Empty inputs mean "no value", not an empty string. */
 const clean = (value: string): string | null => (value.trim() ? value.trim() : null);
 
+/**
+ * Renders an intake proposal through the SAME widget grid as a live case —
+ * same house layout, same panels — with a colored "pending review" banner and
+ * the review actions (fetch files / edit / reject / accept) on top. Missing
+ * proposal data simply shows as blank fields; everything is read-only until
+ * the proposal is accepted into a real case.
+ */
 export default function PendingCaseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { can } = useAuth();
+  const { user, can, canSee } = useAuth();
+  const { refresh: refreshIntakeBadge } = usePendingIntake();
   const canReview = can("intake.view");
 
-  const [pendingCase, setPendingCase] = useState<PendingCase | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<BusyAction | null>(null);
-
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [busy, setBusy] = useState<"accept" | "reject" | "files" | "save" | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [acceptOpen, setAcceptOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [activePageId, setActivePageId] = useState<string>(CASE_DEFAULT_PAGES[0].id);
 
-  const [design, setDesign] = useState<DesignId>(loadDesign);
-  const pickDesign = useCallback((next: DesignId) => {
-    setDesign(next);
-    saveDesign(next);
-  }, []);
-
-  useEffect(() => {
-    if (!id || !canReview) return;
-    let cancelled = false;
-    setLoading(true);
-    pendingCasesApi
-      .get(id)
-      .then((res) => {
-        if (cancelled) return;
-        setPendingCase(res.pendingCase);
-        setError(null);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof ApiError ? err.message : "Could not load the proposal.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, canReview]);
-
-  const proposal = pendingCase?.proposal;
-  const editing = draft !== null;
-  const decided = pendingCase ? pendingCase.status !== "pending_review" : false;
-
-  const rawJson = useMemo(
-    () => (pendingCase ? JSON.stringify(pendingCase.rawPayload, null, 2) : ""),
-    [pendingCase],
+  const query = useQuery(
+    id && canReview ? `pending-case:${id}` : null,
+    () =>
+      pendingCasesApi
+        .get(id!)
+        .then((res): PendingCase | null => res.pendingCase)
+        .catch((err: unknown) => {
+          if (err instanceof ApiError && err.status === 404) return null;
+          throw err;
+        }),
+    { enabled: !!id && canReview },
   );
+  const pendingCase = query.data ?? null;
 
-  const save = async () => {
-    if (!pendingCase || !draft) return;
-    setBusy("save");
-    setError(null);
-    try {
-      const { pendingCase: updated } = await pendingCasesApi.update(pendingCase.id, {
-        claimNumber: clean(draft.claimNumber),
-        subject: {
-          ...draft.subject,
-          addresses: draft.subject.addresses.map((line) => line.trim()).filter(Boolean),
-          phones: draft.subject.phones.map((line) => line.trim()).filter(Boolean),
-        },
-        assignment: draft.assignment,
-        vehicles: draft.vehicles,
-      });
-      setPendingCase(updated);
-      setDraft(null);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save the changes.");
-    } finally {
-      setBusy(null);
-    }
-  };
+  // Same shared house layout as the live case view, strictly read-only here.
+  const { layout, pages, widgets, revision: layoutRevision } = useGridLayout<CaseLayoutItem>({
+    surface: "case-detail",
+    defaultLayout: CASE_DEFAULT_LAYOUT,
+    normalize: normalizeCaseLayout,
+    normalizeDocument: (items, savedPages, savedWidgets, phase) =>
+      normalizeCaseDocument(items, savedPages, savedWidgets as CustomCaseWidgetDef[] | null, phase),
+    defaultPages: CASE_DEFAULT_PAGES,
+    editable: false,
+  });
+  const gridHandleRef = useRef<CaseDetailGridHandle | null>(null);
+  const widgetsRef = useRef(widgets);
+  widgetsRef.current = widgets;
+  const resolvedPages = pages ?? CASE_DEFAULT_PAGES;
+
+  const kase = useMemo(() => (pendingCase ? proposalToCaseDetail(pendingCase) : null), [pendingCase]);
+
+  const loadFileBlob = useCallback((fileId: string) => pendingCasesApi.fileBlob(id!, fileId), [id]);
+  const fileDownloadHref = useCallback((fileId: string) => fileDownloadUrl(pendingCaseFilePath(id!, fileId)), [id]);
 
   const accept = async (payload: AcceptPendingCasePayload) => {
     if (!pendingCase) return;
     setBusy("accept");
-    setError(null);
+    setActionError(null);
     try {
       const result = await pendingCasesApi.accept(pendingCase.id, payload);
       setAcceptOpen(false);
+      invalidateQueries("pending-case");
+      invalidateQueries("cases:list");
+      refreshIntakeBadge();
       navigate(`/cases/${result.case.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not accept the proposal.");
+      setActionError(err instanceof ApiError ? err.message : "Could not accept the proposal.");
       setAcceptOpen(false);
     } finally {
       setBusy(null);
@@ -142,14 +127,16 @@ export default function PendingCaseDetail() {
   const reject = async () => {
     if (!pendingCase) return;
     setBusy("reject");
-    setError(null);
+    setActionError(null);
     try {
       await pendingCasesApi.reject(pendingCase.id);
-      navigate("/cases", {
+      invalidateQueries("pending-case");
+      refreshIntakeBadge();
+      navigate("/pending-cases", {
         state: { pendingNotice: `Rejected the proposal for ${pendingCase.subjectName ?? "an unnamed subject"}.` },
       });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not reject the proposal.");
+      setActionError(err instanceof ApiError ? err.message : "Could not reject the proposal.");
       setRejectOpen(false);
     } finally {
       setBusy(null);
@@ -159,12 +146,40 @@ export default function PendingCaseDetail() {
   const fetchFiles = async () => {
     if (!pendingCase) return;
     setBusy("files");
-    setError(null);
+    setActionError(null);
     try {
       const { pendingCase: updated } = await pendingCasesApi.retryFiles(pendingCase.id);
-      setPendingCase(updated);
+      query.mutate(updated);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not fetch the files.");
+      setActionError(err instanceof ApiError ? err.message : "Could not fetch the files.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const saveEdits = async (edits: ProposalEdits) => {
+    if (!pendingCase) return;
+    setBusy("save");
+    setActionError(null);
+    try {
+      const { pendingCase: updated } = await pendingCasesApi.update(pendingCase.id, {
+        claimNumber: clean(edits.claimNumber),
+        subject: {
+          name: clean(edits.subjectName),
+          dob: clean(edits.subjectDob),
+        },
+        assignment: {
+          insurer: clean(edits.insurer),
+          adjusterName: clean(edits.adjusterName),
+          adjusterEmail: clean(edits.adjusterEmail),
+          adjusterPhone: clean(edits.adjusterPhone),
+        },
+      });
+      query.mutate(updated);
+      invalidateQueries("pending-cases:list");
+      setEditOpen(false);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Could not save the changes.");
     } finally {
       setBusy(null);
     }
@@ -179,79 +194,180 @@ export default function PendingCaseDetail() {
     );
   }
 
-  if (loading) {
-    return <PanelLoader message="Loading proposal" />;
-  }
-
-  if (!pendingCase || !proposal) {
+  if (query.data === null) {
     return (
       <div className="surface flex flex-col items-center justify-center gap-4 py-24 text-center">
         <div className="font-mono text-[0.75rem] text-[var(--color-text-lo)]">PROPOSAL NOT FOUND</div>
         <div className="editorial text-[2rem] text-[var(--color-text-hi)]">404</div>
-        <button onClick={() => navigate("/cases")} className="eyebrow text-[var(--color-accent)]">
-          ← Back to cases
+        <button onClick={() => navigate("/pending-cases")} className="eyebrow text-[var(--color-accent)]">
+          ← Back to pending cases
         </button>
       </div>
     );
   }
 
-  const subject = editing ? draft!.subject : proposal.subject;
-  const assignment = editing ? draft!.assignment : proposal.assignment;
-  const vehicles = editing ? draft!.vehicles : proposal.vehicles;
+  if (!pendingCase || !kase) {
+    return <PanelLoader message="Loading proposal" />;
+  }
 
-  const view: PendingCaseView = {
-    pendingCase,
-    proposal,
-    claimNumber: editing ? draft!.claimNumber : pendingCase.claimNumber,
-    subject,
-    assignment,
-    vehicles,
-    editing,
-    decided,
-    busy,
-    error,
-    rawJson,
-    actions: {
-      back: () => navigate("/cases"),
-      startEdit: () => setDraft(toDraft(pendingCase)),
-      cancelEdit: () => setDraft(null),
-      save,
-      openAccept: () => setAcceptOpen(true),
-      openReject: () => setRejectOpen(true),
-      fetchFiles,
-      openAcceptedCase: () => navigate(`/cases/${pendingCase.acceptedCaseId}`),
-      setSubject: (patch) => setDraft((prev) => (prev ? { ...prev, subject: { ...prev.subject, ...patch } } : prev)),
-      setAssignment: (patch) =>
-        setDraft((prev) => (prev ? { ...prev, assignment: { ...prev.assignment, ...patch } } : prev)),
-      setVehicle: (index, patch) =>
-        setDraft((prev) =>
-          prev
-            ? { ...prev, vehicles: prev.vehicles.map((vehicle, i) => (i === index ? { ...vehicle, ...patch } : vehicle)) }
-            : prev,
-        ),
-      addVehicle: () => setDraft((prev) => (prev ? { ...prev, vehicles: [...prev.vehicles, EMPTY_VEHICLE] } : prev)),
-      removeVehicle: (index) =>
-        setDraft((prev) => (prev ? { ...prev, vehicles: prev.vehicles.filter((_, i) => i !== index) } : prev)),
-    },
+  const decided = pendingCase.status !== "pending_review";
+  const pill = STATUS_PILL[pendingCase.status] ?? STATUS_PILL.pending_review;
+
+  const primaryAddress = kase.addresses.find((a) => a.isPrimary) ?? kase.addresses[0];
+  const subject: Subject = {
+    name: kase.subjectName,
+    dob: kase.subjectDob ? kase.subjectDob.slice(0, 10) : undefined,
+    address: primaryAddress?.line1,
+    description: kase.subjectDescription ?? undefined,
   };
 
-  const entry = PENDING_CASE_DESIGNS.find((candidate) => candidate.id === design) ?? PENDING_CASE_DESIGNS[0];
-  const Design = entry.Component;
+  const panelCtx: CasePanelCtx = {
+    case: kase,
+    currentUserId: user?.id ?? "",
+    investigatorOptions: [],
+    onRefresh: () => void query.refresh(),
+    // A proposal is not a case yet — every widget renders in read-only mode.
+    canEdit: false,
+    canAssign: false,
+    canPostJournal: false,
+    canModerateJournal: false,
+    canSee,
+    canEditField: () => false,
+    getCustomWidget: (widgetId) => (widgetsRef.current ?? []).find((w) => w.id === widgetId) ?? null,
+    loadFileBlob,
+    fileDownloadHref,
+  };
 
   return (
-    <>
-      <Design view={view} />
+    <div className="case-detail-page">
+      <CaseSubjectHeader
+        className="mb-3 shrink-0"
+        subject={subject}
+        claimNumber={kase.claimNumber ?? kase.caseNumber}
+        aliases={[]}
+        showMeta={false}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => navigate("/pending-cases")}
+              className="inline-flex items-center gap-1.5 rounded-[0.625rem] border border-[var(--color-line)] px-3 py-1.5 text-[0.71875rem] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+            >
+              <ArrowLeft size={13} strokeWidth={1.8} />
+              Pending cases
+            </button>
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[0.71875rem] font-medium"
+              style={{ background: pill.bg, color: pill.text }}
+            >
+              <span className="h-2 w-2 rounded-full" style={{ background: pill.dot }} />
+              {pill.label}
+            </span>
+          </>
+        }
+      />
 
-      <DesignSwitcher value={entry.id} onChange={pickDesign} />
+      {/* Review banner — the one loud visual cue that this is not a live case. */}
+      <div
+        className="mb-3 flex shrink-0 flex-wrap items-center gap-3 rounded-[0.875rem] border px-4 py-2.5"
+        style={{
+          borderColor: "rgba(245,158,11,0.35)",
+          background: "linear-gradient(90deg, rgba(245,158,11,0.10), rgba(245,158,11,0.03))",
+        }}
+      >
+        <Inbox size={15} strokeWidth={1.8} style={{ color: "#f59e0b" }} className="shrink-0" />
+        <div className="min-w-0 flex-1">
+          <span className="font-mono text-[0.625rem] uppercase tracking-widest" style={{ color: "#f59e0b" }}>
+            {decided ? `Proposal ${pendingCase.status}` : "Intake proposal — pending review"}
+          </span>
+          <p className="truncate text-[0.71875rem] text-[var(--color-text-mid)]">
+            {decided
+              ? pendingCase.status === "accepted"
+                ? "This proposal was accepted and a case was created from it."
+                : "This proposal was rejected. It stays on record but no case was created."
+              : "Pushed by the case ingestor. Review the details below, then accept it as a case or reject it."}
+          </p>
+        </div>
+
+        {!decided && (
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+            <BannerBtn onClick={fetchFiles} disabled={busy !== null}>
+              {busy === "files" ? <Loader2 size={12} className="animate-spin" /> : <FileDown size={12} strokeWidth={1.8} />}
+              Fetch files
+            </BannerBtn>
+            <BannerBtn onClick={() => setEditOpen(true)} disabled={busy !== null}>
+              <Pencil size={12} strokeWidth={1.8} />
+              Edit details
+            </BannerBtn>
+            <BannerBtn onClick={() => setRejectOpen(true)} disabled={busy !== null} tone="danger">
+              Reject
+            </BannerBtn>
+            <BannerBtn onClick={() => setAcceptOpen(true)} disabled={busy !== null} tone="accent">
+              Accept as case
+              <ArrowRight size={12} strokeWidth={1.8} />
+            </BannerBtn>
+          </div>
+        )}
+        {decided && pendingCase.acceptedCaseId && (
+          <BannerBtn onClick={() => navigate(`/cases/${pendingCase.acceptedCaseId}`)} tone="accent">
+            Open the created case
+            <ArrowRight size={12} strokeWidth={1.8} />
+          </BannerBtn>
+        )}
+      </div>
+
+      {actionError && (
+        <div className="anim-banner surface mb-3 shrink-0 rounded-[0.875rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-4 py-2.5 text-[0.8125rem] text-[var(--color-neg)]">
+          {actionError}
+        </div>
+      )}
+
+      {layout ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <CaseDetailPageNav
+            pages={resolvedPages}
+            activePageId={activePageId}
+            editable={false}
+            onSelect={setActivePageId}
+            onRename={() => {}}
+          />
+          <div className="min-h-0 flex-1">
+            <CaseDetailGrid
+              pages={resolvedPages}
+              activePageId={activePageId}
+              onActivePageChange={setActivePageId}
+              layout={layout}
+              mountKey={`pending:${pendingCase.id}:${layoutRevision}`}
+              ctx={panelCtx}
+              gridRef={gridHandleRef}
+              onLayoutPersist={() => {}}
+              editable={false}
+            />
+          </div>
+        </div>
+      ) : (
+        <PanelLoader message="Loading layout" />
+      )}
+
+      {layout && <CasePageArrows pages={resolvedPages} activePageId={activePageId} onSelect={setActivePageId} />}
 
       {acceptOpen && (
         <AcceptModal
           subjectName={pendingCase.subjectName}
-          insurer={assignment.insurer}
+          insurer={pendingCase.proposal.assignment.insurer}
           ingestorStatus={pendingCase.ingestorStatus}
           busy={busy === "accept"}
           onCancel={() => setAcceptOpen(false)}
           onConfirm={accept}
+        />
+      )}
+
+      {editOpen && (
+        <EditProposalModal
+          pendingCase={pendingCase}
+          busy={busy === "save"}
+          onCancel={() => setEditOpen(false)}
+          onSave={saveEdits}
         />
       )}
 
@@ -268,7 +384,114 @@ export default function PendingCaseDetail() {
         onCancel={() => setRejectOpen(false)}
         onConfirm={reject}
       />
-    </>
+    </div>
+  );
+}
+
+function BannerBtn({
+  children,
+  onClick,
+  disabled,
+  tone = "plain",
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  tone?: "plain" | "danger" | "accent";
+}) {
+  const toneClass =
+    tone === "accent"
+      ? "border-[rgba(74,127,255,0.4)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)] hover:shadow-[0_0_0_0.1875rem_var(--color-accent-soft)]"
+      : tone === "danger"
+        ? "border-[rgba(248,113,113,0.35)] text-[#f87171] hover:bg-[rgba(248,113,113,0.08)]"
+        : "border-[var(--color-line)] text-[var(--color-text-mid)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex items-center gap-1.5 rounded-[0.625rem] border px-3 py-1.5 text-[0.71875rem] transition-all disabled:opacity-50 ${toneClass}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ─── Edit proposal (the fields that matter before accepting) ─────────────────
+
+type ProposalEdits = {
+  claimNumber: string;
+  subjectName: string;
+  subjectDob: string;
+  insurer: string;
+  adjusterName: string;
+  adjusterEmail: string;
+  adjusterPhone: string;
+};
+
+function EditProposalModal({
+  pendingCase,
+  busy,
+  onCancel,
+  onSave,
+}: {
+  pendingCase: PendingCase;
+  busy: boolean;
+  onCancel: () => void;
+  onSave: (edits: ProposalEdits) => void;
+}) {
+  const [edits, setEdits] = useState<ProposalEdits>({
+    claimNumber: pendingCase.proposal.claimNumber ?? "",
+    subjectName: pendingCase.proposal.subject.name ?? "",
+    subjectDob: pendingCase.proposal.subject.dob ?? "",
+    insurer: pendingCase.proposal.assignment.insurer ?? "",
+    adjusterName: pendingCase.proposal.assignment.adjusterName ?? "",
+    adjusterEmail: pendingCase.proposal.assignment.adjusterEmail ?? "",
+    adjusterPhone: pendingCase.proposal.assignment.adjusterPhone ?? "",
+  });
+
+  const set = (key: keyof ProposalEdits) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setEdits((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const field = (label: string, key: keyof ProposalEdits, placeholder?: string) => (
+    <label className="block">
+      <span className="eyebrow mb-1 block">{label}</span>
+      <input value={edits[key]} onChange={set(key)} placeholder={placeholder} className={fieldClass} />
+    </label>
+  );
+
+  return (
+    <div className="dashboard-modal-backdrop" role="presentation" onClick={onCancel}>
+      <div className="dashboard-modal surface" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <h2 className="dashboard-modal__title">Edit proposal details</h2>
+        <div className="hairline my-5" />
+
+        <div className="dashboard-modal__body flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            {field("Subject name", "subjectName", "Required to accept")}
+            {field("Date of birth", "subjectDob", "YYYY-MM-DD")}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {field("Claim number", "claimNumber")}
+            {field("Insurer", "insurer")}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {field("Adjuster", "adjusterName")}
+            {field("Adjuster phone", "adjusterPhone")}
+          </div>
+          {field("Adjuster email", "adjusterEmail")}
+        </div>
+
+        <div className="dashboard-modal__actions">
+          <button type="button" className="dashboard-modal-btn" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" className="dashboard-modal-btn" disabled={busy} onClick={() => onSave(edits)}>
+            {busy ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

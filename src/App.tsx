@@ -16,6 +16,7 @@ const AppShell = lazy(() => import("./components/layout/AppShell"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Cases = lazy(() => import("./pages/Cases"));
 const CaseDetail = lazy(() => import("./pages/CaseDetail"));
+const PendingCases = lazy(() => import("./pages/PendingCases"));
 const PendingCaseDetail = lazy(() => import("./pages/PendingCaseDetail"));
 const Schedule = lazy(() => import("./pages/Schedule"));
 const Investigators = lazy(() => import("./pages/Investigators"));
@@ -81,7 +82,14 @@ export default function App() {
             />
           </Route>
           <Route element={<RequirePermission anyOf={["intake.view"]} />}>
-            <Route path="/pending-cases" element={<Navigate to="/cases" replace />} />
+            <Route
+              path="/pending-cases"
+              element={
+                <LazyRoute>
+                  <PendingCases />
+                </LazyRoute>
+              }
+            />
             <Route
               path="/pending-cases/:id"
               element={

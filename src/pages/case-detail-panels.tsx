@@ -1,23 +1,34 @@
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Columns2, MapPin, User, Plus, X, Loader2, Car, ShieldQuestion, StickyNote,
-  ImagePlus, ScanFace, Trash2, UserPlus, Lock,
+  ImagePlus, ScanFace, Trash2, UserPlus, Lock, Paperclip, FileText, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/format";
 import { SERVICE_LABELS, TAG_COLORS, placeholderPhotoFor, type InvTag } from "@/lib/mock-data";
 import {
   casesApi,
+  caseFilePath,
+  fileDownloadUrl,
   geocodeApi,
   type CaseDetail,
   type CaseStatus,
   type CaseDayEntry,
   type CaseDayEntryType,
+  type UpdateCasePayload,
 } from "@/lib/crm-api";
 import { ImageComparisonModal } from "@/components/case/ImageComparisonModal";
+import { FileViewerModal } from "@/components/case/FileViewerModal";
 import { CaseMap } from "@/components/case/CaseMap";
 import type { CasePanelCtx } from "./case-detail-widgets";
+
+const fmtFileSize = (bytes: number | null): string => {
+  if (bytes === null) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 const STATUS_CONFIG: Record<CaseStatus, { label: string; dot: string; pill: string; text: string }> = {
   open: { label: "Open", dot: "#4ade80", pill: "rgba(74,222,128,0.15)", text: "#4ade80" },
@@ -587,6 +598,89 @@ export function VehiclesPanel({ ctx }: { ctx: CasePanelCtx }) {
   );
 }
 
+// ─── Files ──────────────────────────────────────────────────────────────────
+
+/**
+ * Documents carried over from the proposal when the case was accepted. A row
+ * with no `storageKey` is one the ingestor named but never sent — it stays
+ * listed (losing it would hide that the document exists) and opens a
+ * placeholder instead of a broken download.
+ */
+export function CaseFilesPanel({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
+  const files = c.files ?? [];
+  const [viewing, setViewing] = useState<string | null>(null);
+
+  const ctxLoadBlob = ctx.loadFileBlob;
+  const ctxHref = ctx.fileDownloadHref;
+  const loadBlob = useCallback(
+    (fileId: string) => (ctxLoadBlob ? ctxLoadBlob(fileId) : casesApi.fileBlob(c.id, fileId)),
+    [c.id, ctxLoadBlob],
+  );
+  const downloadUrl = useCallback(
+    (fileId: string) => (ctxHref ? ctxHref(fileId) : fileDownloadUrl(caseFilePath(c.id, fileId))),
+    [c.id, ctxHref],
+  );
+
+  const stored = files.filter((f) => f.storageKey).length;
+
+  return (
+    <PanelShell
+      title="Files"
+      icon={<Paperclip size={11} strokeWidth={1.8} />}
+      action={
+        files.length > 0 && (
+          <span className="font-mono text-[0.625rem] text-[var(--color-text-lo)]">
+            {stored}/{files.length} stored
+          </span>
+        )
+      }
+    >
+      {files.length === 0 ? (
+        <div className="grid h-full place-items-center">
+          <span className="font-mono text-[0.71875rem] text-[var(--color-text-lo)]">No documents on this case.</span>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {files.map((file) => (
+            <button
+              key={file.id}
+              type="button"
+              onClick={() => setViewing(file.id)}
+              className="group flex items-center gap-2.5 rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]/40 px-2.5 py-2 text-left transition-colors hover:border-[var(--color-accent)]"
+            >
+              <FileText
+                size={14}
+                strokeWidth={1.8}
+                className={file.storageKey ? "shrink-0 text-[var(--color-text-mid)]" : "shrink-0 text-[var(--color-text-lo)]"}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-mono text-[0.6875rem] text-[var(--color-text-hi)]">{file.filename}</div>
+                <div className="font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+                  {file.storageKey ? `${fmtFileSize(file.sizeBytes)} · ${file.storage}` : "listed, not stored"}
+                </div>
+              </div>
+              <Eye
+                size={13}
+                className="shrink-0 text-[var(--color-text-lo)] opacity-0 transition-opacity group-hover:opacity-100"
+              />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <FileViewerModal
+        open={viewing !== null}
+        files={files}
+        initialFileId={viewing}
+        onClose={() => setViewing(null)}
+        loadBlob={loadBlob}
+        downloadUrl={downloadUrl}
+      />
+    </PanelShell>
+  );
+}
+
 // ─── Assignment ─────────────────────────────────────────────────────────────
 
 export function AssignmentPanel({ ctx }: { ctx: CasePanelCtx }) {
@@ -734,16 +828,12 @@ export function CaseJournalFolder({ ctx }: { ctx: CasePanelCtx }) {
 
   const days = useMemo(() => [...c.days].sort((a, b) => a.date.localeCompare(b.date)), [c.days]);
 
-  // Tab id: day id | pending new-day iso date
-  const [activeTab, setActiveTab] = useState<string>("");
+  // Tab id: PRESURV_TAB | day id | pending new-day iso date. The folder always
+  // opens on pre-surveillance — the "day zero" of the investigation.
+  const [activeTab, setActiveTab] = useState<string>(PRESURV_TAB);
   const [pendingDate, setPendingDate] = useState<string | null>(null);
   const [addingDay, setAddingDay] = useState(false);
   const [newDayDate, setNewDayDate] = useState(() => new Date().toISOString().slice(0, 10));
-
-  useEffect(() => {
-    if (activeTab) return;
-    if (days[0]) setActiveTab(days[0].id);
-  }, [days, activeTab]);
 
   const activeDay = days.find((d) => d.id === activeTab) ?? null;
   const isPending = pendingDate !== null && activeTab === `pending:${pendingDate}`;
@@ -773,6 +863,15 @@ export function CaseJournalFolder({ ctx }: { ctx: CasePanelCtx }) {
     <div className="case-journal-folder">
       {/* Folder tab strip */}
       <div className="flex items-end gap-1 overflow-x-auto px-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab(PRESURV_TAB)}
+          className={cn(tabBase, activeTab === PRESURV_TAB ? tabActive : tabIdle)}
+          title="Pre-surveillance information"
+        >
+          <ShieldQuestion size={11} strokeWidth={1.8} />
+          PRE-SURV
+        </button>
         {days.map((d) => (
           <button
             key={d.id}
@@ -824,7 +923,9 @@ export function CaseJournalFolder({ ctx }: { ctx: CasePanelCtx }) {
 
       {/* Folder body */}
       <div className="surface rounded-[0.875rem] rounded-tl-none border border-[var(--color-line-2)] p-5">
-        {!activeTab && days.length === 0 && !isPending ? (
+        {activeTab === PRESURV_TAB ? (
+          <PresurveillanceFolder ctx={ctx} />
+        ) : !activeTab && days.length === 0 && !isPending ? (
           <div className="py-8 text-center text-[0.8125rem] text-[var(--color-text-lo)]">
             No journal days yet{canPost ? " — add a day to start." : "."}
           </div>
@@ -841,6 +942,301 @@ export function CaseJournalFolder({ ctx }: { ctx: CasePanelCtx }) {
           />
         )}
       </div>
+    </div>
+  );
+}
+
+const PRESURV_TAB = "presurv";
+
+const PRESURV_STATUS: Record<string, { label: string; color: string }> = {
+  pending: { label: "Pending", color: "#f59e0b" },
+  fetched: { label: "Fetched", color: "#4ade80" },
+  not_available: { label: "Not available", color: "#7a8499" },
+};
+
+/** One case field editable in place — writes through casesApi.update. */
+function PresurvEditableField({
+  ctx,
+  label,
+  field,
+  value,
+  type = "text",
+}: {
+  ctx: CasePanelCtx;
+  label: string;
+  /** UpdateCasePayload key this field writes to. */
+  field: "subjectName" | "subjectDob" | "claimNumber" | "dueDate";
+  value: string | null;
+  type?: "text" | "date";
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const canEdit = ctx.canEdit && ctx.canEditField(field);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const payload: UpdateCasePayload = {};
+      payload[field] = draft.trim() || undefined;
+      await casesApi.update(ctx.case.id, payload);
+      setEditing(false);
+      ctx.onRefresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div>
+        <div className="mb-0.5 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">{label}</div>
+        <div className="flex items-center gap-1">
+          <input
+            type={type}
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void save();
+              if (e.key === "Escape") setEditing(false);
+            }}
+            className="w-full rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-1.5 py-1 font-mono text-[0.6875rem] text-[var(--color-text-hi)] focus:outline-none focus:border-[var(--color-accent)]"
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={busy}
+            className="flex items-center gap-1 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-accent-2)] disabled:opacity-50"
+          >
+            {busy && <Loader2 size={11} className="animate-spin" />}
+            Save
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={!canEdit}
+      onClick={() => {
+        setDraft(type === "date" && value ? value.slice(0, 10) : value ?? "");
+        setEditing(true);
+      }}
+      className={cn("group text-left", canEdit && "cursor-pointer")}
+      title={canEdit ? `Edit ${label.toLowerCase()}` : undefined}
+    >
+      <div className="mb-0.5 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">{label}</div>
+      <div className="font-mono text-[0.71875rem] text-[var(--color-text-hi)]">
+        {value ? (type === "date" ? value.slice(0, 10) : value) : "—"}
+        {canEdit && (
+          <span className="ml-1.5 font-mono text-[0.5rem] uppercase tracking-wider text-[var(--color-accent-2)] opacity-0 transition-opacity group-hover:opacity-100">
+            edit
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
+/**
+ * "Day zero" of the case folder — everything known before surveillance starts:
+ * the pre-surveillance record (status + summary, both editable), the basic
+ * case data (editable in place), and the ingested documents.
+ */
+function PresurveillanceFolder({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
+  const ps = c.presurveillance;
+  const status = PRESURV_STATUS[ps?.status ?? "pending"] ?? PRESURV_STATUS.pending;
+  const files = c.files ?? [];
+
+  const [editingSummary, setEditingSummary] = useState(false);
+  const [summaryDraft, setSummaryDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [viewing, setViewing] = useState<string | null>(null);
+
+  const ctxLoadBlob = ctx.loadFileBlob;
+  const ctxHref = ctx.fileDownloadHref;
+  const loadBlob = useCallback(
+    (fileId: string) => (ctxLoadBlob ? ctxLoadBlob(fileId) : casesApi.fileBlob(c.id, fileId)),
+    [c.id, ctxLoadBlob],
+  );
+  const downloadUrl = useCallback(
+    (fileId: string) => (ctxHref ? ctxHref(fileId) : fileDownloadUrl(caseFilePath(c.id, fileId))),
+    [c.id, ctxHref],
+  );
+
+  const saveSummary = async () => {
+    setBusy(true);
+    try {
+      await casesApi.updatePresurveillance(c.id, { summary: summaryDraft.trim() || null });
+      setEditingSummary(false);
+      ctx.onRefresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setStatus = async (next: "pending" | "fetched" | "not_available") => {
+    setBusy(true);
+    try {
+      await casesApi.updatePresurveillance(c.id, { status: next });
+      ctx.onRefresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const primaryAddress = c.addresses.find((a) => a.isPrimary) ?? c.addresses[0];
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="editorial text-[1.125rem] text-[var(--color-text-hi)]">Pre-surveillance information</div>
+          <div className="font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+            What is known before the first day in the field
+          </div>
+        </div>
+        {ctx.canEdit ? (
+          <select
+            value={ps?.status ?? "pending"}
+            disabled={busy}
+            onChange={(e) => void setStatus(e.target.value as "pending" | "fetched" | "not_available")}
+            className="rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1 font-mono text-[0.625rem] uppercase tracking-wider focus:outline-none"
+            style={{ color: status.color }}
+            title="Pre-surveillance status"
+          >
+            {Object.entries(PRESURV_STATUS).map(([value, cfg]) => (
+              <option key={value} value={value}>
+                {cfg.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[0.625rem] uppercase tracking-wider"
+            style={{ background: `color-mix(in srgb, ${status.color} 14%, transparent)`, color: status.color }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: status.color }} />
+            {status.label}
+          </span>
+        )}
+      </div>
+
+      {/* Basic data — editable in place */}
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-[0.75rem] border border-[var(--color-line-2)] bg-[var(--color-ink-1)]/40 p-4 sm:grid-cols-3">
+        <PresurvEditableField ctx={ctx} label="Subject" field="subjectName" value={c.subjectName} />
+        <PresurvEditableField ctx={ctx} label="Date of birth" field="subjectDob" value={c.subjectDob} type="date" />
+        <PresurvEditableField ctx={ctx} label="Claim #" field="claimNumber" value={c.claimNumber} />
+        <PresurvEditableField ctx={ctx} label="Report due" field="dueDate" value={c.dueDate} type="date" />
+        <Field label="Primary address" value={primaryAddress?.line1 ?? "—"} />
+        <Field label="Client" value={c.client?.company ?? "—"} />
+      </div>
+
+      {/* Editable summary */}
+      <div className="rounded-[0.75rem] border border-[var(--color-line-2)] bg-[var(--color-ink-1)]/40 p-4">
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+            Pre-surveillance summary
+          </span>
+          {ctx.canEdit && !editingSummary && (
+            <button
+              type="button"
+              onClick={() => {
+                setSummaryDraft(ps?.summary ?? "");
+                setEditingSummary(true);
+              }}
+              className="font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-accent-2)] hover:text-[var(--color-text-hi)]"
+            >
+              {ps?.summary ? "Edit" : "Write"}
+            </button>
+          )}
+        </div>
+        {editingSummary ? (
+          <div className="mt-2 flex flex-col gap-1.5">
+            <textarea
+              autoFocus
+              value={summaryDraft}
+              onChange={(e) => setSummaryDraft(e.target.value)}
+              placeholder="Background checks, social media findings, address confirmations, anything gathered ahead of day one…"
+              className="min-h-[6rem] resize-none rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2.5 py-2 text-[0.78125rem] leading-relaxed text-[var(--color-text-hi)] focus:outline-none"
+            />
+            <div className="flex items-center justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={() => setEditingSummary(false)}
+                className="rounded-[0.5rem] border border-[var(--color-line)] px-3 py-1.5 text-[0.6875rem] text-[var(--color-text-lo)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveSummary}
+                disabled={busy}
+                className="flex items-center gap-1.5 rounded-[0.5rem] bg-[var(--color-accent-soft)] px-3 py-1.5 text-[0.6875rem] font-medium text-[var(--color-text-hi)] disabled:opacity-50"
+              >
+                {busy && <Loader2 size={11} className="animate-spin" />}
+                Save
+              </button>
+            </div>
+          </div>
+        ) : ps?.summary ? (
+          <p className="mt-2 whitespace-pre-wrap text-[0.8125rem] leading-relaxed text-[var(--color-text-mid)]">{ps.summary}</p>
+        ) : (
+          <p className="mt-2 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
+            Nothing recorded yet{ctx.canEdit ? " — write down what was gathered before day one." : "."}
+          </p>
+        )}
+      </div>
+
+      {/* Case documents */}
+      <div>
+        <div className="mb-2 flex items-center gap-2">
+          <Paperclip size={11} strokeWidth={1.8} className="text-[var(--color-text-lo)]" />
+          <span className="font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+            Documents ({files.length})
+          </span>
+        </div>
+        {files.length === 0 ? (
+          <p className="font-mono text-[0.6875rem] text-[var(--color-text-lo)]">No documents on this case.</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            {files.map((file) => (
+              <button
+                key={file.id}
+                type="button"
+                onClick={() => setViewing(file.id)}
+                className="group flex items-center gap-2.5 rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]/40 px-2.5 py-2 text-left transition-colors hover:border-[var(--color-accent)]"
+              >
+                <FileText
+                  size={14}
+                  strokeWidth={1.8}
+                  className={file.storageKey ? "shrink-0 text-[var(--color-text-mid)]" : "shrink-0 text-[var(--color-text-lo)]"}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-mono text-[0.6875rem] text-[var(--color-text-hi)]">{file.filename}</div>
+                  <div className="font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+                    {file.storageKey ? fmtFileSize(file.sizeBytes) : "listed, not stored"}
+                  </div>
+                </div>
+                <Eye size={13} className="shrink-0 text-[var(--color-text-lo)] opacity-0 transition-opacity group-hover:opacity-100" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <FileViewerModal
+        open={viewing !== null}
+        files={files}
+        initialFileId={viewing}
+        onClose={() => setViewing(null)}
+        loadBlob={loadBlob}
+        downloadUrl={downloadUrl}
+      />
     </div>
   );
 }
