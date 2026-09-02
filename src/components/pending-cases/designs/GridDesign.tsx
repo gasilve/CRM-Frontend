@@ -295,15 +295,21 @@ export default function GridDesign({ view }: { view: PendingCaseView }) {
             ) : (
               <ul className="anim-stagger anim-stagger-tight space-y-2">
                 {pendingCase.files.map((file) => (
-                  <li key={file.id} className="flex items-start gap-2">
-                    <Paperclip size={11} className="mt-1 shrink-0 text-[var(--color-text-lo)]" />
-                    <div className="min-w-0">
-                      <div className="truncate text-[0.75rem] text-[var(--color-text-hi)]">{file.filename}</div>
-                      <div className="font-mono text-[0.5625rem] text-[var(--color-text-lo)]">
-                        {fmtBytes(file.sizeBytes)}
-                        {file.contentType ? ` · ${file.contentType}` : ""}
+                  <li key={file.id}>
+                    <button
+                      type="button"
+                      onClick={() => actions.openFile(file.id)}
+                      className="flex w-full items-start gap-2 rounded-[0.375rem] px-1 py-1 text-left transition-colors hover:bg-white/[0.04]"
+                    >
+                      <Paperclip size={11} className="mt-1 shrink-0 text-[var(--color-text-lo)]" />
+                      <div className="min-w-0">
+                        <div className="truncate text-[0.75rem] text-[var(--color-text-hi)]">{file.filename}</div>
+                        <div className="font-mono text-[0.5625rem] text-[var(--color-text-lo)]">
+                          {fmtBytes(file.sizeBytes)}
+                          {file.contentType ? ` · ${file.contentType}` : ""}
+                        </div>
                       </div>
-                    </div>
+                    </button>
                   </li>
                 ))}
               </ul>

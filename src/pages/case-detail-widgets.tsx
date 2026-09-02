@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  User, Briefcase, Tag, MapPin, Car, Users2, ScrollText,
+  User, Briefcase, Tag, MapPin, Car, Users2, ScrollText, Paperclip,
 } from "lucide-react";
 import type { CaseDetail, GridLayoutWidget } from "@/lib/crm-api";
 import {
   AddressesMapPanel,
   AssignmentPanel,
+  CaseFilesPanel,
   CaseInfoPanel,
   ClientAdjusterPanel,
   DescriptionPanel,
@@ -27,6 +28,7 @@ export type CasePanelId =
   | "assignment"
   | "addresses-map"
   | "vehicles"
+  | "files"
   | "description";
 
 export type CasePage = {
@@ -66,6 +68,14 @@ export type CasePanelCtx = {
   getCustomWidget: (id: string) => CustomCaseWidgetDef | null;
   /** Present only for SuperAdmins in edit mode — opens the widget builder. */
   onEditCustomWidget?: (id: string) => void;
+
+  /**
+   * File-source overrides for surfaces whose documents live behind another
+   * endpoint (the pending-intake view renders this same widget set against a
+   * proposal). When absent, panels use the regular /cases/:id/files routes.
+   */
+  loadFileBlob?: (fileId: string) => Promise<Blob>;
+  fileDownloadHref?: (fileId: string) => string;
 };
 
 export type CasePanelDef = {
@@ -125,6 +135,11 @@ export const CASE_PANELS: Record<CasePanelId, CasePanelDef> = {
     id: "vehicles", label: "Vehicles", icon: Car,
     minH: 3, minW: 3, defaultW: 6, defaultH: 3,
     render: (ctx) => <VehiclesPanel ctx={ctx} />,
+  },
+  files: {
+    id: "files", label: "Files", icon: Paperclip,
+    minH: 2, minW: 2, defaultW: 3, defaultH: 4,
+    render: (ctx) => <CaseFilesPanel ctx={ctx} />,
   },
   description: {
     id: "description", label: "Description", icon: ScrollText,
@@ -228,7 +243,8 @@ export const CASE_DEFAULT_LAYOUT: CaseLayoutItem[] = [
   { id: "client-adjuster", pageId: CASE_PAGE_DETAILS, x: 3, y: 0, w: 3, h: 3 },
   { id: "tags", pageId: CASE_PAGE_DETAILS, x: 6, y: 0, w: 3, h: 3 },
   { id: "description", pageId: CASE_PAGE_DETAILS, x: 9, y: 0, w: 3, h: 3 },
-  { id: "vehicles", pageId: CASE_PAGE_DETAILS, x: 0, y: 3, w: 12, h: 3 },
+  { id: "vehicles", pageId: CASE_PAGE_DETAILS, x: 0, y: 3, w: 8, h: 3 },
+  { id: "files", pageId: CASE_PAGE_DETAILS, x: 8, y: 3, w: 4, h: 3 },
 ];
 
 /**
@@ -284,17 +300,56 @@ function sanitizeWidgets(widgets: CustomCaseWidgetDef[] | null | undefined): Cus
 }
 
 /**
+ * Panels shipped after layouts were already saved. Saved layouts predate them,
+ * so on LOAD (never on persist) any missing promoted panel is pushed into the
+ * first page with room. Removing one still works — the removal persists a doc
+ * without it and nothing re-injects until the next full load. Once any layout
+ * edit is saved, the injected panel is part of the document for good.
+ */
+const PROMOTED_PANEL_IDS: CasePanelId[] = ["files"];
+
+function injectPromotedPanels(pages: CasePage[], items: CaseLayoutItem[]): CaseLayoutItem[] {
+  const present = new Set(items.map((i) => i.id));
+  let out = items;
+
+  for (const id of PROMOTED_PANEL_IDS) {
+    if (present.has(id)) continue;
+    const sizing = caseWidgetSizing(id);
+
+    // First page whose content leaves enough free rows at the bottom.
+    let pageId = pages[pages.length - 1]?.id ?? CASE_PAGE_DETAILS;
+    let y = Math.max(0, CASE_PAGE_ROWS - sizing.defaultH);
+    for (const p of pages) {
+      const bottom = out
+        .filter((i) => i.pageId === p.id)
+        .reduce((max, i) => Math.max(max, i.y + i.h), 0);
+      if (bottom + sizing.defaultH <= CASE_PAGE_ROWS) {
+        pageId = p.id;
+        y = bottom;
+        break;
+      }
+    }
+
+    out = [...out, { id, pageId, x: 0, y, w: sizing.defaultW, h: sizing.defaultH }];
+  }
+
+  return out;
+}
+
+/**
  * Normalize a saved (or legacy flat) layout into pages + items + widget defs.
  *
  * Unlike the pre-dock era this does NOT force missing premade panels back in —
  * a panel absent from the layout is simply "removed" and lives in the dock.
  * Items whose id is neither a premade panel nor a known custom widget are
- * dropped (stale ids from an older catalog).
+ * dropped (stale ids from an older catalog). The one exception: on load,
+ * PROMOTED_PANEL_IDS are injected into layouts saved before they existed.
  */
 export function normalizeCaseDocument(
   items: Array<Partial<CaseLayoutItem> & { id: string }>,
   pages?: CasePage[] | null,
   widgets?: CustomCaseWidgetDef[] | null,
+  phase: "load" | "persist" = "load",
 ): { pages: CasePage[]; items: CaseLayoutItem[]; widgets: CustomCaseWidgetDef[] } {
   const cleanWidgets = sanitizeWidgets(widgets);
   const customIds = new Set(cleanWidgets.map((w) => w.id));
@@ -349,7 +404,11 @@ export function normalizeCaseDocument(
     }
   }
 
-  return { pages: nextPages, items: out, widgets: cleanWidgets };
+  return {
+    pages: nextPages,
+    items: phase === "load" ? injectPromotedPanels(nextPages, out) : out,
+    widgets: cleanWidgets,
+  };
 }
 
 /** @deprecated Prefer normalizeCaseDocument — kept for call sites that only need items. */

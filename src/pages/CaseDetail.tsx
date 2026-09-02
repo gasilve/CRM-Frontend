@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, CalendarPlus, Car, Folder, Users } from "lucide-react";
 import { CaseDetailSkeleton, PanelLoader } from "@/components/ui/LoadingState";
 import { casesApi, investigatorsApi, ApiError, type CaseDetail as CaseDetailType, type CaseStatus } from "@/lib/crm-api";
+import { invalidateQueries, useQuery } from "@/lib/query-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGridLayout } from "@/hooks/useGridLayout";
 import { CaseSubjectHeader } from "@/components/case/CaseSubjectHeader";
@@ -57,10 +58,6 @@ export default function CaseDetail() {
   const canEditCase = can("cases.edit");
   const canEditLayout = !authPending && isSuperadmin;
 
-  const [kase, setKase] = useState<CaseDetailType | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notFound, setNotFound] = useState(false);
-  const [investigatorOptions, setInvestigatorOptions] = useState<{ id: string; name: string }[]>([]);
   const [activePageId, setActivePageId] = useState<string>(CASE_DEFAULT_PAGES[0].id);
   /** Bumped when the layout changes outside of the grids themselves (page delete, trash, widget delete). */
   const [gridToken, setGridToken] = useState(0);
@@ -95,8 +92,8 @@ export default function CaseDetail() {
     surface: "case-detail",
     defaultLayout: CASE_DEFAULT_LAYOUT,
     normalize: normalizeCaseLayout,
-    normalizeDocument: (items, savedPages, savedWidgets) =>
-      normalizeCaseDocument(items, savedPages, savedWidgets as CustomCaseWidgetDef[] | null),
+    normalizeDocument: (items, savedPages, savedWidgets, phase) =>
+      normalizeCaseDocument(items, savedPages, savedWidgets as CustomCaseWidgetDef[] | null, phase),
     defaultPages: CASE_DEFAULT_PAGES,
     legacyStorageKey: CASE_LEGACY_LS_KEY,
     editable: canEditLayout,
@@ -522,31 +519,39 @@ export default function CaseDetail() {
   }, [dockPlacing, handleUnsaveDropped]);
 
   // ── Data ───────────────────────────────────────────────────────────────────
+  // Cached: revisiting a case renders instantly from the last fetch while a
+  // background request brings it up to date. `null` marks a confirmed 404.
+
+  const caseQuery = useQuery(
+    id ? `case:${id}` : null,
+    () =>
+      casesApi
+        .get(id!)
+        .then((res): CaseDetailType | null => res.case)
+        .catch((err: unknown) => {
+          if (err instanceof ApiError && err.status === 404) return null;
+          throw err;
+        }),
+    { enabled: !!id },
+  );
+  const kase = caseQuery.data ?? null;
+  const notFound = caseQuery.data === null;
+  const error = caseQuery.error;
 
   const load = useCallback(() => {
-    if (!id) return;
-    casesApi
-      .get(id)
-      .then((res) => {
-        setKase(res.case);
-        setNotFound(false);
-      })
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 404) {
-          setNotFound(true);
-          return;
-        }
-        setError(err instanceof ApiError ? err.message : "Could not load case.");
-      });
-  }, [id]);
+    // Mutations refetch in the background and refresh any cached case list.
+    void caseQuery.refresh();
+    invalidateQueries("cases:list");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseQuery.refresh]);
 
-  useEffect(load, [load]);
-  useEffect(() => {
-    investigatorsApi
-      .list()
-      .then((res) => setInvestigatorOptions(res.investigators.map((i) => ({ id: i.id, name: i.name }))))
-      .catch(() => {});
-  }, []);
+  const investigatorsQuery = useQuery("investigators:list", () => investigatorsApi.list(), {
+    staleMs: 5 * 60_000,
+  });
+  const investigatorOptions = (investigatorsQuery.data?.investigators ?? []).map((i) => ({
+    id: i.id,
+    name: i.name,
+  }));
 
   if (notFound) {
     return (

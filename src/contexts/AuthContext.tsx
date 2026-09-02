@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { clearQueryCache } from "@/lib/query-cache";
 import {
   useSession,
   signOut,
@@ -79,6 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canSee: (field) => fieldAccess(field) !== "hidden",
       canEdit: (field) => fieldAccess(field) === "write",
       logout: async () => {
+        // Cached API data belongs to this user — never let it survive sign-out.
+        clearQueryCache();
         await signOut();
       },
       refresh: () => void refetch(),

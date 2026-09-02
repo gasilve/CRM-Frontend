@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   MapPin,
   ChevronLeft,
   ChevronRight,
-  FolderOpen,
-  Inbox,
   Search,
   X,
 } from "lucide-react";
@@ -14,29 +12,18 @@ import { getInitials } from "@/lib/format";
 import { SERVICE_LABELS } from "@/lib/mock-data";
 import {
   casesApi,
-  pendingCasesApi,
-  ApiError,
   type CaseListItem,
   type CaseStatus,
   type CaseService,
-  type PendingCaseListItem,
 } from "@/lib/crm-api";
 import { WeatherStrip } from "@/components/cases/WeatherStrip";
-import { PendingCasesTable } from "@/components/cases/PendingCasesTable";
 import { TableSkeleton } from "@/components/ui/LoadingState";
-import { ViewToggle, ViewToggleGroup } from "@/components/ui/ViewToggle";
-import { useAuth } from "@/contexts/AuthContext";
-import { usePendingIntake } from "@/contexts/PendingIntakeContext";
-
-type View = "cases" | "awaiting";
+import { useQuery } from "@/lib/query-cache";
 
 const PER_PAGE = 8;
 
 const CASES_COLS =
   "grid grid-cols-[5.25rem_3.25rem_minmax(9.5rem,1.25fr)_minmax(7rem,0.9fr)_5rem_minmax(7.5rem,0.95fr)_minmax(8.5rem,1.05fr)_3rem_minmax(6.5rem,0.85fr)_5.25rem] items-center gap-x-2 px-5";
-
-const PENDING_COLS =
-  "grid grid-cols-[5.5rem_minmax(8rem,0.95fr)_minmax(9.5rem,1.3fr)_minmax(8.5rem,1.05fr)_minmax(6.5rem,0.8fr)_5.5rem_minmax(5.5rem,0.7fr)_5.25rem] items-center gap-x-2 px-5";
 
 const STATUS_CONFIG: Record<CaseStatus, { label: string; dot: string; pill: string; pillText: string }> = {
   open: { label: "Open", dot: "#4ade80", pill: "rgba(74,222,128,0.15)", pillText: "#4ade80" },
@@ -78,97 +65,35 @@ const daysUntil = (iso: string): number => {
 
 export default function Cases() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { can } = useAuth();
-  // The "awaiting review" tab is the case-intake inbox, not a case list.
-  const canSeeIntake = can("intake.view");
-  const { pendingReview, setPendingReview } = usePendingIntake();
-  const pendingReviewCount = pendingReview ?? 0;
 
-  const [view, setView] = useState<View>("cases");
   const [search, setSearch] = useState("");
   const [dueFrom, setDueFrom] = useState("");
   const [dueTo, setDueTo] = useState("");
   const [page, setPage] = useState(1);
 
-  const [items, setItems] = useState<CaseListItem[] | null>(null);
-  const [total, setTotal] = useState(0);
+  useEffect(() => setPage(1), [search, dueFrom, dueTo]);
 
-  const [pendingItems, setPendingItems] = useState<PendingCaseListItem[] | null>(null);
-  const [pendingTotal, setPendingTotal] = useState(0);
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-
-  useEffect(() => {
-    const handoff = (location.state as { pendingNotice?: string } | null)?.pendingNotice;
-    if (!handoff) return;
-    setNotice(handoff);
-    if (canSeeIntake) setView("awaiting");
-    window.history.replaceState({}, "");
-  }, [location.state, canSeeIntake]);
-
-  useEffect(() => setPage(1), [view, search, dueFrom, dueTo]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    if (view === "awaiting" && canSeeIntake) {
-      pendingCasesApi
-        .list({ status: "pending_review", search: search || undefined, page, pageSize: PER_PAGE })
-        .then((res) => {
-          if (cancelled) return;
-          setPendingItems(res.pendingCases);
-          setPendingTotal(res.total);
-          setPendingReview(res.total);
-        })
-        .catch((err) => {
-          if (cancelled) return;
-          setError(err instanceof ApiError ? err.message : "Could not load proposals.");
-          setPendingItems([]);
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    casesApi
-      .list({
+  // Cached per filter combination: revisiting the page (or paging back and
+  // forth) renders instantly from cache while a background fetch refreshes it.
+  const query = useQuery(
+    `cases:list:${search}:${dueFrom}:${dueTo}:${page}`,
+    () =>
+      casesApi.list({
         search: search || undefined,
         dueFrom: dueFrom || undefined,
         dueTo: dueTo || undefined,
         page,
         pageSize: PER_PAGE,
-      })
-      .then((res) => {
-        if (cancelled) return;
-        setItems(res.cases);
-        setTotal(res.total);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : "Could not load cases.");
-        setItems([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      }),
+  );
 
-    return () => {
-      cancelled = true;
-    };
-  }, [view, canSeeIntake, search, dueFrom, dueTo, page, location.key]);
+  const items = query.data?.cases ?? null;
+  const total = query.data?.total ?? 0;
+  const loading = query.loading;
+  const error = query.error;
 
-  const activeTotal = view === "awaiting" ? pendingTotal : total;
-  const totalPages = Math.max(1, Math.ceil(activeTotal / PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
   const hasDateFilter = dueFrom !== "" || dueTo !== "";
-  const showingAwaiting = view === "awaiting" && canSeeIntake;
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
@@ -176,35 +101,12 @@ export default function Cases() {
         <div>
           <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">Cases</h1>
           <p className="mt-1 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
-            {showingAwaiting
-              ? pendingItems
-                ? `${pendingTotal} proposal${pendingTotal === 1 ? "" : "s"} pending review`
-                : "Loading proposals…"
-              : items
-                ? `${total} matching case${total === 1 ? "" : "s"}`
-                : "Loading cases…"}
+            {items ? `${total} matching case${total === 1 ? "" : "s"}` : "Loading cases…"}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {canSeeIntake && (
-            <ViewToggleGroup>
-              <ViewToggle
-                active={view === "cases"}
-                onClick={() => setView("cases")}
-                icon={<FolderOpen size={13} strokeWidth={1.8} />}
-                label="Cases"
-              />
-              <ViewToggle
-                active={view === "awaiting"}
-                onClick={() => setView("awaiting")}
-                icon={<Inbox size={13} strokeWidth={1.8} />}
-                label="Pending review"
-                badge={pendingReviewCount > 0 ? pendingReviewCount : undefined}
-              />
-            </ViewToggleGroup>
-          )}
-          {!loading && <WeatherStrip />}
+          <WeatherStrip />
         </div>
       </div>
 
@@ -214,13 +116,12 @@ export default function Cases() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={showingAwaiting ? "Search subject, claim #, insurer…" : "Search subjects, claim #…"}
+            placeholder="Search subjects, claim #…"
             className="w-full rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] py-1.5 pl-8 pr-3 text-[0.75rem] text-[var(--color-text-hi)] placeholder:text-[var(--color-text-lo)] focus:outline-none focus:border-[var(--color-accent)]"
           />
         </div>
 
-        {!showingAwaiting && (
-          <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex items-center gap-1.5">
             <span className="font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">Due</span>
             <input
               type="date"
@@ -250,28 +151,8 @@ export default function Cases() {
                 <X size={12} strokeWidth={1.8} />
               </button>
             )}
-          </div>
-        )}
-
-        {showingAwaiting && (
-          <span className="ml-auto font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-            Pushed by the case ingestor
-          </span>
-        )}
-      </div>
-
-      {notice && (
-        <div className="surface flex shrink-0 items-center gap-3 rounded-[0.875rem] border border-[rgba(74,222,128,0.3)] bg-[rgba(74,222,128,0.06)] px-4 py-3">
-          <p className="text-[0.78125rem] text-[var(--color-text-mid)]">{notice}</p>
-          <button
-            type="button"
-            onClick={() => setNotice(null)}
-            className="ml-auto shrink-0 text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]"
-          >
-            <X size={14} />
-          </button>
         </div>
-      )}
+      </div>
 
       {error && (
         <div className="anim-banner surface shrink-0 rounded-[0.875rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-4 py-3 text-[0.8125rem] text-[var(--color-neg)]">
@@ -282,24 +163,9 @@ export default function Cases() {
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         <div className="min-h-0 flex-1 overflow-hidden">
           {loading ? (
-            showingAwaiting ? (
-              <TableSkeleton
-                colClass={PENDING_COLS}
-                headers={["Received", "Claim", "Subject", "Insurer / Adjuster", "Type", "Payload", "Files", "Due"]}
-              />
-            ) : (
-              <TableSkeleton
-                colClass={CASES_COLS}
-                headers={["Due", "!", "Subject", "Type", "Claim", "Location", "Client / Adjuster", "Days", "Investigator", "Status"]}
-              />
-            )
-          ) : showingAwaiting ? (
-            /* Keyed on the page so paging replays the row stagger. */
-            <PendingCasesTable
-              key={`pending-${page}`}
-              items={pendingItems ?? []}
-              hasSearch={search !== ""}
-              onRowClick={(id) => navigate(`/pending-cases/${id}`)}
+            <TableSkeleton
+              colClass={CASES_COLS}
+              headers={["Due", "!", "Subject", "Type", "Claim", "Location", "Client / Adjuster", "Days", "Investigator", "Status"]}
             />
           ) : (
             <CasesTable key={`cases-${page}`} items={items ?? []} onRowClick={(id) => navigate(`/cases/${id}`)} />
@@ -309,8 +175,7 @@ export default function Cases() {
         {totalPages > 1 && (
           <div className="flex shrink-0 items-center justify-between pb-0.5">
             <span className="font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
-              {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, activeTotal)} of {activeTotal}{" "}
-              {showingAwaiting ? "proposals" : "cases"}
+              {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, total)} of {total} cases
             </span>
             <div className="flex items-center gap-1">
               <PageBtn onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} aria-label="Previous page">

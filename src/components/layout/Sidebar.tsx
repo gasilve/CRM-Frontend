@@ -19,6 +19,7 @@ import {
   ScrollText,
   Clapperboard,
   GripVertical,
+  Inbox,
   LogOut,
   Pencil,
   Trash2,
@@ -91,6 +92,7 @@ const DEFAULT_GROUPS: Group[] = [
     items: [
       { to: "/",              label: "Dashboard",    icon: LayoutDashboard },
       { to: "/cases",         label: "Cases",        icon: FolderOpen,   badge: openCases, permissions: ["cases.view"] },
+      { to: "/pending-cases", label: "Pending cases", icon: Inbox, permissions: ["intake.view"] },
       { to: "/schedule",      label: "Scheduling",   icon: CalendarClock, permissions: ["schedule.view"] },
       { to: "/investigators", label: "Investigators",icon: Users2,        badge: clockedIn > 0 ? `${clockedIn} live` : undefined, permissions: ["team.view"] },
       { to: "/calendar",      label: "Calendar",     icon: CalendarDays, permissions: ["schedule.view"] },
@@ -570,7 +572,7 @@ export default function Sidebar({
         .filter(Boolean)
         .filter((item) => !item.permissions || canAny(...item.permissions))
         .map((item) => {
-          if (item.to === "/cases" && canSeeIntake && pendingCases && pendingCases > 0) {
+          if (item.to === "/pending-cases" && canSeeIntake && pendingCases && pendingCases > 0) {
             return { ...item, badge: pendingCases };
           }
           return item;
