@@ -314,6 +314,9 @@ function CaseDetailGridInner({
       for (const [pid, grid] of gridsRef.current) {
         items.push(...nodesToLayout(grid.save(false) as GridStackNode[], pid));
       }
+      // A remount can briefly report zero nodes — never push that upstream or
+      // the house layout gets wiped and the next paint is an empty screen.
+      if (items.length === 0) return;
       layoutRef.current = items;
       persistRef.current(items);
     };
@@ -507,13 +510,15 @@ function CaseDetailGridInner({
       if (widgets.length > 0) grid.load(widgets);
       settleGridMetrics(grid, CASE_CELL_HEIGHT, CASE_GRID_MARGIN);
 
+      // Attach change/added/removed listeners only after settle — grid.load
+      // fires those events, and syncing mid-load can persist an empty layout.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          if (!cancelled) settled.set(pageId, true);
+          if (cancelled) return;
+          settled.set(pageId, true);
+          attachGridEvents(grid);
         });
       });
-
-      attachGridEvents(grid);
     };
 
     initPageRef.current = initPage;

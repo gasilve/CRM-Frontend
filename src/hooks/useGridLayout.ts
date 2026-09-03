@@ -15,6 +15,33 @@ const SYNC_MIN_INTERVAL_MS = 60_000;
 
 const layoutCacheKey = (surface: GridSurface): string => `grid-layout:${surface}`;
 
+/** Empty arrays are truthy in JS but mean "no layout" — never treat them as saved. */
+const hasItems = (items: GridLayoutItem[] | null | undefined): items is GridLayoutItem[] =>
+  Array.isArray(items) && items.length > 0;
+
+/**
+ * Stable identity of a rendered document. GridStack only rebuilds when the
+ * mount key changes, so the hook has to know when an applied document actually
+ * differs from the one on screen and bump `revision` for it.
+ */
+function docSignature(
+  items: GridLayoutItem[],
+  pages: GridLayoutPage[] | null | undefined,
+  widgets: GridLayoutWidget[] | null | undefined,
+): string {
+  return JSON.stringify([
+    items.map((i) => [i.id, i.x, i.y, i.w, i.h, i.pageId ?? null]),
+    (pages ?? []).map((p) => [p.id, p.name]),
+    (widgets ?? []).map((w) => [
+      w.id,
+      w.title,
+      w.columns ?? 1,
+      w.persisted ?? false,
+      (w.fields ?? []).map((f) => [f.key, f.label]),
+    ]),
+  ]);
+}
+
 type Options<T extends GridLayoutItem> = {
   surface: GridSurface;
   defaultLayout: T[];
@@ -23,7 +50,7 @@ type Options<T extends GridLayoutItem> = {
   /**
    * When false, layout is read-only: no API saves, no legacy migration, and
    * `persist` / `reset` are local no-ops against the server. Used for shared
-   * surfaces (case-detail) for nonΓÇôSuperAdmin users.
+   * surfaces (case-detail) for non–SuperAdmin users.
    */
   editable?: boolean;
   /** When set, this surface persists carousel pages with the item list. */
@@ -73,6 +100,65 @@ function clearLegacyLayout(key: string | undefined): void {
   }
 }
 
+type SeedDoc<T extends GridLayoutItem> = {
+  items: T[];
+  pages: GridLayoutPage[] | null;
+  widgets: GridLayoutWidget[] | null;
+  updatedAt: string | null;
+};
+
+/**
+ * Resolve the document that should paint on the very first render. Prefer a
+ * non-empty cached layout so GridStack mounts once with the real house layout
+ * instead of mounting on the built-in default and remounting when the cache
+ * arrives (that remount races GridStack and can wipe the layout to []).
+ */
+function seedDocument<T extends GridLayoutItem>(
+  surface: GridSurface,
+  defaultLayout: T[],
+  defaultPages: GridLayoutPage[] | undefined,
+  normalize: (items: T[]) => T[],
+  normalizeDocument:
+    | ((
+        items: T[],
+        pages: GridLayoutPage[] | null | undefined,
+        widgets: GridLayoutWidget[] | null | undefined,
+        phase?: "load" | "persist",
+      ) => { items: T[]; pages: GridLayoutPage[]; widgets?: GridLayoutWidget[] })
+    | undefined,
+): SeedDoc<T> {
+  const cached = getCached<GridLayoutRecord>(layoutCacheKey(surface));
+  if (hasItems(cached?.items)) {
+    if (normalizeDocument && defaultPages) {
+      const doc = normalizeDocument(
+        cached.items as T[],
+        cached.pages ?? defaultPages,
+        cached.widgets,
+        "load",
+      );
+      if (hasItems(doc.items)) {
+        return {
+          items: doc.items,
+          pages: doc.pages,
+          widgets: doc.widgets ?? [],
+          updatedAt: cached.updatedAt,
+        };
+      }
+    } else {
+      const items = normalize(cached.items as T[]);
+      if (hasItems(items)) {
+        return { items, pages: null, widgets: null, updatedAt: cached.updatedAt };
+      }
+    }
+  }
+
+  if (normalizeDocument && defaultPages) {
+    const doc = normalizeDocument(defaultLayout, defaultPages, null, "load");
+    return { items: doc.items, pages: doc.pages, widgets: doc.widgets ?? [], updatedAt: null };
+  }
+  return { items: normalize(defaultLayout), pages: defaultPages ?? null, widgets: null, updatedAt: null };
+}
+
 export function useGridLayout<T extends GridLayoutItem>({
   surface,
   defaultLayout,
@@ -82,10 +168,13 @@ export function useGridLayout<T extends GridLayoutItem>({
   defaultPages,
   normalizeDocument,
 }: Options<T>): GridLayoutState<T> {
-  // Start with defaults so pages render immediately; sync saved layout when the API responds.
-  const [layout, setLayout] = useState<T[] | null>(() => normalize(defaultLayout));
-  const [pages, setPages] = useState<GridLayoutPage[] | null>(() => defaultPages ?? null);
-  const [widgets, setWidgets] = useState<GridLayoutWidget[] | null>(null);
+  const [seed] = useState(() =>
+    seedDocument(surface, defaultLayout, defaultPages, normalize, normalizeDocument),
+  );
+
+  const [layout, setLayout] = useState<T[] | null>(() => seed.items);
+  const [pages, setPages] = useState<GridLayoutPage[] | null>(() => seed.pages);
+  const [widgets, setWidgets] = useState<GridLayoutWidget[] | null>(() => seed.widgets);
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,41 +182,87 @@ export function useGridLayout<T extends GridLayoutItem>({
   normalizeRef.current = normalize;
   const normalizeDocRef = useRef(normalizeDocument);
   normalizeDocRef.current = normalizeDocument;
+  const defaultLayoutRef = useRef(defaultLayout);
+  defaultLayoutRef.current = defaultLayout;
   const defaultPagesRef = useRef(defaultPages);
   defaultPagesRef.current = defaultPages;
   const pendingRef = useRef<{ items: T[]; pages?: GridLayoutPage[]; widgets?: GridLayoutWidget[] } | null>(null);
   const timerRef = useRef<number | null>(null);
-  const seenUpdatedAtRef = useRef<string | null>(null);
+  const seenUpdatedAtRef = useRef<string | null>(seed.updatedAt);
   const editableRef = useRef(editable);
   editableRef.current = editable;
-  const pagesRef = useRef<GridLayoutPage[] | null>(null);
+  const pagesRef = useRef<GridLayoutPage[] | null>(pages);
   pagesRef.current = pages;
-  const widgetsRef = useRef<GridLayoutWidget[] | null>(null);
+  const widgetsRef = useRef<GridLayoutWidget[] | null>(widgets);
   widgetsRef.current = widgets;
+  const layoutRef = useRef<T[] | null>(layout);
+  layoutRef.current = layout;
+
+  // Signature of whatever the grid is currently mounted with.
+  const appliedSigRef = useRef<string>(docSignature(seed.items, seed.pages, seed.widgets));
 
   const applyDocument = useCallback(
     (
-      items: T[],
+      rawItems: T[],
       savedPages: GridLayoutPage[] | null | undefined,
       savedWidgets: GridLayoutWidget[] | null | undefined,
+      opts?: { force?: boolean },
     ) => {
+      // A remount race can hand us []. Never replace a real layout with nothing.
+      const items = hasItems(rawItems) ? rawItems : defaultLayoutRef.current;
+
+      const commit = (
+        nextItems: T[],
+        nextPages: GridLayoutPage[] | null,
+        nextWidgets: GridLayoutWidget[] | null,
+      ) => {
+        if (!hasItems(nextItems) && hasItems(layoutRef.current ?? undefined)) {
+          // Normalized to empty while we still have widgets on screen — refuse.
+          return null;
+        }
+        const sig = docSignature(nextItems, nextPages, nextWidgets);
+        const changed = sig !== appliedSigRef.current;
+        appliedSigRef.current = sig;
+        layoutRef.current = nextItems;
+        // GridStack only rebuilds when mountKey changes. Bump only when the
+        // document actually differs from what the grid was seeded/mounted with.
+        if (changed || opts?.force) setRevision((r) => r + 1);
+        return { items: nextItems, pages: nextPages, widgets: nextWidgets };
+      };
+
       if (normalizeDocRef.current && defaultPagesRef.current) {
         const doc = normalizeDocRef.current(items, savedPages ?? defaultPagesRef.current, savedWidgets, "load");
-        setLayout(doc.items);
-        setPages(doc.pages);
-        pagesRef.current = doc.pages;
         const w = doc.widgets ?? [];
-        setWidgets(w);
-        widgetsRef.current = w;
-        return { items: doc.items, pages: doc.pages, widgets: w };
+        const applied = commit(doc.items, doc.pages, w);
+        if (!applied) {
+          return {
+            items: layoutRef.current ?? doc.items,
+            pages: pagesRef.current ?? doc.pages,
+            widgets: widgetsRef.current ?? w,
+          };
+        }
+        setLayout(applied.items);
+        setPages(applied.pages);
+        pagesRef.current = applied.pages;
+        setWidgets(applied.widgets);
+        widgetsRef.current = applied.widgets;
+        return applied;
       }
       const normalized = normalizeRef.current(items);
-      setLayout(normalized);
+      const applied = commit(normalized, null, null);
+      if (!applied) {
+        return {
+          items: layoutRef.current ?? normalized,
+          pages: null as GridLayoutPage[] | null,
+          widgets: null as GridLayoutWidget[] | null,
+        };
+      }
+      setLayout(applied.items);
       setPages(null);
       pagesRef.current = null;
       setWidgets(null);
       widgetsRef.current = null;
-      return { items: normalized, pages: null as GridLayoutPage[] | null, widgets: null as GridLayoutWidget[] | null };
+      return applied;
     },
     [],
   );
@@ -142,7 +277,10 @@ export function useGridLayout<T extends GridLayoutItem>({
       return;
     }
     const pending = pendingRef.current;
-    if (!pending) return;
+    if (!pending || !hasItems(pending.items)) {
+      pendingRef.current = null;
+      return;
+    }
     pendingRef.current = null;
     const pagesToSave = pending.pages ?? pagesRef.current ?? undefined;
     const widgetsToSave = pending.widgets ?? widgetsRef.current ?? undefined;
@@ -160,51 +298,66 @@ export function useGridLayout<T extends GridLayoutItem>({
   useEffect(() => {
     let active = true;
 
-    // Paint the last-seen layout immediately — the network round-trip below
-    // only corrects it if someone changed the layout since.
+    // Cache was already painted via seedDocument. Only re-apply here when the
+    // effect re-runs (editable/surface change) and cache still looks valid.
     const cached = getCached<GridLayoutRecord>(layoutCacheKey(surface));
-    if (cached?.items) {
+    if (hasItems(cached?.items) && cached.updatedAt !== seenUpdatedAtRef.current) {
       seenUpdatedAtRef.current = cached.updatedAt;
       applyDocument(cached.items as T[], cached.pages, cached.widgets);
+    } else if (hasItems(cached?.items)) {
+      seenUpdatedAtRef.current = cached.updatedAt;
     }
 
     gridLayoutsApi
       .get(surface)
       .then(({ layout: record }) => {
         if (!active) return;
-        setCached(layoutCacheKey(surface), record);
 
-        if (record.items) {
+        if (!hasItems(record.items)) {
+          // Server says "no saved layout" (null) or handed us a poisoned [].
+          // Keep whatever we already painted; only fall through to defaults
+          // when we have never seen a real layout for this surface.
+          setCached(layoutCacheKey(surface), {
+            ...record,
+            items: null,
+          });
           clearLegacyLayout(legacyStorageKey);
-          if (cached?.items && record.updatedAt === seenUpdatedAtRef.current) return;
-          seenUpdatedAtRef.current = record.updatedAt;
-          applyDocument(record.items as T[], record.pages, record.widgets);
-          if (cached?.items) setRevision((r) => r + 1);
+
+          const legacy = editableRef.current ? readLegacyLayout<T>(legacyStorageKey) : null;
+          if (legacy) {
+            const doc = applyDocument(legacy, defaultPagesRef.current, null);
+            if (editableRef.current && hasItems(doc.items)) {
+              gridLayoutsApi
+                .save(surface, doc.items, doc.pages ?? undefined, doc.widgets ?? undefined)
+                .then(({ layout: saved }) => {
+                  seenUpdatedAtRef.current = saved.updatedAt;
+                  clearLegacyLayout(legacyStorageKey);
+                })
+                .catch((err: unknown) => {
+                  console.error(`[grid-layout] legacy migrate failed (${surface}):`, err);
+                });
+            }
+            return;
+          }
+
+          if (seenUpdatedAtRef.current === null) {
+            applyDocument(defaultLayoutRef.current, defaultPagesRef.current, null);
+          }
           return;
         }
 
-        const legacy = editableRef.current ? readLegacyLayout<T>(legacyStorageKey) : null;
-        if (legacy) {
-          const doc = applyDocument(legacy, defaultPagesRef.current, null);
-          gridLayoutsApi
-            .save(surface, doc.items, doc.pages ?? undefined, doc.widgets ?? undefined)
-            .then(({ layout: saved }) => {
-              seenUpdatedAtRef.current = saved.updatedAt;
-              clearLegacyLayout(legacyStorageKey);
-            })
-            .catch((err: unknown) => {
-              console.error(`[grid-layout] legacy migrate failed (${surface}):`, err);
-            });
-          return;
-        }
-
-        if (editableRef.current) clearLegacyLayout(legacyStorageKey);
-        applyDocument(defaultLayout, defaultPagesRef.current, null);
+        setCached(layoutCacheKey(surface), record);
+        clearLegacyLayout(legacyStorageKey);
+        if (record.updatedAt === seenUpdatedAtRef.current) return;
+        seenUpdatedAtRef.current = record.updatedAt;
+        applyDocument(record.items as T[], record.pages, record.widgets);
       })
       .catch((err: unknown) => {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Could not load your saved layout.");
-        applyDocument(defaultLayout, defaultPagesRef.current, null);
+        if (seenUpdatedAtRef.current === null) {
+          applyDocument(defaultLayoutRef.current, defaultPagesRef.current, null);
+        }
       });
 
     return () => {
@@ -218,25 +371,20 @@ export function useGridLayout<T extends GridLayoutItem>({
     const sync = () => {
       if (document.visibilityState !== "visible") return;
       if (pendingRef.current) return;
-      // Alt-tabbing used to fire a layout GET every single time — throttle it.
       if (Date.now() - lastSyncAt < SYNC_MIN_INTERVAL_MS) return;
       lastSyncAt = Date.now();
 
       gridLayoutsApi
         .get(surface)
         .then(({ layout: record }) => {
-          setCached(layoutCacheKey(surface), record);
-          if (!record.items) {
-            if (seenUpdatedAtRef.current === null) return;
-            seenUpdatedAtRef.current = null;
-            applyDocument(defaultLayout, defaultPagesRef.current, null);
-            setRevision((r) => r + 1);
+          if (!hasItems(record.items)) {
+            // Do not wipe a live layout because the server returned null/[].
             return;
           }
+          setCached(layoutCacheKey(surface), record);
           if (record.updatedAt === seenUpdatedAtRef.current) return;
           seenUpdatedAtRef.current = record.updatedAt;
           applyDocument(record.items as T[], record.pages, record.widgets);
-          setRevision((r) => r + 1);
         })
         .catch(() => {});
     };
@@ -252,6 +400,12 @@ export function useGridLayout<T extends GridLayoutItem>({
 
   const persist = useCallback(
     (items: T[], nextPages?: GridLayoutPage[], nextWidgets?: GridLayoutWidget[]) => {
+      // Remount races can report zero nodes. Never let that erase the house layout.
+      if (!hasItems(items)) {
+        console.warn(`[grid-layout] refused to persist an empty layout (${surface})`);
+        return;
+      }
+
       const pagesForDoc = nextPages ?? pagesRef.current ?? defaultPagesRef.current;
       const widgetsForDoc = nextWidgets ?? widgetsRef.current ?? undefined;
       const doc =
@@ -263,7 +417,13 @@ export function useGridLayout<T extends GridLayoutItem>({
               widgets: widgetsForDoc,
             };
 
+      if (!hasItems(doc.items)) {
+        console.warn(`[grid-layout] normalize emptied the layout — refusing to persist (${surface})`);
+        return;
+      }
+
       setLayout(doc.items);
+      layoutRef.current = doc.items;
       if (doc.pages) {
         setPages(doc.pages);
         pagesRef.current = doc.pages;
@@ -272,12 +432,19 @@ export function useGridLayout<T extends GridLayoutItem>({
         setWidgets(doc.widgets ?? null);
         widgetsRef.current = doc.widgets ?? null;
       }
+      // The grid already reflects this edit — record it so a later sync of the
+      // same document does not remount mid-interaction.
+      appliedSigRef.current = docSignature(
+        doc.items,
+        doc.pages ?? pagesRef.current,
+        doc.widgets ?? widgetsRef.current,
+      );
       if (!editableRef.current) return;
       pendingRef.current = { items: doc.items, pages: doc.pages ?? undefined, widgets: doc.widgets ?? undefined };
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
       timerRef.current = window.setTimeout(flush, SAVE_DEBOUNCE_MS);
     },
-    [flush],
+    [flush, surface],
   );
 
   const reset = useCallback(() => {
@@ -287,8 +454,7 @@ export function useGridLayout<T extends GridLayoutItem>({
     }
     pendingRef.current = null;
     seenUpdatedAtRef.current = null;
-    applyDocument(defaultLayout, defaultPagesRef.current, null);
-    setRevision((r) => r + 1);
+    applyDocument(defaultLayoutRef.current, defaultPagesRef.current, null, { force: true });
     clearLegacyLayout(legacyStorageKey);
     if (!editableRef.current) return;
     gridLayoutsApi

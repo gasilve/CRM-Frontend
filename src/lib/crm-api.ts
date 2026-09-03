@@ -528,6 +528,18 @@ export interface CaseSummary {
   estimatedValueOpen: number;
 }
 
+/** Case columns the API can order the list by. */
+export type CaseSortField =
+  | "dueDate"
+  | "subjectName"
+  | "claimNumber"
+  | "dateOpened"
+  | "region"
+  | "state"
+  | "status"
+  | "priority"
+  | "service";
+
 export interface CasesListParams {
   status?: CaseStatus;
   priority?: CasePriority;
@@ -539,6 +551,8 @@ export interface CasesListParams {
   search?: string;
   dueFrom?: string;
   dueTo?: string;
+  sortBy?: CaseSortField;
+  sortDir?: "asc" | "desc";
   page?: number;
   pageSize?: number;
 }
@@ -1007,8 +1021,10 @@ export const scheduleApi = {
  * Draggable grids with saved placement.
  * - `dashboard` — per user
  * - `case-detail` — shared house layout (SuperAdmin write), may include pages
+ * - `cases-table` — shared cases-list column set (SuperAdmin write); item `x`
+ *   is the column order and `label` an optional header rename
  */
-export type GridSurface = "dashboard" | "case-detail";
+export type GridSurface = "dashboard" | "case-detail" | "cases-table";
 
 export interface GridLayoutItem {
   id: string;
@@ -1018,6 +1034,8 @@ export interface GridLayoutItem {
   h: number;
   /** Case-detail carousel page. Omitted on flat surfaces. */
   pageId?: string;
+  /** Custom display label (cases-table column header rename). */
+  label?: string;
 }
 
 export interface GridLayoutPage {

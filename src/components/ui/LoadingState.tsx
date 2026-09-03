@@ -27,18 +27,20 @@ export function PanelLoader({ message = "Loading" }: { message?: string }) {
 
 type TableSkeletonProps = {
   colClass: string;
+  /** Dynamic grid tracks (e.g. user-configured columns) — merged onto each row. */
+  colStyle?: React.CSSProperties;
   headers: string[];
   rows?: number;
   widths?: string[];
 };
 
 /** Table-shaped skeleton — keeps layout stable while data fetches. */
-export function TableSkeleton({ colClass, headers, rows = 8, widths }: TableSkeletonProps) {
+export function TableSkeleton({ colClass, colStyle, headers, rows = 8, widths }: TableSkeletonProps) {
   const bar = (index: number) => widths?.[index] ?? (index === 2 ? "88%" : index === 0 ? "72%" : "64%");
 
   return (
     <div className="surface flex h-full min-h-0 flex-col overflow-hidden p-0" role="status" aria-live="polite" aria-busy="true">
-      <div className={cn(colClass, "shrink-0 border-b border-[var(--color-line)] py-2.5")}>
+      <div className={cn(colClass, "shrink-0 border-b border-[var(--color-line)] py-2.5")} style={colStyle}>
         {headers.map((header) => (
           <span key={header} className="eyebrow">
             {header}
@@ -55,6 +57,7 @@ export function TableSkeleton({ colClass, headers, rows = 8, widths }: TableSkel
               "items-center py-2",
               row < rows - 1 && "border-b border-[var(--color-line)]",
             )}
+            style={colStyle}
           >
             {headers.map((header, col) => (
               <div
