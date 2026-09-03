@@ -24,6 +24,12 @@ import {
   Pencil,
   Trash2,
   X,
+  Globe,
+  ScanSearch,
+  Film,
+  HeartPulse,
+  Crosshair,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -96,6 +102,17 @@ const DEFAULT_GROUPS: Group[] = [
       { to: "/schedule",      label: "Scheduling",   icon: CalendarClock, permissions: ["schedule.view"] },
       { to: "/investigators", label: "Investigators",icon: Users2,        badge: clockedIn > 0 ? `${clockedIn} live` : undefined, permissions: ["team.view"] },
       { to: "/calendar",      label: "Calendar",     icon: CalendarDays, permissions: ["schedule.view"] },
+    ],
+  },
+  {
+    id: "intelligence",
+    label: "Intelligence",
+    items: [
+      { to: "/osint/investigations", label: "Investigations",   icon: ScanSearch,   permissions: ["osint.view"] },
+      { to: "/osint/globe",          label: "Globe / Gods Eye", icon: Globe,         permissions: ["osint.view"] },
+      { to: "/osint/reverse-search", label: "Reverse Image",   icon: Crosshair,     permissions: ["osint.view"] },
+      { to: "/osint/video-custody",  label: "Video Custody",   icon: Film,          permissions: ["osint.view"] },
+      { to: "/osint/medical-canvass",label: "Medical Canvass", icon: HeartPulse,    permissions: ["osint.view"] },
     ],
   },
   {

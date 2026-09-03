@@ -38,7 +38,9 @@ export type Permission =
   | "assistant.use"
   | "video.use"
   | "admin.roles"
-  | "admin.users";
+  | "admin.users"
+  | "osint.view"
+  | "osint.manage";
 
 export type CaseScope = "all" | "assigned" | "none";
 export type PeopleScope = "all" | "self";

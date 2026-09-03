@@ -25,5 +25,11 @@
     }
   },
   "include": ["src"],
+  "exclude": [
+    "src/osint/components/investigations/*.bak*.tsx",
+    "src/osint/components/investigations/CanvassPanel.bak*.tsx",
+    "src/osint/components/investigations/CanvassRightPanel.bak*.tsx",
+    "src/osint/components/investigations/CapturesTab.bak.tsx"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
