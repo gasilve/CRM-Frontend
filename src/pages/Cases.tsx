@@ -372,7 +372,7 @@ function ColumnEditorToolbar({
             onClick={onSave}
             disabled={saving}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-[0.5rem] bg-[var(--color-accent)] px-3.5 py-1.5 text-[0.71875rem] font-medium text-white transition-opacity",
+              "inline-flex items-center gap-1.5 rounded-[0.5rem] border border-[var(--color-accent-soft)] bg-[var(--color-accent-soft)] px-3.5 py-1.5 text-[0.71875rem] font-medium text-[var(--color-text-hi)] transition-opacity hover:shadow-[0_0_0_0.1875rem_var(--color-accent-soft)]",
               saving && "pointer-events-none opacity-60",
             )}
           >
@@ -452,7 +452,7 @@ function FiltersButton({ filters, onChange }: { filters: Filters; onChange: (f: 
         <SlidersHorizontal size={12} strokeWidth={1.8} />
         Filters
         {active > 0 && (
-          <span className="grid h-4 min-w-[1rem] place-items-center rounded-full bg-[var(--color-accent)] px-1 font-mono text-[0.5625rem] font-semibold text-white">
+          <span className="grid h-4 min-w-[1rem] place-items-center rounded-full bg-[var(--color-accent-soft)] px-1 font-mono text-[0.5625rem] font-semibold text-[var(--color-text-hi)]">
             {active}
           </span>
         )}

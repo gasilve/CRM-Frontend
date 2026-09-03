@@ -56,6 +56,11 @@ body.dashboard-dock-placing .dashboard-add-fab {
   padding: 1.75rem 2rem 1.625rem;
   animation: motion-modal-in var(--motion-base) var(--motion-ease) backwards;
 }
+/* Long forms (full intake proposal edit) — wider, with a scrolling body. */
+.dashboard-modal--wide {
+  width: min(56rem, 96vw);
+  padding: 1.875rem 2.125rem 1.75rem;
+}
 .dashboard-modal--builder {
   width: min(44rem, 96vw);
   max-height: none;

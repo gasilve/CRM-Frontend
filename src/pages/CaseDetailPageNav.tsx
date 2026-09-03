@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import type { CasePage } from "./case-detail-widgets";
 
@@ -10,6 +10,11 @@ type Props = {
   onRename: (pageId: string, name: string) => void;
   onAddPage?: () => void;
   onDeletePage?: (pageId: string) => void;
+  /**
+   * Optional chrome on the right of the tab strip (e.g. pending-review actions).
+   * Keeps the page-nav row as the only top chrome below the subject header.
+   */
+  trailing?: ReactNode;
 };
 
 export function CaseDetailPageNav({
@@ -20,6 +25,7 @@ export function CaseDetailPageNav({
   onRename,
   onAddPage,
   onDeletePage,
+  trailing,
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -91,18 +97,20 @@ export function CaseDetailPageNav({
               >
                 <X size={12} strokeWidth={2.2} />
               </button>
+            ) : editable ? (
+              <button
+                type="button"
+                onClick={() => beginRename(page)}
+                title="Rename page"
+                aria-label={`Rename ${page.name}`}
+                className="ml-1 grid h-6 w-6 place-items-center rounded-[0.5rem] text-[var(--color-text-lo)] opacity-0 transition-opacity hover:text-[var(--color-text-hi)] group-hover:opacity-100"
+              >
+                <Pencil size={11} strokeWidth={1.8} />
+              </button>
             ) : (
-              editable && (
-                <button
-                  type="button"
-                  onClick={() => beginRename(page)}
-                  title="Rename page"
-                  aria-label={`Rename ${page.name}`}
-                  className="ml-1 grid h-6 w-6 place-items-center rounded-[0.5rem] text-[var(--color-text-lo)] opacity-0 transition-opacity hover:text-[var(--color-text-hi)] group-hover:opacity-100"
-                >
-                  <Pencil size={11} strokeWidth={1.8} />
-                </button>
-              )
+              // Reserve the same footprint as the rename pencil so read-only
+              // tabs (pending cases) match the live case layout width.
+              <span className="ml-1 inline-block h-6 w-6 shrink-0" aria-hidden />
             )}
           </div>
         );
@@ -118,6 +126,7 @@ export function CaseDetailPageNav({
           <Plus size={14} strokeWidth={1.8} />
         </button>
       )}
+      {trailing && <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">{trailing}</div>}
       {canDelete && (
         <button
           type="button"
@@ -127,8 +136,8 @@ export function CaseDetailPageNav({
           title={deleteMode ? "Done" : "Delete pages"}
           className={
             deleteMode
-              ? "ml-auto inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.625rem] border border-[color-mix(in_srgb,var(--color-neg)_55%,transparent)] bg-[color-mix(in_srgb,var(--color-neg)_18%,transparent)] text-[var(--color-neg)]"
-              : "ml-auto inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.625rem] border border-transparent text-[var(--color-text-lo)] transition-colors hover:border-[var(--color-line)] hover:text-[var(--color-neg)]"
+              ? `${trailing ? "" : "ml-auto "}inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.625rem] border border-[color-mix(in_srgb,var(--color-neg)_55%,transparent)] bg-[color-mix(in_srgb,var(--color-neg)_18%,transparent)] text-[var(--color-neg)]`
+              : `${trailing ? "" : "ml-auto "}inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.625rem] border border-transparent text-[var(--color-text-lo)] transition-colors hover:border-[var(--color-line)] hover:text-[var(--color-neg)]`
           }
         >
           <Trash2 size={13} strokeWidth={1.8} />
