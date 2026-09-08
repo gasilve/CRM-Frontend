@@ -329,11 +329,99 @@ export type CaseDayEntryType = "note" | "qa" | "photo_person" | "photo_vehicle" 
 export interface CaseClient {
   id: string;
   company: string;
+  location?: string | null;
+  address?: string | null;
   contactName: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
   notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  _count?: { cases: number; contacts: number };
 }
+
+export type ClientContactRole =
+  | "claims_adjuster"
+  | "claims_investigator"
+  | "lawyer"
+  | "employer"
+  | "risk_manager"
+  | "inhouse_claims"
+  | "other";
+
+export const CLIENT_CONTACT_ROLE_LABELS: Record<ClientContactRole, string> = {
+  claims_adjuster: "Claims adjuster",
+  claims_investigator: "Claims investigator",
+  lawyer: "Lawyer / attorney",
+  employer: "Employer",
+  risk_manager: "Risk manager",
+  inhouse_claims: "In-house claims",
+  other: "Other",
+};
+
+export interface ClientContact {
+  id: string;
+  clientId: string;
+  name: string;
+  role: ClientContactRole;
+  email: string | null;
+  phone: string | null;
+  location: string | null;
+  address: string | null;
+  lawFirmName: string | null;
+  matterNumber: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientCaseSummary {
+  id: string;
+  caseNumber: string;
+  claimNumber: string | null;
+  subjectName: string;
+  status: CaseStatus;
+  service: CaseService;
+  updatedAt: string;
+}
+
+export interface ClientDetail extends CaseClient {
+  contacts: ClientContact[];
+  cases: ClientCaseSummary[];
+}
+
+export type ClientCreateBody = {
+  company: string;
+  location?: string;
+  address?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  contactRole?: ClientContactRole;
+  notes?: string;
+};
+
+export type ClientUpdateBody = {
+  company?: string;
+  location?: string | null;
+  address?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  notes?: string | null;
+};
+
+export type ClientContactBody = {
+  name: string;
+  role?: ClientContactRole;
+  email?: string;
+  phone?: string;
+  location?: string;
+  address?: string;
+  lawFirmName?: string;
+  matterNumber?: string;
+  notes?: string;
+};
 
 export interface CaseAddress {
   id: string;
@@ -919,8 +1007,23 @@ export const pendingCasesApi = {
 
 export const clientsApi = {
   list: () => request<{ clients: CaseClient[] }>("/clients"),
-  create: (body: { company: string; contactName?: string; contactEmail?: string; contactPhone?: string }) =>
-    request<{ client: CaseClient }>("/clients", { method: "POST", body: JSON.stringify(body) }),
+  get: (id: string) => request<{ client: ClientDetail }>(`/clients/${id}`),
+  create: (body: ClientCreateBody) =>
+    request<{ client: ClientDetail }>("/clients", { method: "POST", body: JSON.stringify(body) }),
+  update: (id: string, body: ClientUpdateBody) =>
+    request<{ client: ClientDetail }>(`/clients/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  createContact: (id: string, body: ClientContactBody) =>
+    request<{ contact: ClientContact }>(`/clients/${id}/contacts`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateContact: (id: string, contactId: string, body: Partial<ClientContactBody>) =>
+    request<{ contact: ClientContact }>(`/clients/${id}/contacts/${contactId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteContact: (id: string, contactId: string) =>
+    request<null>(`/clients/${id}/contacts/${contactId}`, { method: "DELETE" }),
 };
 
 export interface WeatherReading {
