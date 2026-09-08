@@ -64,7 +64,9 @@ export default function CaseDetail() {
 
   const [activeDrawer, setActiveDrawer] = useState<CaseDrawerId | null>(null);
   const [dockOpen, setDockOpen] = useState(false);
-  const [dockPlacing, setDockPlacing] = useState(false);
+  const [dockPlacingWidgetId, setDockPlacingWidgetId] = useState<string | null>(null);
+  const dockPlacing = dockPlacingWidgetId !== null;
+  const dockPlacingCustom = dockPlacingWidgetId !== null && isCustomWidgetId(dockPlacingWidgetId);
   const [draggingWidgetId, setDraggingWidgetId] = useState<string | null>(null);
   const [builderWidgetId, setBuilderWidgetId] = useState<string | null>(null);
   const trashHoveredRef = useRef(false);
@@ -723,7 +725,7 @@ export default function CaseDetail() {
             gridRef={gridHandleRef}
             gridMountKey={`${layoutRevision}:${gridToken}:${activePageId}`}
             onClose={() => setDockOpen(false)}
-            onPlacingChange={setDockPlacing}
+            onPlacingChange={setDockPlacingWidgetId}
           />
 
           <DragDock
@@ -733,7 +735,7 @@ export default function CaseDetail() {
               trashHoveredRef.current = hovered;
               setTrashHovered(hovered);
             }}
-            showUnsave={draggingCustomDef?.persisted === true || dockPlacing}
+            showUnsave={draggingCustomDef?.persisted === true || dockPlacingCustom}
             unsaveHovered={unsaveHovered}
             onUnsaveHoverChange={(hovered) => {
               unsaveHoveredRef.current = hovered;

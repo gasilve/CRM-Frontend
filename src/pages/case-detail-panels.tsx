@@ -776,7 +776,10 @@ export function AssignmentPanel({ ctx }: { ctx: CasePanelCtx }) {
           </div>
         ))}
         {c.assignments.length === 0 && !picking && (
-          <div className="font-mono text-[0.71875rem] text-[var(--color-text-lo)]">No investigators assigned.</div>
+          <div>
+            <div className="font-mono text-[0.71875rem] text-[var(--color-text-lo)]">No investigators on this case yet.</div>
+            <div className="mt-1 font-mono text-[0.625rem] text-[var(--color-text-mid)]">Assign here or schedule them on the board — same roster.</div>
+          </div>
         )}
         {picking && (
           <div className="flex flex-col gap-1.5 rounded-[0.5rem] border border-[var(--color-line-2)] p-2">
