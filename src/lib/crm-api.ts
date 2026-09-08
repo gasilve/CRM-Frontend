@@ -672,6 +672,8 @@ export const casesApi = {
 
   listFiles: (id: string) => request<{ files: CaseFile[] }>(`/cases/${id}/files`),
   fileBlob: (id: string, fileId: string, signal?: AbortSignal) => requestBlob(caseFilePath(id, fileId), signal),
+  /** Wipes and re-fetches every attachment from the ingestor — for rows stuck on a wiped local disk. */
+  resyncFiles: (id: string) => request<{ case: CaseDetail }>(`/cases/${id}/files/resync`, { method: "POST" }),
 
   assign: (id: string, userId: string, role = "investigator") =>
     request<{ assignment: CaseAssignment }>(`/cases/${id}/assignments`, {

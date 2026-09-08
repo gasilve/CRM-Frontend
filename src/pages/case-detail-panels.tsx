@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Columns2, MapPin, User, Plus, X, Loader2, Car, ShieldQuestion, StickyNote,
-  ImagePlus, ScanFace, Trash2, UserPlus, Lock, Paperclip, FileText, Eye,
+  ImagePlus, ScanFace, Trash2, UserPlus, Lock, Paperclip, FileText, Eye, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/format";
@@ -610,6 +610,8 @@ export function CaseFilesPanel({ ctx }: { ctx: CasePanelCtx }) {
   const c = ctx.case;
   const files = c.files ?? [];
   const [viewing, setViewing] = useState<string | null>(null);
+  const [resyncing, setResyncing] = useState(false);
+  const [resyncError, setResyncError] = useState<string | null>(null);
 
   const ctxLoadBlob = ctx.loadFileBlob;
   const ctxHref = ctx.fileDownloadHref;
@@ -624,17 +626,46 @@ export function CaseFilesPanel({ ctx }: { ctx: CasePanelCtx }) {
   );
 
   const stored = files.filter((f) => f.storageKey).length;
+  const stale = files.some((f) => f.storageKey && f.storage !== "wasabi");
+
+  const resync = async () => {
+    setResyncing(true);
+    setResyncError(null);
+    try {
+      await casesApi.resyncFiles(c.id);
+      ctx.onRefresh();
+    } catch (err) {
+      setResyncError(err instanceof Error ? err.message : "Could not re-fetch files.");
+    } finally {
+      setResyncing(false);
+    }
+  };
 
   return (
     <PanelShell
       title="Files"
       icon={<Paperclip size={11} strokeWidth={1.8} />}
       action={
-        files.length > 0 && (
-          <span className="font-mono text-[0.625rem] text-[var(--color-text-lo)]">
-            {stored}/{files.length} stored
-          </span>
-        )
+        <div className="flex items-center gap-2">
+          {resyncError && <span className="font-mono text-[0.5625rem] text-[var(--color-neg)]">{resyncError}</span>}
+          {files.length > 0 && (
+            <span className="font-mono text-[0.625rem] text-[var(--color-text-lo)]">
+              {stored}/{files.length} stored
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={resync}
+            disabled={resyncing}
+            title={stale ? "Some files are on local storage and may need re-fetching" : "Re-fetch files from the ingestor"}
+            className={cn(
+              "grid h-5 w-5 place-items-center rounded-full text-[var(--color-text-lo)] transition-colors hover:text-[var(--color-accent-2)] disabled:opacity-50",
+              stale && !resyncing && "text-[var(--color-warn)]",
+            )}
+          >
+            <RefreshCw size={11} strokeWidth={2} className={resyncing ? "animate-spin" : undefined} />
+          </button>
+        </div>
       }
     >
       {files.length === 0 ? (
