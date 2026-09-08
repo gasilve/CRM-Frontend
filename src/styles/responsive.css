@@ -106,12 +106,6 @@
     gap: 0.5rem;
   }
 
-  /* Calendar: allow horizontal scroll for the day grid */
-  .calendar-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
   /* Case subject meta: keep claim / DOB readable */
   .case-subject-actions {
     width: 100%;

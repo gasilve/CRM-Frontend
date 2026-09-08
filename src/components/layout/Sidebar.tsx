@@ -10,7 +10,6 @@ import {
   Users2,
   Building2,
   FolderOpen,
-  CalendarDays,
   CalendarClock,
   Palette,
   PanelLeftClose,
@@ -97,7 +96,6 @@ const DEFAULT_GROUPS: Group[] = [
       { to: "/schedule",      label: "Scheduling",   icon: CalendarClock, permissions: ["schedule.view"] },
       { to: "/investigators", label: "Investigators",icon: Users2,        badge: clockedIn > 0 ? `${clockedIn} live` : undefined, permissions: ["team.view"] },
       { to: "/clients",       label: "Clients",      icon: Building2,     permissions: ["clients.view"] },
-      { to: "/calendar",      label: "Calendar",     icon: CalendarDays, permissions: ["schedule.view"] },
     ],
   },
   {

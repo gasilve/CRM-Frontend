@@ -21,6 +21,7 @@ export interface RoleDraft {
   caseScope: CaseScope;
   peopleScope: PeopleScope;
   scheduleScope: ScheduleScope;
+  canWorkCases: boolean;
   permissions: Set<string>;
   fieldRules: Record<string, FieldAccessLevel>;
 }
@@ -32,6 +33,7 @@ export const draftFromRole = (role: RoleDetail): RoleDraft => ({
   caseScope: role.caseScope,
   peopleScope: role.peopleScope,
   scheduleScope: role.scheduleScope,
+  canWorkCases: role.canWorkCases,
   permissions: new Set(role.permissions),
   fieldRules: { ...role.fieldRules },
 });
@@ -43,6 +45,7 @@ export const emptyDraft = (): RoleDraft => ({
   caseScope: "assigned",
   peopleScope: "self",
   scheduleScope: "own",
+  canWorkCases: true,
   permissions: new Set<string>(),
   fieldRules: {},
 });
@@ -54,6 +57,7 @@ export const draftToPayload = (draft: RoleDraft): RolePayload => ({
   caseScope: draft.caseScope,
   peopleScope: draft.peopleScope,
   scheduleScope: draft.scheduleScope,
+  canWorkCases: draft.canWorkCases,
   permissions: [...draft.permissions],
   fieldRules: draft.fieldRules,
 });
@@ -101,6 +105,7 @@ export function RoleEditor({
     draft.caseScope !== baseline.caseScope ||
     draft.peopleScope !== baseline.peopleScope ||
     draft.scheduleScope !== baseline.scheduleScope ||
+    draft.canWorkCases !== baseline.canWorkCases ||
     !sameSet(draft.permissions, baseline.permissions) ||
     !sameRules(draft.fieldRules, baseline.fieldRules);
 
@@ -263,6 +268,20 @@ export function RoleEditor({
             {scopeRow("scheduleScope", draft.scheduleScope, (v: ScheduleScope) =>
               setDraft((p) => ({ ...p, scheduleScope: v })),
             )}
+          </div>
+          <div className="mt-3 flex items-start justify-between gap-4 rounded-[0.75rem] border border-[var(--color-line)] px-4 py-3">
+            <div className="min-w-0">
+              <div className="text-[0.8125rem] font-medium text-[var(--color-text-hi)]">Can work cases</div>
+              <p className="mt-0.5 text-[0.6875rem] leading-snug text-[var(--color-text-lo)]">
+                Appear in the Investigators list and be assignable / schedulable as field staff. Seeing cases is separate from working them.
+              </p>
+            </div>
+            <Toggle
+              checked={draft.canWorkCases}
+              disabled={locked}
+              label="Can work cases"
+              onChange={(next) => setDraft((p) => ({ ...p, canWorkCases: next }))}
+            />
           </div>
         </section>
 
