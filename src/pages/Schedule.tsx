@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowUpRight, Cake, CalendarDays, ChevronLeft, ChevronRight, Columns3,
-  Droplets, GripVertical, Info, Loader2, MapPin, Rows3, Search, Trash2, Wind, X,
+  ArrowUpRight, Briefcase, Cake, CalendarDays, ChevronLeft, ChevronRight,
+  Droplets, GripVertical, Info, Loader2, MapPin, Search, Trash2, Users, Wind, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/format";
 import { useAuth } from "@/contexts/AuthContext";
+import { ViewToggle, ViewToggleGroup } from "@/components/ui/ViewToggle";
 import { weatherIcon, weatherColor, conditionLabel } from "@/components/cases/WeatherStrip";
 import {
   casesApi,
@@ -68,11 +69,10 @@ function nextBirthday(dobIso: string): Date {
   return candidate;
 }
 
-type DragPayload = { kind: "case"; caseId: string } | { kind: "block"; block: ScheduleBlock };
+type Mode = "investigators" | "cases";
+type DragPayload = { kind: "add"; otherId: string } | { kind: "block"; block: ScheduleBlock };
 
-type Orientation = "vertical" | "horizontal";
-
-const ORIENTATION_LS_KEY = "accenty.crm.schedule.orientation";
+const MODE_LS_KEY = "accenty.crm.schedule.mode";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -86,29 +86,31 @@ export default function Schedule() {
 
   const [monday, setMonday] = useState(() => mondayOf(new Date()));
   const [region, setRegion] = useState<Region | "all">("all");
-  const [invSearch, setInvSearch] = useState("");
+  const [railSearch, setRailSearch] = useState("");
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [investigators, setInvestigators] = useState<InvestigatorListItem[]>([]);
   const [blocks, setBlocks] = useState<ScheduleBlock[] | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(searchParams.get("user"));
-  const [focusCaseId] = useState<string | null>(searchParams.get("case"));
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(searchParams.get("case"));
   const [weekWeather, setWeekWeather] = useState<WeeklyWeather[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ScheduleBlock | null>(null);
   const [dayInfo, setDayInfo] = useState<string | null>(null);
   const [monthOpen, setMonthOpen] = useState(false);
-  const [orientation, setOrientation] = useState<Orientation>(() => {
+
+  const [mode, setMode] = useState<Mode>(() => {
+    if (searchParams.get("case")) return "cases";
+    if (searchParams.get("user")) return "investigators";
     try {
-      return localStorage.getItem(ORIENTATION_LS_KEY) === "horizontal" ? "horizontal" : "vertical";
+      return localStorage.getItem(MODE_LS_KEY) === "cases" ? "cases" : "investigators";
     } catch {
-      return "vertical";
+      return "investigators";
     }
   });
 
-  const pickOrientation = (o: Orientation) => {
-    setOrientation(o);
+  const pickMode = (m: Mode) => {
+    setMode(m);
     try {
-      localStorage.setItem(ORIENTATION_LS_KEY, o);
+      localStorage.setItem(MODE_LS_KEY, m);
     } catch {
       /* ignore */
     }
@@ -118,17 +120,38 @@ export default function Schedule() {
   const [dragOverIso, setDragOverIso] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const selectedUser = investigators.find((i) => i.id === selectedUserId) ?? null;
+  // Toast — floats over the UI, never reflows layout.
+  const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+  const toastTimer = useRef<number | null>(null);
+  const showToast = useCallback((text: string) => {
+    const id = Date.now();
+    setToast({ id, text });
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => {
+      setToast((t) => (t?.id === id ? null : t));
+    }, 4500);
+  }, []);
+  useEffect(
+    () => () => {
+      if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    },
+    [],
+  );
 
-  // Case tray
+  const selectedUser = investigators.find((i) => i.id === selectedUserId) ?? null;
+  const selectedCase = cases.find((c) => c.id === selectedCaseId) ?? null;
+  const selectedId = mode === "investigators" ? selectedUserId : selectedCaseId;
+
+  // Case list (also the investigator-mode tray)
   useEffect(() => {
     casesApi
       .list({ status: "open", region: region === "all" ? undefined : region, page: 1, pageSize: 100 })
       .then((res) => setCases(res.cases))
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Could not load cases."));
+      .catch((err) => showToast(err instanceof ApiError ? err.message : "Could not load cases."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [region]);
 
-  // Investigator rail
+  // Investigator list (also the case-mode tray)
   useEffect(() => {
     investigatorsApi.list().then((res) => setInvestigators(res.investigators)).catch(() => {});
   }, []);
@@ -145,18 +168,20 @@ export default function Schedule() {
   }, [monday]);
 
   const loadBlocks = useCallback(() => {
-    if (!selectedUserId) {
+    if (!selectedId) {
       setBlocks([]);
       return;
     }
+    const params =
+      mode === "investigators"
+        ? { from: monday, to: weekEnd, userId: selectedId }
+        : { from: monday, to: weekEnd, caseId: selectedId };
     scheduleApi
-      .list({ from: monday, to: weekEnd, userId: selectedUserId })
-      .then((res) => {
-        setBlocks(res.blocks);
-        setError(null);
-      })
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Could not load the schedule."));
-  }, [monday, weekEnd, selectedUserId]);
+      .list(params)
+      .then((res) => setBlocks(res.blocks))
+      .catch((err) => showToast(err instanceof ApiError ? err.message : "Could not load the schedule."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, selectedId, monday, weekEnd]);
 
   useEffect(loadBlocks, [loadBlocks]);
 
@@ -165,15 +190,34 @@ export default function Schedule() {
     const next = new URLSearchParams(searchParams);
     if (id) next.set("user", id);
     else next.delete("user");
-    // Keep ?case= focus chips if present.
     setSearchParams(next, { replace: true });
   };
 
-  // Always keep an investigator selected — default to the first in the rail.
+  const selectCase = (id: string | null) => {
+    setSelectedCaseId(id);
+    const next = new URLSearchParams(searchParams);
+    if (id) next.set("case", id);
+    else next.delete("case");
+    setSearchParams(next, { replace: true });
+  };
+
+  // Always keep something selected in each mode — prefer an entry with a
+  // region set, so the weather markers have something to show by default.
   useEffect(() => {
-    if (!selectedUserId && investigators.length > 0) selectUser(investigators[0].id);
+    if (!selectedUserId && investigators.length > 0) {
+      const preferred = investigators.find((i) => i.region) ?? investigators[0];
+      selectUser(preferred.id);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [investigators, selectedUserId]);
+
+  useEffect(() => {
+    if (!selectedCaseId && cases.length > 0) {
+      const preferred = cases.find((c) => c.region) ?? cases[0];
+      selectCase(preferred.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cases, selectedCaseId]);
 
   const days = useMemo(() => {
     const start = new Date(`${monday}T00:00:00`);
@@ -190,15 +234,16 @@ export default function Schedule() {
     return map;
   }, [blocks]);
 
-  // Weather group for the day markers: selected investigator's region, else the filter.
-  const weatherRegion: Region | null = selectedUser?.region ?? (region !== "all" ? region : null);
+  // Weather group for the day markers: selected entity's region, else the filter.
+  const weatherRegion: Region | null =
+    (mode === "investigators" ? selectedUser?.region : selectedCase?.region) ?? (region !== "all" ? region : null);
   const weatherDays = useMemo(() => {
     if (!weatherRegion) return new Map<string, WeatherDay>();
     const group = weekWeather.find((g) => g.group === weatherRegion);
     return new Map((group?.days ?? []).map((d) => [d.date, d]));
   }, [weekWeather, weatherRegion]);
 
-  // Upcoming (within a week) birthdays across this investigator's assigned cases.
+  // Upcoming (within a week) birthdays across the selected entity's cases.
   const birthdaysSoon = useMemo(() => {
     const seen = new Map<string, { caseNumber: string; subjectName: string; date: Date; daysAway: number }>();
     for (const b of blocks ?? []) {
@@ -210,7 +255,12 @@ export default function Schedule() {
     return [...seen.values()];
   }, [blocks]);
 
-  // Cases sorted so region matches come first when an investigator is picked.
+  const regionFilteredInvestigators = useMemo(
+    () => (region === "all" ? investigators : investigators.filter((i) => i.region === region)),
+    [investigators, region],
+  );
+
+  // Cases sorted so region matches come first, for the investigator-mode tray.
   const sortedCases = useMemo(() => {
     if (!selectedUser?.region) return cases;
     return [...cases].sort((a, b) => {
@@ -220,11 +270,27 @@ export default function Schedule() {
     });
   }, [cases, selectedUser]);
 
+  // Investigators sorted so region matches come first, for the case-mode tray.
+  const sortedInvestigators = useMemo(() => {
+    if (!selectedCase?.region) return regionFilteredInvestigators;
+    return [...regionFilteredInvestigators].sort((a, b) => {
+      const am = a.region === selectedCase.region ? 0 : 1;
+      const bm = b.region === selectedCase.region ? 0 : 1;
+      return am - bm || a.name.localeCompare(b.name);
+    });
+  }, [regionFilteredInvestigators, selectedCase]);
+
   const filteredInvestigators = useMemo(() => {
-    const q = invSearch.trim().toLowerCase();
-    if (!q) return investigators;
-    return investigators.filter((i) => i.name.toLowerCase().includes(q) || i.email.toLowerCase().includes(q));
-  }, [investigators, invSearch]);
+    const q = railSearch.trim().toLowerCase();
+    if (!q) return regionFilteredInvestigators;
+    return regionFilteredInvestigators.filter((i) => i.name.toLowerCase().includes(q) || i.email.toLowerCase().includes(q));
+  }, [regionFilteredInvestigators, railSearch]);
+
+  const filteredCases = useMemo(() => {
+    const q = railSearch.trim().toLowerCase();
+    if (!q) return cases;
+    return cases.filter((c) => c.caseNumber.toLowerCase().includes(q) || c.subjectName.toLowerCase().includes(q));
+  }, [cases, railSearch]);
 
   const patchBlocks = (fn: (blocks: ScheduleBlock[]) => ScheduleBlock[]) =>
     setBlocks((prev) => (prev ? fn(prev) : prev));
@@ -234,34 +300,42 @@ export default function Schedule() {
     patchBlocks((bs) => bs.filter((x) => x.id !== id));
     try {
       await scheduleApi.remove(id);
-      setError(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not remove the schedule block.");
+      showToast(err instanceof ApiError ? err.message : "Could not remove the schedule block.");
       loadBlocks();
     }
   };
 
-  /** Drop a case chip onto a day → assign the selected investigator instantly. */
-  const assignCase = async (caseId: string, dateIso: string) => {
-    const userId = selectedUserId;
-    if (!userId) return;
-    const kase = cases.find((c) => c.id === caseId);
+  /** Drop a tray chip onto a day → pair the selected entity with the dragged one, instantly. */
+  const assign = async (otherId: string, dateIso: string) => {
+    if (!selectedId) return;
+    const caseId = mode === "investigators" ? otherId : selectedId;
+    const userId = mode === "investigators" ? selectedId : otherId;
 
-    const duplicate = (blocks ?? []).some((b) => b.caseId === caseId && b.date.slice(0, 10) === dateIso);
+    const duplicate = (blocks ?? []).some((b) =>
+      mode === "investigators"
+        ? b.caseId === otherId && b.date.slice(0, 10) === dateIso
+        : b.userId === otherId && b.date.slice(0, 10) === dateIso,
+    );
     if (duplicate) {
-      setError(`${kase?.caseNumber ?? "That case"} is already assigned on that day.`);
+      const label =
+        mode === "investigators"
+          ? cases.find((c) => c.id === otherId)?.caseNumber ?? "That case"
+          : investigators.find((i) => i.id === otherId)?.name ?? "That investigator";
+      showToast(`${label} is already assigned on that day.`);
       return;
     }
 
+    const kase = cases.find((c) => c.id === caseId);
+    const inv = investigators.find((i) => i.id === userId);
     const tempId = `temp-${Date.now()}`;
-    const inv = selectedUser;
     if (kase && inv) {
       patchBlocks((bs) => [
         ...bs,
         {
           id: tempId,
           caseId: kase.id,
-          userId,
+          userId: inv.id,
           date: dateIso,
           startTime: null,
           endTime: null,
@@ -287,11 +361,10 @@ export default function Schedule() {
     setSaving(true);
     try {
       const res = await scheduleApi.create({ caseId, userId, date: dateIso });
-      setError(null);
       patchBlocks((bs) => bs.map((x) => (x.id === tempId ? res.block : x)));
     } catch (err) {
       patchBlocks((bs) => bs.filter((x) => x.id !== tempId));
-      setError(err instanceof ApiError ? err.message : "Could not schedule.");
+      showToast(err instanceof ApiError ? err.message : "Could not schedule.");
     } finally {
       setSaving(false);
     }
@@ -301,23 +374,25 @@ export default function Schedule() {
   const moveBlock = async (block: ScheduleBlock, dateIso: string) => {
     if (block.date.slice(0, 10) === dateIso) return;
     const duplicate = (blocks ?? []).some(
-      (b) => b.id !== block.id && b.caseId === block.caseId && b.date.slice(0, 10) === dateIso,
+      (b) =>
+        b.id !== block.id &&
+        b.date.slice(0, 10) === dateIso &&
+        (mode === "investigators" ? b.caseId === block.caseId : b.userId === block.userId),
     );
     if (duplicate) {
-      setError(`${block.case.caseNumber} is already assigned on that day.`);
+      showToast(`${block.case.caseNumber} is already assigned on that day.`);
       return;
     }
     patchBlocks((bs) => bs.map((x) => (x.id === block.id ? { ...x, date: dateIso } : x)));
     try {
       await scheduleApi.update(block.id, { date: dateIso });
-      setError(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not move the assignment.");
+      showToast(err instanceof ApiError ? err.message : "Could not move the assignment.");
       loadBlocks();
     }
   };
 
-  const canDrop = drag != null && !!selectedUserId;
+  const canDrop = drag != null && !!selectedId;
 
   const dayMeta = (d: Date) => {
     const iso = isoOf(d);
@@ -371,12 +446,14 @@ export default function Schedule() {
       setDrag(null);
       setDragOverIso(null);
       if (!payload) return;
-      if (payload.kind === "case") void assignCase(payload.caseId, iso);
+      if (payload.kind === "add") void assign(payload.otherId, iso);
       else void moveBlock(payload.block, iso);
     },
   });
 
   const dayInfoMeta = dayInfo ? dayMeta(new Date(`${dayInfo}T00:00:00`)) : null;
+  const contextLabel =
+    mode === "investigators" ? selectedUser?.name ?? null : selectedCase ? `${selectedCase.caseNumber} · ${selectedCase.subjectName}` : null;
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
@@ -385,45 +462,29 @@ export default function Schedule() {
         <div>
           <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">Scheduling</h1>
           <p className="mt-1 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
-            Pick an investigator, then drag cases onto their week
+            {mode === "investigators" ? "Pick an investigator, then drag cases onto their week" : "Pick a case, then drag investigators onto its week"}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="mr-2 flex overflow-hidden rounded-[0.5rem] border border-[var(--color-line)]">
-            <button
-              type="button"
-              onClick={() => pickOrientation("vertical")}
-              title="Vertical — days as columns"
-              aria-pressed={orientation === "vertical"}
-              className={cn(
-                "anim-toggle tap grid h-8 w-9 place-items-center",
-                orientation === "vertical"
-                  ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]"
-                  : "text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]",
-              )}
-            >
-              <Columns3 size={14} strokeWidth={1.8} />
-            </button>
-            <button
-              type="button"
-              onClick={() => pickOrientation("horizontal")}
-              title="Horizontal — days as rows"
-              aria-pressed={orientation === "horizontal"}
-              className={cn(
-                "anim-toggle tap grid h-8 w-9 place-items-center border-l border-[var(--color-line)]",
-                orientation === "horizontal"
-                  ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]"
-                  : "text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]",
-              )}
-            >
-              <Rows3 size={14} strokeWidth={1.8} />
-            </button>
-          </div>
+          <ViewToggleGroup>
+            <ViewToggle
+              active={mode === "investigators"}
+              onClick={() => pickMode("investigators")}
+              icon={<Users size={13} strokeWidth={1.8} />}
+              label="Investigators"
+            />
+            <ViewToggle
+              active={mode === "cases"}
+              onClick={() => pickMode("cases")}
+              icon={<Briefcase size={13} strokeWidth={1.8} />}
+              label="Cases"
+            />
+          </ViewToggleGroup>
           <button
             type="button"
             onClick={() => setMonday((m) => shiftWeek(m, -1))}
             aria-label="Previous week"
-            className="grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+            className="ml-1 grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
           >
             <ChevronLeft size={14} strokeWidth={1.8} />
           </button>
@@ -479,27 +540,21 @@ export default function Schedule() {
         ))}
       </div>
 
-      {error && (
-        <div className="anim-banner surface shrink-0 rounded-[0.875rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-4 py-3 text-[0.8125rem] text-[var(--color-neg)]">
-          {error}
-        </div>
-      )}
-
-      {/* Body: investigator rail + board */}
+      {/* Body: rail + board */}
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
-        {/* Investigator rail */}
+        {/* Rail — investigators or cases, depending on mode */}
         <div className="flex w-[16rem] shrink-0 flex-col gap-2 overflow-hidden">
           <div className="relative shrink-0">
             <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-lo)]" />
             <input
-              value={invSearch}
-              onChange={(e) => setInvSearch(e.target.value)}
-              placeholder="Find an investigator…"
+              value={railSearch}
+              onChange={(e) => setRailSearch(e.target.value)}
+              placeholder={mode === "investigators" ? "Find an investigator…" : "Find a case…"}
               className="w-full rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] py-1.5 pl-8 pr-3 text-[0.75rem] text-[var(--color-text-hi)] placeholder:text-[var(--color-text-lo)] focus:outline-none focus:border-[var(--color-accent)]"
             />
           </div>
 
-          {selectedUser && (
+          {mode === "investigators" && selectedUser && (
             <button
               type="button"
               onClick={() => navigate(`/investigators/${selectedUser.id}`)}
@@ -510,47 +565,93 @@ export default function Schedule() {
               <span className="ml-auto truncate text-[0.65625rem] text-[var(--color-text-lo)]">{selectedUser.name.split(" ")[0]}</span>
             </button>
           )}
+          {mode === "cases" && selectedCase && (
+            <button
+              type="button"
+              onClick={() => navigate(`/cases/${selectedCase.id}`)}
+              className="flex shrink-0 items-center gap-1.5 rounded-[0.5rem] border border-[var(--color-line)] px-3 py-1.5 text-[0.71875rem] text-[var(--color-text-mid)] transition-colors hover:border-[rgba(74,127,255,0.45)] hover:text-[var(--color-accent-2)]"
+            >
+              <ArrowUpRight size={12} strokeWidth={1.8} />
+              Go to case
+              <span className="ml-auto truncate text-[0.65625rem] text-[var(--color-text-lo)]">{selectedCase.caseNumber}</span>
+            </button>
+          )}
 
-          <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pb-1">
-            {filteredInvestigators.map((inv) => {
-              const active = inv.id === selectedUserId;
-              return (
-                <button
-                  key={inv.id}
-                  type="button"
-                  onClick={() => selectUser(inv.id)}
-                  className={cn(
-                    "flex shrink-0 items-center gap-2.5 rounded-[0.75rem] border p-2.5 text-left transition-colors",
-                    active
-                      ? "border-[rgba(74,127,255,0.45)] bg-[var(--color-accent-soft)]"
-                      : "border-[var(--color-line)] bg-[var(--color-ink-2)] hover:border-[var(--color-line-2)]",
-                  )}
-                  style={active ? undefined : { background: "var(--color-ink-2)" }}
-                >
-                  <span
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[0.625rem] font-medium text-white"
-                    style={{ background: "linear-gradient(135deg,#4a7fff,#7aa1ff)" }}
-                  >
-                    {getInitials(inv.name)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{inv.name}</div>
-                    <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-                      {inv.region ? REGION_LABELS[inv.region] : "No region"}
-                    </div>
+          <div className="surface flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2">
+            {mode === "investigators" ? (
+              <>
+                {filteredInvestigators.map((inv) => {
+                  const active = inv.id === selectedUserId;
+                  return (
+                    <button
+                      key={inv.id}
+                      type="button"
+                      onClick={() => selectUser(inv.id)}
+                      className={cn(
+                        "flex shrink-0 items-center gap-2.5 rounded-[0.75rem] border p-2.5 text-left transition-colors",
+                        active
+                          ? "border-[rgba(74,127,255,0.45)] bg-[var(--color-accent-soft)]"
+                          : "border-transparent hover:border-[var(--color-line-2)]",
+                      )}
+                    >
+                      <span
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[0.625rem] font-medium text-white"
+                        style={{ background: "linear-gradient(135deg,#4a7fff,#7aa1ff)" }}
+                      >
+                        {getInitials(inv.name)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{inv.name}</div>
+                        <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+                          {inv.region ? REGION_LABELS[inv.region] : "No region"}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+                {filteredInvestigators.length === 0 && (
+                  <div className="grid place-items-center rounded-[0.75rem] border border-dashed border-[var(--color-line)] py-10 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
+                    No investigators match.
                   </div>
-                </button>
-              );
-            })}
-            {filteredInvestigators.length === 0 && (
-              <div className="grid place-items-center rounded-[0.75rem] border border-dashed border-[var(--color-line)] py-10 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
-                No investigators match.
-              </div>
+                )}
+              </>
+            ) : (
+              <>
+                {filteredCases.map((c) => {
+                  const active = c.id === selectedCaseId;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => selectCase(c.id)}
+                      className={cn(
+                        "flex shrink-0 items-center gap-2.5 rounded-[0.75rem] border p-2.5 text-left transition-colors",
+                        active
+                          ? "border-[rgba(74,127,255,0.45)] bg-[var(--color-accent-soft)]"
+                          : "border-transparent hover:border-[var(--color-line-2)]",
+                      )}
+                    >
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--color-ink-3)] font-mono text-[0.625rem] font-medium text-[var(--color-text-hi)]">
+                        {c.region ? REGION_LABELS[c.region].slice(0, 2).toUpperCase() : "—"}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-mono text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{c.caseNumber}</div>
+                        <div className="mt-0.5 truncate text-[0.65625rem] text-[var(--color-text-lo)]">{c.subjectName}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+                {filteredCases.length === 0 && (
+                  <div className="grid place-items-center rounded-[0.75rem] border border-dashed border-[var(--color-line)] py-10 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
+                    No cases match.
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          {/* Reminders for the selected investigator — upcoming birthdays across their cases */}
-          {selectedUser && birthdaysSoon.length > 0 && (
+          {/* Reminders for the selected entity — upcoming birthdays across its cases */}
+          {selectedId && birthdaysSoon.length > 0 && (
             <div className="shrink-0 rounded-[0.75rem] border border-[rgba(251,191,36,0.25)] bg-[rgba(251,191,36,0.05)] p-3">
               <div className="mb-1.5 flex items-center gap-1.5 font-mono text-[0.59375rem] uppercase tracking-wider text-[#fbbf24]">
                 <Info size={11} strokeWidth={1.8} />
@@ -569,156 +670,116 @@ export default function Schedule() {
           )}
         </div>
 
-        {/* Right column: case tray + board */}
+        {/* Right column: tray + board */}
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-          {/* Case tray */}
+          {/* Tray — draggable cases or investigators, the opposite of the rail */}
           {canManage && (
             <div
               className={cn(
-                "flex shrink-0 items-center gap-2 overflow-x-auto rounded-[0.75rem] border border-[var(--color-line)] px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-                !selectedUserId && "opacity-70",
+                "surface flex shrink-0 items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+                !selectedId && "opacity-70",
               )}
-              style={{ background: "var(--color-ink-2)" }}
             >
               <span className="shrink-0 pr-1 font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-                {selectedUserId ? "Drag onto the board ↓" : "Cases"}
+                {selectedId ? "Drag onto the board ↓" : mode === "investigators" ? "Cases" : "Investigators"}
               </span>
-              {sortedCases.map((c) => {
-                const matched = !!selectedUser?.region && c.region === selectedUser.region;
-                const draggable = !!selectedUserId;
-                return (
-                  <div
-                    key={c.id}
-                    draggable={draggable}
-                    onDragStart={(e) => {
-                      e.dataTransfer.effectAllowed = "copy";
-                      e.dataTransfer.setData("text/plain", c.caseNumber);
-                      setDrag({ kind: "case", caseId: c.id });
-                    }}
-                    onDragEnd={() => {
-                      setDrag(null);
-                      setDragOverIso(null);
-                    }}
-                    title={draggable ? `Drag ${c.caseNumber} onto the board` : "Select an investigator first"}
-                    className={cn(
-                      "flex shrink-0 select-none items-center gap-2 rounded-full border py-1 pl-1 pr-3 transition-colors",
-                      draggable ? "cursor-grab active:cursor-grabbing hover:border-[rgba(74,127,255,0.45)]" : "opacity-55",
-                      matched ? "border-[rgba(74,222,128,0.4)] bg-[rgba(74,222,128,0.06)]" : "border-[var(--color-line)] bg-[var(--color-ink-2)]",
-                      focusCaseId === c.id && "ring-2 ring-[var(--color-accent)]",
-                    )}
-                  >
-                    {draggable && <GripVertical size={11} strokeWidth={1.8} className="-mr-0.5 text-[var(--color-text-lo)]" />}
-                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--color-ink-3)] font-mono text-[0.5rem] font-medium text-[var(--color-text-hi)]">
-                      {c.region ? REGION_LABELS[c.region].slice(0, 2).toUpperCase() : "—"}
-                    </span>
-                    <span className="leading-tight">
-                      <span className="block whitespace-nowrap font-mono text-[0.6875rem] font-medium text-[var(--color-text-hi)]">{c.caseNumber}</span>
-                      <span className={cn("block max-w-[8rem] truncate text-[0.5625rem]", matched ? "text-[#4ade80]" : "text-[var(--color-text-lo)]")}>
-                        {c.subjectName}
-                        {matched && " · match"}
-                      </span>
-                    </span>
-                  </div>
-                );
-              })}
-              {cases.length === 0 && (
-                <span className="font-mono text-[0.6875rem] text-[var(--color-text-lo)]">No open cases here.</span>
+              {mode === "investigators"
+                ? sortedCases.map((c) => {
+                    const matched = !!selectedUser?.region && c.region === selectedUser.region;
+                    const draggable = !!selectedId;
+                    return (
+                      <div
+                        key={c.id}
+                        draggable={draggable}
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = "copy";
+                          e.dataTransfer.setData("text/plain", c.caseNumber);
+                          setDrag({ kind: "add", otherId: c.id });
+                        }}
+                        onDragEnd={() => {
+                          setDrag(null);
+                          setDragOverIso(null);
+                        }}
+                        title={draggable ? `Drag ${c.caseNumber} onto the board` : "Select an investigator first"}
+                        className={cn(
+                          "flex shrink-0 select-none items-center gap-2 rounded-full border py-1 pl-1 pr-3 transition-colors",
+                          draggable ? "cursor-grab active:cursor-grabbing hover:border-[rgba(74,127,255,0.45)]" : "opacity-55",
+                          matched ? "border-[rgba(74,222,128,0.4)]" : "border-[var(--color-line)]",
+                        )}
+                        style={matched ? { background: "rgb(from #4ade80 r g b / 0.08)" } : undefined}
+                      >
+                        {draggable && <GripVertical size={11} strokeWidth={1.8} className="-mr-0.5 text-[var(--color-text-lo)]" />}
+                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--color-ink-3)] font-mono text-[0.5rem] font-medium text-[var(--color-text-hi)]">
+                          {c.region ? REGION_LABELS[c.region].slice(0, 2).toUpperCase() : "—"}
+                        </span>
+                        <span className="leading-tight">
+                          <span className="block whitespace-nowrap font-mono text-[0.6875rem] font-medium text-[var(--color-text-hi)]">{c.caseNumber}</span>
+                          <span className={cn("block max-w-[8rem] truncate text-[0.5625rem]", matched ? "text-[#4ade80]" : "text-[var(--color-text-lo)]")}>
+                            {c.subjectName}
+                            {matched && " · match"}
+                          </span>
+                        </span>
+                      </div>
+                    );
+                  })
+                : sortedInvestigators.map((inv) => {
+                    const matched = !!selectedCase?.region && inv.region === selectedCase.region;
+                    const draggable = !!selectedId;
+                    return (
+                      <div
+                        key={inv.id}
+                        draggable={draggable}
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = "copy";
+                          e.dataTransfer.setData("text/plain", inv.name);
+                          setDrag({ kind: "add", otherId: inv.id });
+                        }}
+                        onDragEnd={() => {
+                          setDrag(null);
+                          setDragOverIso(null);
+                        }}
+                        title={draggable ? `Drag ${inv.name} onto the board` : "Select a case first"}
+                        className={cn(
+                          "flex shrink-0 select-none items-center gap-2 rounded-full border py-1 pl-1 pr-3 transition-colors",
+                          draggable ? "cursor-grab active:cursor-grabbing hover:border-[rgba(74,127,255,0.45)]" : "opacity-55",
+                          matched ? "border-[rgba(74,222,128,0.4)]" : "border-[var(--color-line)]",
+                        )}
+                        style={matched ? { background: "rgb(from #4ade80 r g b / 0.08)" } : undefined}
+                      >
+                        {draggable && <GripVertical size={11} strokeWidth={1.8} className="-mr-0.5 text-[var(--color-text-lo)]" />}
+                        <span
+                          className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[0.5rem] font-medium text-white"
+                          style={{ background: "linear-gradient(135deg,#4a7fff,#7aa1ff)" }}
+                        >
+                          {getInitials(inv.name)}
+                        </span>
+                        <span className="leading-tight">
+                          <span className="block max-w-[8rem] truncate text-[0.6875rem] font-medium text-[var(--color-text-hi)]">{inv.name}</span>
+                          <span className={cn("block max-w-[8rem] truncate text-[0.5625rem]", matched ? "text-[#4ade80]" : "text-[var(--color-text-lo)]")}>
+                            {inv.region ? REGION_LABELS[inv.region] : "No region"}
+                            {matched && " · match"}
+                          </span>
+                        </span>
+                      </div>
+                    );
+                  })}
+              {(mode === "investigators" ? cases.length === 0 : investigators.length === 0) && (
+                <span className="font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
+                  {mode === "investigators" ? "No open cases here." : "No investigators here."}
+                </span>
               )}
             </div>
           )}
 
-          {/* Day board — always visible, solid opaque (never glass `.surface`) */}
-          {orientation === "vertical" ? (
-            <div
-              className="min-h-0 flex-1 overflow-y-auto rounded-[0.75rem] border border-[var(--color-line)]"
-              style={{ background: "var(--color-ink-2)" }}
-            >
-              <div className="grid h-full min-h-[16rem] grid-cols-7">
-                {days.map((d) => {
-                  const meta = dayMeta(d);
-                  const dayBlocks = blocksByDay.get(meta.iso) ?? [];
-                  const isOver = canDrop && dragOverIso === meta.iso;
-                  return (
-                    <div
-                      key={meta.iso}
-                      className="flex min-h-full flex-col border-l border-[var(--color-line)] first:border-l-0"
-                    >
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setDayInfo(meta.iso)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") setDayInfo(meta.iso);
-                        }}
-                        title="Day details"
-                        className={cn(
-                          "sticky top-0 z-10 flex cursor-pointer items-center justify-between gap-1 border-b border-[var(--color-line)] px-2 py-1.5 transition-colors",
-                          meta.isToday ? "text-[var(--color-accent-2)]" : undefined,
-                        )}
-                        style={{
-                          background: meta.isToday
-                            ? "color-mix(in srgb, var(--color-accent) 16%, var(--color-ink-3))"
-                            : "var(--color-ink-3)",
-                        }}
-                      >
-                        <div className="leading-tight">
-                          <span className={cn("font-mono text-[0.5625rem] uppercase tracking-wider", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-lo)]")}>
-                            {d.toLocaleDateString(undefined, { weekday: "short" })}
-                          </span>
-                          <span className={cn("ml-1 text-[0.8125rem] font-medium", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-hi)]")}>
-                            {d.getDate()}
-                          </span>
-                        </div>
-                        <DayBadges meta={meta} />
-                      </div>
-
-                      <div
-                        {...dropHandlersFor(meta.iso)}
-                        className={cn(
-                          "flex min-h-[8rem] flex-1 flex-col gap-1.5 p-1.5 transition-colors",
-                          isOver && "ring-1 ring-inset ring-[var(--color-accent)]",
-                        )}
-                        style={{
-                          background: isOver
-                            ? "color-mix(in srgb, var(--color-accent) 18%, var(--color-ink-2))"
-                            : meta.isToday
-                              ? "color-mix(in srgb, var(--color-accent) 8%, var(--color-ink-2))"
-                              : "var(--color-ink-2)",
-                        }}
-                      >
-                        {!selectedUserId || blocks === null ? (
-                          <div className="grid flex-1 place-items-center">
-                            <Loader2 size={14} className="animate-spin text-[var(--color-text-lo)]" />
-                          </div>
-                        ) : (
-                          <>
-                            {dayBlocks.map((b) => (
-                              <CaseChip key={b.id} block={b} {...chipDragHandlers(b)} canManage={canManage} />
-                            ))}
-                            {dayBlocks.length === 0 && (
-                              <div className="grid flex-1 place-items-center py-2 font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
-                                {canManage ? "Drop a case" : "—"}
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div
-              className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[0.75rem] border border-[var(--color-line)]"
-              style={{ background: "var(--color-ink-2)" }}
-            >
+          {/* Day board — one consistent week grid for both modes, glass surface */}
+          <div className="surface min-h-0 flex-1 overflow-hidden">
+            <div className="grid h-full auto-rows-fr grid-cols-7">
               {days.map((d) => {
                 const meta = dayMeta(d);
                 const dayBlocks = blocksByDay.get(meta.iso) ?? [];
                 const isOver = canDrop && dragOverIso === meta.iso;
                 return (
-                  <div key={meta.iso} className="grid min-h-[4rem] grid-cols-[9rem_1fr] border-b border-[var(--color-line)] last:border-b-0">
+                  <div key={meta.iso} className="flex min-h-0 flex-col border-l border-[var(--color-line)] first:border-l-0">
                     <div
                       role="button"
                       tabIndex={0}
@@ -727,49 +788,51 @@ export default function Schedule() {
                         if (e.key === "Enter" || e.key === " ") setDayInfo(meta.iso);
                       }}
                       title="Day details"
-                      className="flex cursor-pointer items-center justify-between gap-1 px-2.5 py-1.5 transition-colors"
-                      style={{
-                        background: meta.isToday
-                          ? "color-mix(in srgb, var(--color-accent) 16%, var(--color-ink-3))"
-                          : "var(--color-ink-3)",
-                      }}
+                      className="flex shrink-0 cursor-pointer items-center justify-between gap-1 border-b border-[var(--color-line)] px-2 py-1.5 transition-colors"
+                      style={{ background: meta.isToday ? "rgb(from var(--color-accent) r g b / 0.16)" : undefined }}
                     >
                       <div className="leading-tight">
-                        <div className={cn("font-mono text-[0.5625rem] uppercase tracking-wider", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-lo)]")}>
+                        <span className={cn("font-mono text-[0.5625rem] uppercase tracking-wider", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-lo)]")}>
                           {d.toLocaleDateString(undefined, { weekday: "short" })}
-                        </div>
-                        <div className={cn("text-[0.875rem] font-medium", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-hi)]")}>
-                          {d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                        </div>
+                        </span>
+                        <span className={cn("ml-1 text-[0.8125rem] font-medium", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-hi)]")}>
+                          {d.getDate()}
+                        </span>
                       </div>
                       <DayBadges meta={meta} />
                     </div>
 
                     <div
                       {...dropHandlersFor(meta.iso)}
-                      className={cn(
-                        "flex flex-wrap items-center gap-1.5 border-l border-[var(--color-line)] p-1.5 transition-colors",
-                        isOver && "ring-1 ring-inset ring-[var(--color-accent)]",
-                      )}
+                      className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-1.5 transition-colors"
                       style={{
                         background: isOver
-                          ? "color-mix(in srgb, var(--color-accent) 18%, var(--color-ink-2))"
+                          ? "rgb(from var(--color-accent) r g b / 0.22)"
                           : meta.isToday
-                            ? "color-mix(in srgb, var(--color-accent) 8%, var(--color-ink-2))"
-                            : "var(--color-ink-2)",
+                            ? "rgb(from var(--color-accent) r g b / 0.06)"
+                            : undefined,
+                        boxShadow: isOver ? "inset 0 0 0 0.0625rem var(--color-accent)" : undefined,
                       }}
                     >
-                      {!selectedUserId || blocks === null ? (
-                        <Loader2 size={14} className="animate-spin text-[var(--color-text-lo)]" />
+                      {!selectedId || blocks === null ? (
+                        <div className="grid flex-1 place-items-center">
+                          <Loader2 size={14} className="animate-spin text-[var(--color-text-lo)]" />
+                        </div>
                       ) : (
                         <>
                           {dayBlocks.map((b) => (
-                            <CaseChip key={b.id} block={b} {...chipDragHandlers(b)} canManage={canManage} />
+                            <AssignmentChip
+                              key={b.id}
+                              block={b}
+                              variant={mode === "investigators" ? "case" : "investigator"}
+                              {...chipDragHandlers(b)}
+                              canManage={canManage}
+                            />
                           ))}
                           {dayBlocks.length === 0 && (
-                            <span className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
-                              {canManage ? "Drop a case" : "—"}
-                            </span>
+                            <div className="grid flex-1 place-items-center py-2 font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
+                              {canManage ? (mode === "investigators" ? "Drop a case" : "Drop an investigator") : "—"}
+                            </div>
                           )}
                         </>
                       )}
@@ -778,7 +841,7 @@ export default function Schedule() {
                 );
               })}
             </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -792,10 +855,8 @@ export default function Schedule() {
             try {
               const res = await scheduleApi.update(editing.id, { notes });
               patchBlocks((bs) => bs.map((x) => (x.id === editing.id ? res.block : x)));
-              setError(null);
             } catch (err) {
-              setError(err instanceof ApiError ? err.message : "Could not save the changes.");
-              throw err;
+              throw err instanceof ApiError ? err : new Error("Could not save the changes.");
             }
           }}
           onRemove={() => removeBlock(editing.id)}
@@ -806,7 +867,7 @@ export default function Schedule() {
       {monthOpen && (
         <MonthOverviewModal
           anchorMonday={monday}
-          investigatorName={selectedUser?.name ?? null}
+          contextLabel={contextLabel}
           weatherRegion={weatherRegion}
           onClose={() => setMonthOpen(false)}
           onPickDay={(iso) => {
@@ -820,19 +881,35 @@ export default function Schedule() {
       {dayInfoMeta && (
         <DayInfoModal
           meta={dayInfoMeta}
-          investigatorName={selectedUser?.name ?? null}
+          contextLabel={contextLabel}
           regionLabel={weatherRegion ? REGION_LABELS[weatherRegion] : null}
           onClose={() => setDayInfo(null)}
         />
+      )}
+
+      {/* Toast — fixed, floats over the UI, never shifts layout */}
+      {toast && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-[70] flex justify-center px-4">
+          <div
+            className="anim-banner surface pointer-events-auto flex items-center gap-3 rounded-full border border-[rgba(248,113,113,0.4)] px-4 py-2.5 text-[0.8125rem] text-[var(--color-text-hi)]"
+            style={{ background: "rgb(from var(--color-neg) r g b / 0.2)" }}
+          >
+            <span>{toast.text}</span>
+            <button type="button" onClick={() => setToast(null)} className="text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-// ─── Case chip ──────────────────────────────────────────────────────────────
+// ─── Assignment chip ────────────────────────────────────────────────────────
 
-function CaseChip({
+function AssignmentChip({
   block,
+  variant,
   canManage,
   draggable,
   onDragStart,
@@ -841,6 +918,7 @@ function CaseChip({
   onContextMenu,
 }: {
   block: ScheduleBlock;
+  variant: "case" | "investigator";
   canManage: boolean;
   draggable: boolean;
   onDragStart: (e: React.DragEvent) => void;
@@ -849,6 +927,9 @@ function CaseChip({
   onContextMenu: (e: React.MouseEvent) => void;
 }) {
   const isTemp = block.id.startsWith("temp-");
+  const primary = variant === "case" ? block.case.caseNumber : block.user.name;
+  const secondary = variant === "case" ? block.case.subjectName : block.user.region ? REGION_LABELS[block.user.region] : "No region";
+  const badge = variant === "case" ? block.case.caseNumber.slice(-2) : getInitials(block.user.name);
   return (
     <div
       draggable={draggable}
@@ -856,20 +937,20 @@ function CaseChip({
       onDragEnd={onDragEnd}
       onClick={onClick}
       onContextMenu={onContextMenu}
-      title={`${block.case.caseNumber} · ${block.case.subjectName}${block.notes ? `\n${block.notes}` : ""}${canManage ? "\nClick to edit · drag to move · right-click to remove" : ""}`}
+      title={`${block.case.caseNumber} · ${block.case.subjectName} · ${block.user.name}${block.notes ? `\n${block.notes}` : ""}${canManage ? "\nClick to edit · drag to move · right-click to remove" : ""}`}
       className={cn(
         "flex w-full items-center gap-1.5 rounded-[0.4375rem] border border-[rgba(74,127,255,0.4)] px-1.5 py-1 text-left leading-tight transition-colors",
         canManage && !isTemp && "cursor-grab active:cursor-grabbing",
         isTemp && "opacity-60",
       )}
-      style={{ background: "color-mix(in srgb, var(--color-accent) 22%, var(--color-ink-3))" }}
+      style={{ background: "rgb(from var(--color-accent) r g b / 0.28)" }}
     >
       <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-[var(--color-accent)] text-[0.4375rem] font-medium text-white">
-        {block.case.caseNumber.slice(-2)}
+        {badge}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-mono text-[0.625rem] font-medium text-[var(--color-text-hi)]">{block.case.caseNumber}</span>
-        <span className="block truncate text-[0.5625rem] text-[var(--color-text-mid)]">{block.case.subjectName}</span>
+        <span className="block truncate font-mono text-[0.625rem] font-medium text-[var(--color-text-hi)]">{primary}</span>
+        <span className="block truncate text-[0.5625rem] text-[var(--color-text-mid)]">{secondary}</span>
       </span>
     </div>
   );
@@ -910,12 +991,12 @@ function DayBadges({ meta }: { meta: DayMeta }) {
 
 function DayInfoModal({
   meta,
-  investigatorName,
+  contextLabel,
   regionLabel,
   onClose,
 }: {
   meta: DayMeta;
-  investigatorName: string | null;
+  contextLabel: string | null;
   regionLabel: string | null;
   onClose: () => void;
 }) {
@@ -941,8 +1022,8 @@ function DayInfoModal({
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="editorial text-[1.25rem] leading-tight text-[var(--color-text-hi)]">{dateLabel}</h2>
-              {investigatorName && (
-                <p className="mt-0.5 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">{investigatorName}</p>
+              {contextLabel && (
+                <p className="mt-0.5 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">{contextLabel}</p>
               )}
             </div>
             <button type="button" onClick={onClose} className="text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]">
@@ -1148,13 +1229,13 @@ function AssignmentModal({
 
 function MonthOverviewModal({
   anchorMonday,
-  investigatorName,
+  contextLabel,
   weatherRegion,
   onClose,
   onPickDay,
 }: {
   anchorMonday: string;
-  investigatorName: string | null;
+  contextLabel: string | null;
   weatherRegion: Region | null;
   onClose: () => void;
   onPickDay: (iso: string) => void;
@@ -1221,7 +1302,7 @@ function MonthOverviewModal({
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="editorial text-[1.375rem] leading-tight text-[var(--color-text-hi)]">Month overview</h2>
-              {investigatorName && <p className="mt-0.5 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">{investigatorName}</p>}
+              {contextLabel && <p className="mt-0.5 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">{contextLabel}</p>}
             </div>
             <div className="flex items-center gap-1.5">
               <button
