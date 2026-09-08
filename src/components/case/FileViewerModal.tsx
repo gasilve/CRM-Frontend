@@ -1,10 +1,9 @@
 /**
- * Full-screen document previewer — editorial chrome matching the CRM shell.
+ * Document previewer — centered solid modal matching the CRM shell
+ * (`dashboard-modal-backdrop` + `surface`), not a full-screen glass sheet.
  *
- * Bytes are pulled with `fetch` (session cookie rides along) and rendered from
- * the *response* content type. Non-previewable types (docx, etc.) never go into
- * an iframe — browsers treat that as a download, which is what was popping a
- * save dialog when switching files.
+ * Non-previewable types (docx, etc.) never go into an iframe — browsers treat
+ * that as a download, which is what popped a save dialog when switching files.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -133,10 +132,7 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
     if (existing) return existing;
     const type = blob.type || file.contentType || "application/octet-stream";
     const kind = kindFrom(file, type);
-    const text =
-      kind === "text" && isPreviewable(kind, type) ? await blob.text() : null;
-    // Only mint an object URL when something will actually render it — putting
-    // a .docx blob URL into an iframe is what triggered the save dialog.
+    const text = kind === "text" && isPreviewable(kind, type) ? await blob.text() : null;
     const url = isPreviewable(kind, type) ? URL.createObjectURL(blob) : "";
     const entry: Cached = { url, type, text, blob, kind };
     cacheRef.current.set(file.id, entry);
@@ -199,16 +195,13 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
     };
   }, [open, activeId, active, loadBlob, materialize, reloadToken]);
 
-  // Prefetch neighbours — but only previewable ones, so we never mint a blob
-  // URL that Chrome would treat as a download if it leaked into an iframe.
   useEffect(() => {
     if (!open || index < 0 || files.length < 2) return;
     const neighbours = [files[index - 1], files[index + 1]].filter(Boolean) as ViewerFile[];
     for (const neighbour of neighbours) {
       if (cacheRef.current.has(neighbour.id) || !neighbour.storageKey) continue;
       if (kindFrom(neighbour) === "other") continue;
-      const controller = new AbortController();
-      void loadBlob(neighbour.id, controller.signal)
+      void loadBlob(neighbour.id)
         .then((blob) => materialize(neighbour, blob))
         .catch(() => {
           /* prefetch is best-effort */
@@ -234,7 +227,6 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
       const blob = cached?.blob ?? (await loadBlob(active.id));
       triggerDownload(blob, active.filename);
     } catch {
-      // Fall back to the authenticated download URL if blob fetch fails.
       window.location.assign(downloadUrl(active.id));
     } finally {
       setDownloading(false);
@@ -261,35 +253,35 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
   const isPlaceholder = loaded?.type === "image/svg+xml" && !active.storageKey;
   const notStored = !active.storageKey;
   const canPreview =
-    !notStored &&
-    !isPlaceholder &&
-    loaded != null &&
-    isPreviewable(loaded.kind, loaded.type);
+    !notStored && !isPlaceholder && loaded != null && isPreviewable(loaded.kind, loaded.type);
+  const multi = files.length > 1;
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[200] flex flex-col bg-[var(--color-backdrop)] backdrop-blur-[0.375rem] anim-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Preview of ${active.filename}`}
-    >
-      <header className="relative shrink-0 border-b border-[var(--color-line)] bg-[var(--color-ink-1)]/90 px-4 py-2.5 md:px-5">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--color-accent-glow)] to-transparent opacity-70" />
-        <div className="flex items-center gap-2.5">
-          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-tile)] border border-[var(--color-line-2)] bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]">
+    <div className="dashboard-modal-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="surface flex w-full max-w-[min(68rem,96vw)] flex-col overflow-hidden rounded-[1.125rem]"
+        style={{ height: "min(86vh, 52rem)" }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Preview of ${active.filename}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header — solid, no glass */}
+        <header className="flex shrink-0 items-center gap-3 border-b border-[var(--color-line)] bg-[var(--color-ink-1)] px-4 py-3 md:px-5">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius-tile)] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] text-[var(--color-accent-2)]">
             <FileKindIcon kind={responseKind} />
           </div>
 
           <div className="min-w-0 flex-1">
             <div
-              className="truncate font-[family-name:var(--font-display)] text-[1.05rem] italic leading-tight text-[var(--color-text-hi)]"
+              className="truncate font-[family-name:var(--font-display)] text-[1.2rem] italic leading-tight text-[var(--color-text-hi)]"
               title={active.filename}
             >
               {active.filename}
             </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
               <span>{fmtBytes(active.sizeBytes)}</span>
-              {files.length > 1 && (
+              {multi && (
                 <>
                   <span aria-hidden>·</span>
                   <span>
@@ -313,7 +305,7 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
               </IconButton>
               <button
                 type="button"
-                className="min-w-[2.75rem] rounded-[0.5rem] px-1 py-1 font-mono text-[0.5625rem] text-[var(--color-text-mid)] hover:bg-white/[0.05]"
+                className="min-w-[2.75rem] rounded-[0.5rem] px-1 py-1 font-mono text-[0.5625rem] text-[var(--color-text-mid)] hover:bg-[var(--color-ink-3)]"
                 onClick={() => setZoom(1)}
                 title="Reset zoom"
               >
@@ -325,7 +317,7 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
             </div>
           )}
 
-          {files.length > 1 && (
+          {multi && (
             <div className="flex items-center gap-0.5">
               <IconButton label="Previous file" onClick={() => step(-1)}>
                 <ChevronLeft size={16} />
@@ -344,109 +336,98 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
             <Download size={15} />
           </IconButton>
 
-          <IconButton label="Close preview" onClick={onClose}>
+          <IconButton label="Close" onClick={onClose}>
             <X size={16} />
           </IconButton>
-        </div>
-      </header>
+        </header>
 
-      <div className="flex min-h-0 flex-1">
-        {files.length > 1 && (
-          <nav className="hidden w-72 shrink-0 overflow-y-auto border-r border-[var(--color-line)] bg-[var(--color-ink-1)]/55 p-2.5 md:block">
-            <div className="eyebrow mb-2 px-1.5 text-[var(--color-text-lo)]">Files</div>
-            <div className="anim-stagger-tight flex flex-col gap-1">
-              {files.map((file) => {
-                const selected = file.id === activeId;
-                const kind = kindFrom(file);
-                return (
-                  <button
-                    key={file.id}
-                    type="button"
-                    title={file.filename}
-                    onClick={() => {
-                      setActiveId(file.id);
-                      setZoom(1);
-                    }}
-                    className={cn(
-                      "flex w-full items-start gap-2 rounded-[var(--radius-tile)] border px-2.5 py-2 text-left transition-colors",
-                      selected
-                        ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)]"
-                        : "border-[var(--color-line-2)] bg-[var(--color-ink-3)]/35 hover:border-[var(--color-accent)]",
-                    )}
-                  >
-                    <FileKindIcon
-                      kind={kind}
+        <div className="flex min-h-0 flex-1 bg-[var(--color-ink-2)]">
+          {multi && (
+            <nav className="hidden w-56 shrink-0 overflow-y-auto border-r border-[var(--color-line)] bg-[var(--color-ink-1)] p-2 sm:block md:w-60">
+              <div className="eyebrow mb-2 px-2 text-[var(--color-text-lo)]">Files</div>
+              <div className="flex flex-col gap-0.5">
+                {files.map((file) => {
+                  const selected = file.id === activeId;
+                  const kind = kindFrom(file);
+                  return (
+                    <button
+                      key={file.id}
+                      type="button"
+                      title={file.filename}
+                      onClick={() => {
+                        setActiveId(file.id);
+                        setZoom(1);
+                      }}
                       className={cn(
-                        "mt-0.5 shrink-0",
-                        file.storageKey ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-lo)]",
+                        "flex w-full items-start gap-2 rounded-[var(--radius-tile)] px-2.5 py-2 text-left transition-colors",
+                        selected
+                          ? "bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
+                          : "text-[var(--color-text-mid)] hover:bg-[var(--color-ink-3)] hover:text-[var(--color-text-hi)]",
                       )}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span
+                    >
+                      <FileKindIcon
+                        kind={kind}
                         className={cn(
-                          "block break-all font-mono text-[0.6875rem] leading-snug",
-                          selected ? "text-[var(--color-text-hi)]" : "text-[var(--color-text-mid)]",
+                          "mt-0.5 shrink-0",
+                          selected ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-lo)]",
                         )}
-                      >
-                        {file.filename}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block break-words font-mono text-[0.6875rem] leading-snug">{file.filename}</span>
+                        <span className="mt-0.5 block font-mono text-[0.5rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+                          {file.storageKey
+                            ? `${fmtBytes(file.sizeBytes)} · ${extOf(file.filename) || "file"}`
+                            : "not stored"}
+                        </span>
                       </span>
-                      <span className="mt-0.5 block font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-                        {file.storageKey ? `${fmtBytes(file.sizeBytes)} · ${extOf(file.filename) || "file"}` : "not stored"}
-                      </span>
-                    </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+          )}
+
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3 md:p-4">
+              {loading && (
+                <div className="flex flex-col items-center gap-3" role="status" aria-live="polite" aria-busy="true">
+                  <BeamLoader className="w-40" />
+                  <LoadingCaption>Loading document</LoadingCaption>
+                </div>
+              )}
+
+              {!loading && error && (
+                <div className="max-w-sm px-4 py-6 text-center">
+                  <FileWarning size={26} className="mx-auto text-[var(--color-neg)]" />
+                  <p className="mt-3 font-[family-name:var(--font-display)] text-[1.15rem] italic text-[var(--color-text-hi)]">
+                    Couldn’t open this file
+                  </p>
+                  <p className="mt-1.5 text-[0.8125rem] text-[var(--color-neg)]">{error}</p>
+                  <button
+                    type="button"
+                    className="dashboard-modal-btn mt-4 inline-flex items-center gap-1.5 !h-9 !px-3 !text-[0.75rem]"
+                    onClick={() => setReloadToken((n) => n + 1)}
+                  >
+                    <RotateCcw size={12} />
+                    Try again
                   </button>
-                );
-              })}
+                </div>
+              )}
+
+              {!loading && !error && loaded && (
+                <Preview
+                  loaded={loaded}
+                  filename={active.filename}
+                  zoom={zoom}
+                  notStored={notStored || isPlaceholder}
+                  reason={active.error}
+                  canPreview={canPreview}
+                  onDownload={() => void downloadActive()}
+                  downloading={downloading}
+                />
+              )}
             </div>
-          </nav>
-        )}
-
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3 md:p-5">
-            {loading && (
-              <div className="flex flex-col items-center gap-3" role="status" aria-live="polite" aria-busy="true">
-                <BeamLoader className="w-44" />
-                <LoadingCaption>Loading document</LoadingCaption>
-              </div>
-            )}
-
-            {!loading && error && (
-              <div className="surface max-w-md px-6 py-8 text-center anim-rise">
-                <FileWarning size={28} className="mx-auto text-[var(--color-neg)]" />
-                <p className="mt-3 font-[family-name:var(--font-display)] text-[1.25rem] italic text-[var(--color-text-hi)]">
-                  Couldn’t open this file
-                </p>
-                <p className="mt-2 text-[0.8125rem] text-[var(--color-neg)]">{error}</p>
-                <button
-                  type="button"
-                  className="dashboard-modal-btn mt-5 inline-flex items-center gap-1.5"
-                  onClick={() => setReloadToken((n) => n + 1)}
-                >
-                  <RotateCcw size={13} />
-                  Try again
-                </button>
-              </div>
-            )}
-
-            {!loading && !error && loaded && (
-              <Preview
-                loaded={loaded}
-                filename={active.filename}
-                zoom={zoom}
-                notStored={notStored || isPlaceholder}
-                reason={active.error}
-                canPreview={canPreview}
-                onDownload={() => void downloadActive()}
-                downloading={downloading}
-              />
-            )}
           </div>
-
-          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--color-line)] bg-[var(--color-ink-1)]/70 px-4 py-1.5 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-            <span className="hidden sm:inline">Esc · ← → · − +</span>
-            <span className="truncate sm:hidden">{active.filename}</span>
-            <span className="shrink-0">{extOf(active.filename) || "file"}</span>
-          </footer>
         </div>
       </div>
     </div>,
@@ -475,44 +456,36 @@ function Preview({
 }) {
   if (notStored) {
     return (
-      <div className="flex max-w-lg flex-col items-center gap-4 anim-rise">
-        {loaded.type.startsWith("image/") && loaded.url && (
-          <img
-            src={loaded.url}
-            alt={filename}
-            className="max-h-[45vh] max-w-full rounded-[var(--radius-card)] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] object-contain"
-          />
-        )}
-        <div className="surface max-w-md px-5 py-5 text-center">
-          <p className="font-[family-name:var(--font-display)] text-[1.15rem] italic text-[var(--color-text-hi)]">
-            Contents unavailable
-          </p>
-          <p className="mt-1.5 text-[0.8125rem] text-[var(--color-text-mid)]">
-            {reason || "This attachment was listed by the ingestor without its bytes."}
-          </p>
-        </div>
+      <div className="max-w-sm px-4 py-6 text-center anim-rise">
+        <FileWarning size={26} className="mx-auto text-[var(--color-warn)]" />
+        <p className="mt-3 font-[family-name:var(--font-display)] text-[1.15rem] italic text-[var(--color-text-hi)]">
+          Contents unavailable
+        </p>
+        <p className="mt-1.5 text-[0.8125rem] text-[var(--color-text-mid)]">
+          {reason || "This attachment was listed by the ingestor without its bytes."}
+        </p>
       </div>
     );
   }
 
   if (!canPreview || loaded.kind === "other") {
     return (
-      <div className="surface max-w-md px-6 py-8 text-center anim-rise">
-        <FileWarning size={28} className="mx-auto text-[var(--color-text-lo)]" />
-        <p className="mt-3 font-[family-name:var(--font-display)] text-[1.25rem] italic text-[var(--color-text-hi)]">
+      <div className="max-w-sm px-4 py-6 text-center anim-rise">
+        <FileWarning size={26} className="mx-auto text-[var(--color-text-lo)]" />
+        <p className="mt-3 font-[family-name:var(--font-display)] text-[1.15rem] italic text-[var(--color-text-hi)]">
           Preview not available
         </p>
-        <p className="mt-2 text-[0.8125rem] text-[var(--color-text-mid)]">
-          {extOf(filename).toUpperCase() || "This"} files can’t be shown in the browser. Download to open locally.
+        <p className="mt-1.5 text-[0.8125rem] text-[var(--color-text-mid)]">
+          {(extOf(filename) || "This").toUpperCase()} files can’t be shown here. Download to open locally.
         </p>
         <button
           type="button"
-          className="dashboard-modal-btn dashboard-modal-btn--primary mt-5 inline-flex items-center gap-1.5"
+          className="dashboard-modal-btn dashboard-modal-btn--primary mt-4 inline-flex items-center gap-1.5 !h-9 !px-3 !text-[0.75rem]"
           onClick={onDownload}
           disabled={downloading}
         >
-          <Download size={13} />
-          {downloading ? "Downloading…" : "Download file"}
+          <Download size={12} />
+          {downloading ? "Downloading…" : "Download"}
         </button>
       </div>
     );
@@ -520,26 +493,24 @@ function Preview({
 
   if (loaded.kind === "image" && loaded.url) {
     return (
-      <div className="flex min-h-full w-full items-center justify-center anim-fade">
+      <div className="flex h-full w-full items-center justify-center anim-fade">
         <img
           src={loaded.url}
           alt={filename}
           style={{ transform: `scale(${zoom})` }}
-          className="max-h-[78vh] max-w-full origin-center object-contain transition-transform duration-200 ease-out"
+          className="max-h-full max-w-full origin-center object-contain transition-transform duration-200 ease-out"
         />
       </div>
     );
   }
 
   if (loaded.kind === "pdf" && loaded.url) {
-    // Hide the browser PDF chrome so we don't stack a second Download/Print
-    // toolbar on top of ours. `#toolbar=0` is supported by Chromium + Firefox.
     return (
-      <div className="h-full min-h-[70vh] w-full max-w-5xl overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] anim-rise">
+      <div className="h-full w-full overflow-hidden rounded-[var(--radius-tile)] border border-[var(--color-line)] bg-white anim-rise">
         <iframe
           src={`${loaded.url}#toolbar=0&navpanes=0&scrollbar=1`}
           title={filename}
-          className="h-full min-h-[70vh] w-full bg-white"
+          className="h-full w-full bg-white"
         />
       </div>
     );
@@ -547,7 +518,7 @@ function Preview({
 
   if (loaded.text !== null) {
     return (
-      <pre className="surface h-full max-h-[78vh] w-full max-w-4xl overflow-auto p-5 font-mono text-[0.75rem] leading-relaxed text-[var(--color-text-mid)] anim-rise">
+      <pre className="h-full max-h-full w-full overflow-auto rounded-[var(--radius-tile)] border border-[var(--color-line)] bg-[var(--color-ink-1)] p-4 font-mono text-[0.75rem] leading-relaxed text-[var(--color-text-mid)] anim-rise">
         {loaded.text}
       </pre>
     );
@@ -574,7 +545,7 @@ function IconButton({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-tile)] border border-transparent text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:bg-white/[0.05] hover:text-[var(--color-text-hi)] disabled:pointer-events-none disabled:opacity-40"
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-tile)] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:bg-[var(--color-ink-3)] hover:text-[var(--color-text-hi)] disabled:pointer-events-none disabled:opacity-40"
     >
       {children}
     </button>
