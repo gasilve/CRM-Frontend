@@ -77,13 +77,10 @@ const MODE_LS_KEY = "accenty.crm.schedule.mode";
 const INVESTIGATOR_BG = "linear-gradient(135deg,#4a7fff,#7aa1ff)";
 const CASE_BG = "linear-gradient(135deg,#f59e0b,#fbbf24)";
 
-/** Always-translucent glass look for the schedule's big panels — independent
- * of the app-wide glass theme toggle, which leaves `.surface` fully opaque. */
-const glassPanel: React.CSSProperties = {
-  background:
-    "linear-gradient(145deg, rgb(from var(--color-accent-2) r g b / 0.07), rgb(from var(--color-ink-2) r g b / 0.4) 55%, rgb(from var(--color-accent) r g b / 0.07))",
-  backdropFilter: "blur(1rem) saturate(1.4)",
-  WebkitBackdropFilter: "blur(1rem) saturate(1.4)",
+/** Soft accent glass used by assignment chips — same recipe as the old timed blocks. */
+const chipGlass: React.CSSProperties = {
+  background: "color-mix(in srgb, var(--color-accent) 20%, transparent)",
+  borderColor: "color-mix(in srgb, var(--color-accent) 55%, transparent)",
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -601,7 +598,7 @@ export default function Schedule() {
             </button>
           )}
 
-          <div className="surface flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2" style={glassPanel}>
+          <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pb-1">
             {mode === "investigators" ? (
               <>
                 {filteredInvestigators.map((inv) => {
@@ -612,10 +609,10 @@ export default function Schedule() {
                       type="button"
                       onClick={() => selectUser(inv.id)}
                       className={cn(
-                        "flex shrink-0 items-center gap-2.5 rounded-[0.75rem] border p-2.5 text-left transition-colors",
+                        "flex shrink-0 items-center gap-2.5 rounded-[0.75rem] border p-3 text-left transition-colors",
                         active
                           ? "border-[rgba(74,127,255,0.45)] bg-[var(--color-accent-soft)]"
-                          : "border-transparent hover:border-[var(--color-line-2)]",
+                          : "border-[var(--color-line)] bg-[var(--color-ink-1)]/50 hover:border-[var(--color-line-2)]",
                       )}
                     >
                       <span
@@ -649,10 +646,10 @@ export default function Schedule() {
                       type="button"
                       onClick={() => selectCase(c.id)}
                       className={cn(
-                        "flex shrink-0 items-center gap-2.5 rounded-[0.75rem] border p-2.5 text-left transition-colors",
+                        "flex shrink-0 items-center gap-2.5 rounded-[0.75rem] border p-3 text-left transition-colors",
                         active
                           ? "border-[rgba(74,127,255,0.45)] bg-[var(--color-accent-soft)]"
-                          : "border-transparent hover:border-[var(--color-line-2)]",
+                          : "border-[var(--color-line)] bg-[var(--color-ink-1)]/50 hover:border-[var(--color-line-2)]",
                       )}
                     >
                       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white" style={{ background: CASE_BG }}>
@@ -700,10 +697,9 @@ export default function Schedule() {
           {canManage && (
             <div
               className={cn(
-                "surface flex shrink-0 items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-                !selectedId && "opacity-70",
+                "flex shrink-0 items-center gap-2 overflow-x-auto rounded-[0.75rem] border px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+                selectedId ? "border-[var(--color-line)] bg-[var(--color-ink-1)]/50" : "border-dashed border-[var(--color-line)] opacity-70",
               )}
-              style={glassPanel}
             >
               <span className="shrink-0 pr-1 font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">
                 {selectedId ? "Drag onto the board ↓" : mode === "investigators" ? "Cases" : "Investigators"}
@@ -725,13 +721,14 @@ export default function Schedule() {
                           setDrag(null);
                           setDragOverIso(null);
                         }}
-                        title={draggable ? `Drag ${c.caseNumber} onto the board` : "Select an investigator first"}
                         className={cn(
                           "flex shrink-0 select-none items-center gap-2 rounded-full border py-1 pl-1 pr-3 transition-colors",
                           draggable ? "cursor-grab active:cursor-grabbing hover:border-[rgba(74,127,255,0.45)]" : "opacity-55",
-                          matched ? "border-[rgba(74,222,128,0.4)]" : "border-[var(--color-line)]",
+                          matched
+                            ? "border-[rgba(74,222,128,0.4)] bg-[rgba(74,222,128,0.06)]"
+                            : "border-[var(--color-line)] bg-[var(--color-ink-2)]",
                         )}
-                        style={matched ? { background: "rgb(from #4ade80 r g b / 0.08)" } : undefined}
+                        title={draggable ? `Drag ${c.caseNumber} onto the board` : "Select an investigator first"}
                       >
                         {draggable && <GripVertical size={11} strokeWidth={1.8} className="-mr-0.5 text-[var(--color-text-lo)]" />}
                         <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-white" style={{ background: CASE_BG }}>
@@ -767,9 +764,10 @@ export default function Schedule() {
                         className={cn(
                           "flex shrink-0 select-none items-center gap-2 rounded-full border py-1 pl-1 pr-3 transition-colors",
                           draggable ? "cursor-grab active:cursor-grabbing hover:border-[rgba(74,127,255,0.45)]" : "opacity-55",
-                          matched ? "border-[rgba(74,222,128,0.4)]" : "border-[var(--color-line)]",
+                          matched
+                            ? "border-[rgba(74,222,128,0.4)] bg-[rgba(74,222,128,0.06)]"
+                            : "border-[var(--color-line)] bg-[var(--color-ink-2)]",
                         )}
-                        style={matched ? { background: "rgb(from #4ade80 r g b / 0.08)" } : undefined}
                       >
                         {draggable && <GripVertical size={11} strokeWidth={1.8} className="-mr-0.5 text-[var(--color-text-lo)]" />}
                         <span
@@ -796,8 +794,8 @@ export default function Schedule() {
             </div>
           )}
 
-          {/* Day board — one consistent week grid for both modes, glass surface */}
-          <div className="surface min-h-0 flex-1 overflow-hidden" style={glassPanel}>
+          {/* Day board — translucent glass panel matching the old schedule look */}
+          <div className="min-h-0 flex-1 overflow-hidden rounded-[0.75rem] border border-[var(--color-line)] bg-[var(--color-ink-1)]/50">
             <div className="grid h-full auto-rows-fr grid-cols-7">
               {days.map((d) => {
                 const meta = dayMeta(d);
@@ -807,7 +805,13 @@ export default function Schedule() {
                 // if legacy data somehow left more than one block on the same day.
                 const singleSlot = mode === "investigators" && dayBlocks.length <= 1;
                 return (
-                  <div key={meta.iso} className="flex min-h-0 flex-col border-l border-[var(--color-line)] first:border-l-0">
+                  <div
+                    key={meta.iso}
+                    className={cn(
+                      "flex min-h-0 flex-col border-l border-[var(--color-line)] first:border-l-0",
+                      meta.isToday && "bg-[var(--color-accent-soft)]/25",
+                    )}
+                  >
                     <div
                       role="button"
                       tabIndex={0}
@@ -816,8 +820,7 @@ export default function Schedule() {
                         if (e.key === "Enter" || e.key === " ") setDayInfo(meta.iso);
                       }}
                       title="Day details"
-                      className="flex shrink-0 cursor-pointer items-center justify-between gap-1 border-b border-[var(--color-line)] px-2.5 py-2.5 transition-colors"
-                      style={{ background: meta.isToday ? "rgb(from var(--color-accent) r g b / 0.16)" : undefined }}
+                      className="flex shrink-0 cursor-pointer items-center justify-between gap-1 border-b border-[var(--color-line)] px-2.5 py-2.5 transition-colors hover:bg-[var(--color-ink-2)]/40"
                     >
                       <div className="leading-tight">
                         <span className={cn("font-mono text-[0.625rem] uppercase tracking-wider", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-lo)]")}>
@@ -835,15 +838,8 @@ export default function Schedule() {
                       className={cn(
                         "flex min-h-0 flex-1 p-1.5 transition-colors",
                         singleSlot ? "flex-col" : "flex-col gap-1.5 overflow-y-auto",
+                        isOver && "bg-[var(--color-accent-soft)] ring-1 ring-inset ring-[var(--color-accent)]",
                       )}
-                      style={{
-                        background: isOver
-                          ? "rgb(from var(--color-accent) r g b / 0.22)"
-                          : meta.isToday
-                            ? "rgb(from var(--color-accent) r g b / 0.06)"
-                            : undefined,
-                        boxShadow: isOver ? "inset 0 0 0 0.0625rem var(--color-accent)" : undefined,
-                      }}
                     >
                       {!selectedId || blocks === null ? (
                         <div className="grid flex-1 place-items-center">
@@ -976,11 +972,11 @@ function AssignmentChip({
       onContextMenu={onContextMenu}
       title={`${block.case.subjectName} · ${block.case.caseNumber} · ${block.user.name}${block.notes ? `\n${block.notes}` : ""}${canManage ? "\nClick to edit · drag to move · right-click to remove" : ""}`}
       className={cn(
-        "flex w-full items-center gap-2 rounded-[0.5rem] border border-[rgba(74,127,255,0.4)] px-2 py-1.5 text-left leading-tight transition-colors",
+        "flex w-full items-center gap-2 rounded-[0.5rem] border px-2 py-1.5 text-left leading-tight transition-colors",
         canManage && !isTemp && "cursor-grab active:cursor-grabbing",
         isTemp && "opacity-60",
       )}
-      style={{ background: "rgb(from var(--color-accent) r g b / 0.28)" }}
+      style={chipGlass}
     >
       <span
         className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-white"
@@ -1025,11 +1021,11 @@ function AssignmentSlot({
       onContextMenu={onContextMenu}
       title={`${block.case.subjectName} · ${block.case.caseNumber}${block.notes ? `\n${block.notes}` : ""}${canManage ? "\nClick to edit · drag to move · right-click to remove" : ""}`}
       className={cn(
-        "flex w-full flex-1 flex-col items-center justify-center gap-2 rounded-[0.625rem] border border-[rgba(245,158,11,0.4)] p-2 text-center transition-colors",
+        "flex w-full flex-1 flex-col items-center justify-center gap-2 rounded-[0.625rem] border p-2 text-center transition-colors",
         canManage && !isTemp && "cursor-grab active:cursor-grabbing",
         isTemp && "opacity-60",
       )}
-      style={{ background: "rgb(from #f59e0b r g b / 0.16)" }}
+      style={chipGlass}
     >
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white" style={{ background: CASE_BG }}>
         <Folder size={17} strokeWidth={1.8} />
