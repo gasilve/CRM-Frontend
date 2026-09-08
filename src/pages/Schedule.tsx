@@ -165,8 +165,15 @@ export default function Schedule() {
     const next = new URLSearchParams(searchParams);
     if (id) next.set("user", id);
     else next.delete("user");
+    // Keep ?case= focus chips if present.
     setSearchParams(next, { replace: true });
   };
+
+  // Always keep an investigator selected — default to the first in the rail.
+  useEffect(() => {
+    if (!selectedUserId && investigators.length > 0) selectUser(investigators[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [investigators, selectedUserId]);
 
   const days = useMemo(() => {
     const start = new Date(`${monday}T00:00:00`);
@@ -516,8 +523,9 @@ export default function Schedule() {
                     "flex shrink-0 items-center gap-2.5 rounded-[0.75rem] border p-2.5 text-left transition-colors",
                     active
                       ? "border-[rgba(74,127,255,0.45)] bg-[var(--color-accent-soft)]"
-                      : "border-[var(--color-line)] bg-[var(--color-ink-1)] hover:border-[var(--color-line-2)]",
+                      : "border-[var(--color-line)] bg-[var(--color-ink-2)] hover:border-[var(--color-line-2)]",
                   )}
+                  style={active ? undefined : { background: "var(--color-ink-2)" }}
                 >
                   <span
                     className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[0.625rem] font-medium text-white"
@@ -567,12 +575,13 @@ export default function Schedule() {
           {canManage && (
             <div
               className={cn(
-                "flex shrink-0 items-center gap-2 overflow-x-auto rounded-[0.75rem] border px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-                selectedUserId ? "border-[var(--color-line)] bg-[var(--color-ink-1)]" : "border-dashed border-[var(--color-line)]",
+                "flex shrink-0 items-center gap-2 overflow-x-auto rounded-[0.75rem] border border-[var(--color-line)] px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+                !selectedUserId && "opacity-70",
               )}
+              style={{ background: "var(--color-ink-2)" }}
             >
               <span className="shrink-0 pr-1 font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-                {selectedUserId ? "Drag onto the board ↓" : "Cases — pick an investigator first"}
+                {selectedUserId ? "Drag onto the board ↓" : "Cases"}
               </span>
               {sortedCases.map((c) => {
                 const matched = !!selectedUser?.region && c.region === selectedUser.region;
@@ -618,16 +627,13 @@ export default function Schedule() {
             </div>
           )}
 
-          {!selectedUserId ? (
-            <div className="flex min-h-0 flex-1 items-center justify-center rounded-[0.75rem] border border-dashed border-[var(--color-line)]">
-              <p className="max-w-xs text-center font-mono text-[0.75rem] text-[var(--color-text-lo)]">
-                Pick an investigator from the left to see and edit their week.
-              </p>
-            </div>
-          ) : orientation === "vertical" ? (
-            /* ── Vertical board: days as columns ─────────────────────────── */
-            <div className="surface min-h-0 flex-1 overflow-y-auto">
-              <div className="grid grid-cols-7">
+          {/* Day board — always visible, solid opaque (never glass `.surface`) */}
+          {orientation === "vertical" ? (
+            <div
+              className="min-h-0 flex-1 overflow-y-auto rounded-[0.75rem] border border-[var(--color-line)]"
+              style={{ background: "var(--color-ink-2)" }}
+            >
+              <div className="grid h-full min-h-[16rem] grid-cols-7">
                 {days.map((d) => {
                   const meta = dayMeta(d);
                   const dayBlocks = blocksByDay.get(meta.iso) ?? [];
@@ -646,9 +652,14 @@ export default function Schedule() {
                         }}
                         title="Day details"
                         className={cn(
-                          "sticky top-0 z-10 flex cursor-pointer items-center justify-between gap-1 border-b border-[var(--color-line)] bg-[var(--color-ink-2)] px-2 py-1.5 transition-colors hover:bg-[var(--color-ink-3)]",
-                          meta.isToday && "bg-[color-mix(in_srgb,var(--color-accent)_16%,var(--color-ink-2))]",
+                          "sticky top-0 z-10 flex cursor-pointer items-center justify-between gap-1 border-b border-[var(--color-line)] px-2 py-1.5 transition-colors",
+                          meta.isToday ? "text-[var(--color-accent-2)]" : undefined,
                         )}
+                        style={{
+                          background: meta.isToday
+                            ? "color-mix(in srgb, var(--color-accent) 16%, var(--color-ink-3))"
+                            : "var(--color-ink-3)",
+                        }}
                       >
                         <div className="leading-tight">
                           <span className={cn("font-mono text-[0.5625rem] uppercase tracking-wider", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-lo)]")}>
@@ -664,23 +675,32 @@ export default function Schedule() {
                       <div
                         {...dropHandlersFor(meta.iso)}
                         className={cn(
-                          "flex min-h-[8rem] flex-1 flex-col gap-1.5 bg-[var(--color-ink-1)] p-1.5 transition-colors",
-                          meta.isToday && "bg-[color-mix(in_srgb,var(--color-accent)_6%,var(--color-ink-1))]",
-                          isOver && "bg-[color-mix(in_srgb,var(--color-accent)_18%,var(--color-ink-1))] ring-1 ring-inset ring-[var(--color-accent)]",
+                          "flex min-h-[8rem] flex-1 flex-col gap-1.5 p-1.5 transition-colors",
+                          isOver && "ring-1 ring-inset ring-[var(--color-accent)]",
                         )}
+                        style={{
+                          background: isOver
+                            ? "color-mix(in srgb, var(--color-accent) 18%, var(--color-ink-2))"
+                            : meta.isToday
+                              ? "color-mix(in srgb, var(--color-accent) 8%, var(--color-ink-2))"
+                              : "var(--color-ink-2)",
+                        }}
                       >
-                        {blocks === null && (
+                        {!selectedUserId || blocks === null ? (
                           <div className="grid flex-1 place-items-center">
                             <Loader2 size={14} className="animate-spin text-[var(--color-text-lo)]" />
                           </div>
-                        )}
-                        {dayBlocks.map((b) => (
-                          <CaseChip key={b.id} block={b} {...chipDragHandlers(b)} canManage={canManage} />
-                        ))}
-                        {dayBlocks.length === 0 && blocks !== null && (
-                          <div className="grid flex-1 place-items-center py-2 font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
-                            {canManage ? "Drop a case" : "—"}
-                          </div>
+                        ) : (
+                          <>
+                            {dayBlocks.map((b) => (
+                              <CaseChip key={b.id} block={b} {...chipDragHandlers(b)} canManage={canManage} />
+                            ))}
+                            {dayBlocks.length === 0 && (
+                              <div className="grid flex-1 place-items-center py-2 font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
+                                {canManage ? "Drop a case" : "—"}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -689,8 +709,10 @@ export default function Schedule() {
               </div>
             </div>
           ) : (
-            /* ── Horizontal board: days as rows ──────────────────────────── */
-            <div className="surface flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <div
+              className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[0.75rem] border border-[var(--color-line)]"
+              style={{ background: "var(--color-ink-2)" }}
+            >
               {days.map((d) => {
                 const meta = dayMeta(d);
                 const dayBlocks = blocksByDay.get(meta.iso) ?? [];
@@ -705,10 +727,12 @@ export default function Schedule() {
                         if (e.key === "Enter" || e.key === " ") setDayInfo(meta.iso);
                       }}
                       title="Day details"
-                      className={cn(
-                        "flex cursor-pointer items-center justify-between gap-1 bg-[var(--color-ink-2)] px-2.5 py-1.5 transition-colors hover:bg-[var(--color-ink-3)]",
-                        meta.isToday && "bg-[color-mix(in_srgb,var(--color-accent)_16%,var(--color-ink-2))]",
-                      )}
+                      className="flex cursor-pointer items-center justify-between gap-1 px-2.5 py-1.5 transition-colors"
+                      style={{
+                        background: meta.isToday
+                          ? "color-mix(in srgb, var(--color-accent) 16%, var(--color-ink-3))"
+                          : "var(--color-ink-3)",
+                      }}
                     >
                       <div className="leading-tight">
                         <div className={cn("font-mono text-[0.5625rem] uppercase tracking-wider", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-lo)]")}>
@@ -724,19 +748,30 @@ export default function Schedule() {
                     <div
                       {...dropHandlersFor(meta.iso)}
                       className={cn(
-                        "flex flex-wrap items-center gap-1.5 border-l border-[var(--color-line)] bg-[var(--color-ink-1)] p-1.5 transition-colors",
-                        meta.isToday && "bg-[color-mix(in_srgb,var(--color-accent)_6%,var(--color-ink-1))]",
-                        isOver && "bg-[color-mix(in_srgb,var(--color-accent)_18%,var(--color-ink-1))] ring-1 ring-inset ring-[var(--color-accent)]",
+                        "flex flex-wrap items-center gap-1.5 border-l border-[var(--color-line)] p-1.5 transition-colors",
+                        isOver && "ring-1 ring-inset ring-[var(--color-accent)]",
                       )}
+                      style={{
+                        background: isOver
+                          ? "color-mix(in srgb, var(--color-accent) 18%, var(--color-ink-2))"
+                          : meta.isToday
+                            ? "color-mix(in srgb, var(--color-accent) 8%, var(--color-ink-2))"
+                            : "var(--color-ink-2)",
+                      }}
                     >
-                      {blocks === null && <Loader2 size={14} className="animate-spin text-[var(--color-text-lo)]" />}
-                      {dayBlocks.map((b) => (
-                        <CaseChip key={b.id} block={b} {...chipDragHandlers(b)} canManage={canManage} />
-                      ))}
-                      {dayBlocks.length === 0 && blocks !== null && (
-                        <span className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
-                          {canManage ? "Drop a case" : "—"}
-                        </span>
+                      {!selectedUserId || blocks === null ? (
+                        <Loader2 size={14} className="animate-spin text-[var(--color-text-lo)]" />
+                      ) : (
+                        <>
+                          {dayBlocks.map((b) => (
+                            <CaseChip key={b.id} block={b} {...chipDragHandlers(b)} canManage={canManage} />
+                          ))}
+                          {dayBlocks.length === 0 && (
+                            <span className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
+                              {canManage ? "Drop a case" : "—"}
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -823,11 +858,11 @@ function CaseChip({
       onContextMenu={onContextMenu}
       title={`${block.case.caseNumber} · ${block.case.subjectName}${block.notes ? `\n${block.notes}` : ""}${canManage ? "\nClick to edit · drag to move · right-click to remove" : ""}`}
       className={cn(
-        "flex w-full items-center gap-1.5 rounded-[0.4375rem] border px-1.5 py-1 text-left leading-tight transition-colors",
-        "border-[rgba(74,127,255,0.35)] bg-[var(--color-accent-soft)]",
+        "flex w-full items-center gap-1.5 rounded-[0.4375rem] border border-[rgba(74,127,255,0.4)] px-1.5 py-1 text-left leading-tight transition-colors",
         canManage && !isTemp && "cursor-grab active:cursor-grabbing",
         isTemp && "opacity-60",
       )}
+      style={{ background: "color-mix(in srgb, var(--color-accent) 22%, var(--color-ink-3))" }}
     >
       <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-[var(--color-accent)] text-[0.4375rem] font-medium text-white">
         {block.case.caseNumber.slice(-2)}
