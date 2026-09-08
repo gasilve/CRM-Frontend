@@ -74,7 +74,7 @@ export type CasePanelCtx = {
    * endpoint (the pending-intake view renders this same widget set against a
    * proposal). When absent, panels use the regular /cases/:id/files routes.
    */
-  loadFileBlob?: (fileId: string) => Promise<Blob>;
+  loadFileBlob?: (fileId: string, signal?: AbortSignal) => Promise<Blob>;
   fileDownloadHref?: (fileId: string) => string;
 };
 
