@@ -477,12 +477,12 @@ export default function Schedule() {
     mode === "investigators" ? selectedUser?.name ?? null : selectedCase ? `${selectedCase.subjectName} · ${selectedCase.caseNumber}` : null;
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-hidden">
+    <div className="schedule-page flex h-full flex-col gap-4 overflow-hidden">
       {/* Header */}
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">Scheduling</h1>
-          <p className="mt-1 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
+          <p className="mt-1 font-mono text-[0.6875rem] text-[var(--color-text-mid)]">
             {mode === "investigators" ? "Pick an investigator, then drag cases onto their week" : "Pick a case, then drag investigators onto its week"}
           </p>
         </div>
@@ -552,7 +552,7 @@ export default function Schedule() {
               "anim-toggle tap flex items-center gap-1.5 rounded-full border px-3 py-1 text-[0.71875rem] font-medium",
               region === r
                 ? "border-[var(--color-accent-soft)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
-                : "border-[var(--color-line)] text-[var(--color-text-lo)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-mid)]",
+                : "border-[var(--color-line)] text-[var(--color-text-mid)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]",
             )}
           >
             {r !== "all" && <MapPin size={11} strokeWidth={1.8} />}
@@ -623,7 +623,7 @@ export default function Schedule() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{inv.name}</div>
-                        <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+                        <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-mid)]">
                           {inv.region ? REGION_LABELS[inv.region] : "No region"}
                         </div>
                       </div>
@@ -656,8 +656,15 @@ export default function Schedule() {
                         <Folder size={15} strokeWidth={1.8} />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{c.subjectName}</div>
-                        <div className="mt-0.5 truncate font-mono text-[0.65625rem] text-[var(--color-text-lo)]">{c.caseNumber}</div>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="truncate text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{c.subjectName}</div>
+                          {c.region && (
+                            <span className="shrink-0 rounded-full bg-[var(--color-ink-3)] px-2 py-0.5 font-mono text-[0.53125rem] uppercase tracking-wider text-[var(--color-text-mid)]">
+                              {REGION_LABELS[c.region]}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-0.5 truncate font-mono text-[0.65625rem] text-[var(--color-text-mid)]">{c.caseNumber}</div>
                       </div>
                     </button>
                   );
@@ -701,7 +708,7 @@ export default function Schedule() {
                 selectedId ? "border-[var(--color-line)] bg-[var(--color-ink-1)]/50" : "border-dashed border-[var(--color-line)] opacity-70",
               )}
             >
-              <span className="shrink-0 pr-1 font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+              <span className="shrink-0 pr-1 font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-mid)]">
                 {selectedId ? "Drag onto the board ↓" : mode === "investigators" ? "Cases" : "Investigators"}
               </span>
               {mode === "investigators"
@@ -736,8 +743,9 @@ export default function Schedule() {
                         </span>
                         <span className="leading-tight">
                           <span className="block whitespace-nowrap text-[0.6875rem] font-medium text-[var(--color-text-hi)]">{c.subjectName}</span>
-                          <span className={cn("block max-w-[8rem] truncate font-mono text-[0.5625rem]", matched ? "text-[#4ade80]" : "text-[var(--color-text-lo)]")}>
+                          <span className={cn("block max-w-[9rem] truncate font-mono text-[0.5625rem]", matched ? "text-[#4ade80]" : "text-[var(--color-text-mid)]")}>
                             {c.caseNumber}
+                            {c.region ? ` · ${REGION_LABELS[c.region]}` : ""}
                             {matched && " · match"}
                           </span>
                         </span>
@@ -778,7 +786,7 @@ export default function Schedule() {
                         </span>
                         <span className="leading-tight">
                           <span className="block max-w-[8rem] truncate text-[0.6875rem] font-medium text-[var(--color-text-hi)]">{inv.name}</span>
-                          <span className={cn("block max-w-[8rem] truncate text-[0.5625rem]", matched ? "text-[#4ade80]" : "text-[var(--color-text-lo)]")}>
+                          <span className={cn("block max-w-[8rem] truncate text-[0.5625rem]", matched ? "text-[#4ade80]" : "text-[var(--color-text-mid)]")}>
                             {inv.region ? REGION_LABELS[inv.region] : "No region"}
                             {matched && " · match"}
                           </span>
@@ -823,7 +831,7 @@ export default function Schedule() {
                       className="flex shrink-0 cursor-pointer items-center justify-between gap-1 border-b border-[var(--color-line)] px-2.5 py-2.5 transition-colors hover:bg-[var(--color-ink-2)]/40"
                     >
                       <div className="leading-tight">
-                        <span className={cn("font-mono text-[0.625rem] uppercase tracking-wider", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-lo)]")}>
+                        <span className={cn("font-mono text-[0.625rem] uppercase tracking-wider", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-mid)]")}>
                           {d.toLocaleDateString(undefined, { weekday: "short" })}
                         </span>
                         <span className={cn("ml-1.5 text-[0.9375rem] font-medium", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-hi)]")}>
@@ -863,7 +871,7 @@ export default function Schedule() {
                             />
                           ))}
                           {dayBlocks.length === 0 && (
-                            <div className="grid flex-1 place-items-center py-2 font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
+                            <div className="grid flex-1 place-items-center py-2 font-mono text-[0.59375rem] text-[var(--color-text-mid)]">
                               {canManage ? "Drop an investigator" : "—"}
                             </div>
                           )}
@@ -1032,7 +1040,7 @@ function AssignmentSlot({
       </span>
       <span className="min-w-0">
         <span className="block max-w-[9rem] truncate text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{block.case.subjectName}</span>
-        <span className="block truncate font-mono text-[0.625rem] text-[var(--color-text-lo)]">{block.case.caseNumber}</span>
+        <span className="block truncate font-mono text-[0.625rem] text-[var(--color-text-mid)]">{block.case.caseNumber}</span>
       </span>
     </div>
   );
@@ -1040,9 +1048,9 @@ function AssignmentSlot({
 
 function EmptySlot({ canManage }: { canManage: boolean }) {
   return (
-    <div className="flex w-full flex-1 flex-col items-center justify-center gap-1.5 rounded-[0.625rem] border border-dashed border-[var(--color-line)] p-2 text-center">
-      <Folder size={18} strokeWidth={1.6} className="text-[var(--color-text-lo)] opacity-60" />
-      <span className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">{canManage ? "Drop a case" : "—"}</span>
+    <div className="flex w-full flex-1 flex-col items-center justify-center gap-1.5 rounded-[0.625rem] border border-dashed border-[var(--color-line-2)] p-2 text-center">
+      <Folder size={18} strokeWidth={1.6} className="text-[var(--color-text-mid)] opacity-80" />
+      <span className="font-mono text-[0.59375rem] text-[var(--color-text-mid)]">{canManage ? "Drop a case" : "—"}</span>
     </div>
   );
 }
