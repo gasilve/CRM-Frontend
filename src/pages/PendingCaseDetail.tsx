@@ -111,7 +111,10 @@ export default function PendingCaseDetail() {
 
   const kase = useMemo(() => (pendingCase ? proposalToCaseDetail(pendingCase) : null), [pendingCase]);
 
-  const loadFileBlob = useCallback((fileId: string) => pendingCasesApi.fileBlob(id!, fileId), [id]);
+  const loadFileBlob = useCallback(
+    (fileId: string, signal?: AbortSignal) => pendingCasesApi.fileBlob(id!, fileId, signal),
+    [id],
+  );
   const fileDownloadHref = useCallback((fileId: string) => fileDownloadUrl(pendingCaseFilePath(id!, fileId)), [id]);
 
   const accept = async (payload: AcceptPendingCasePayload) => {

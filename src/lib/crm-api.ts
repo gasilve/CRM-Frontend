@@ -60,8 +60,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
  * URL so the session cookie is always attached, regardless of how the browser
  * treats credentials on subresource requests.
  */
-async function requestBlob(path: string): Promise<Blob> {
-  const res = await fetch(`${CRM_API_URL}${path}`, { cache: "no-store", credentials: "include" });
+async function requestBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+  const res = await fetch(`${CRM_API_URL}${path}`, { cache: "no-store", credentials: "include", signal });
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
     try {
@@ -671,7 +671,7 @@ export const casesApi = {
     request<null>(`/cases/${id}/vehicles/${vehicleId}`, { method: "DELETE" }),
 
   listFiles: (id: string) => request<{ files: CaseFile[] }>(`/cases/${id}/files`),
-  fileBlob: (id: string, fileId: string) => requestBlob(caseFilePath(id, fileId)),
+  fileBlob: (id: string, fileId: string, signal?: AbortSignal) => requestBlob(caseFilePath(id, fileId), signal),
 
   assign: (id: string, userId: string, role = "investigator") =>
     request<{ assignment: CaseAssignment }>(`/cases/${id}/assignments`, {
@@ -912,7 +912,7 @@ export const pendingCasesApi = {
     }),
   retryFiles: (id: string) =>
     request<{ pendingCase: PendingCaseDetail }>(`/pending-cases/${id}/retry-files`, { method: "POST" }),
-  fileBlob: (id: string, fileId: string) => requestBlob(pendingCaseFilePath(id, fileId)),
+  fileBlob: (id: string, fileId: string, signal?: AbortSignal) => requestBlob(pendingCaseFilePath(id, fileId), signal),
 };
 
 export const clientsApi = {

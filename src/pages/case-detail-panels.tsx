@@ -614,7 +614,8 @@ export function CaseFilesPanel({ ctx }: { ctx: CasePanelCtx }) {
   const ctxLoadBlob = ctx.loadFileBlob;
   const ctxHref = ctx.fileDownloadHref;
   const loadBlob = useCallback(
-    (fileId: string) => (ctxLoadBlob ? ctxLoadBlob(fileId) : casesApi.fileBlob(c.id, fileId)),
+    (fileId: string, signal?: AbortSignal) =>
+      ctxLoadBlob ? ctxLoadBlob(fileId, signal) : casesApi.fileBlob(c.id, fileId, signal),
     [c.id, ctxLoadBlob],
   );
   const downloadUrl = useCallback(
@@ -637,35 +638,51 @@ export function CaseFilesPanel({ ctx }: { ctx: CasePanelCtx }) {
       }
     >
       {files.length === 0 ? (
-        <div className="grid h-full place-items-center">
-          <span className="font-mono text-[0.71875rem] text-[var(--color-text-lo)]">No documents on this case.</span>
+        <div className="grid h-full place-items-center px-4">
+          <div className="text-center">
+            <Paperclip size={18} className="mx-auto text-[var(--color-text-lo)]" strokeWidth={1.6} />
+            <p className="mt-2 font-[family-name:var(--font-display)] text-[1.05rem] italic text-[var(--color-text-mid)]">
+              No documents yet
+            </p>
+            <p className="mt-1 font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+              Attachments appear after ingest
+            </p>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
-          {files.map((file) => (
-            <button
-              key={file.id}
-              type="button"
-              onClick={() => setViewing(file.id)}
-              className="group flex items-center gap-2.5 rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]/40 px-2.5 py-2 text-left transition-colors hover:border-[var(--color-accent)]"
-            >
-              <FileText
-                size={14}
-                strokeWidth={1.8}
-                className={file.storageKey ? "shrink-0 text-[var(--color-text-mid)]" : "shrink-0 text-[var(--color-text-lo)]"}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-mono text-[0.6875rem] text-[var(--color-text-hi)]">{file.filename}</div>
-                <div className="font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-                  {file.storageKey ? `${fmtFileSize(file.sizeBytes)} · ${file.storage}` : "listed, not stored"}
+          {files.map((file) => {
+            const stored = Boolean(file.storageKey);
+            return (
+              <button
+                key={file.id}
+                type="button"
+                onClick={() => setViewing(file.id)}
+                className="group flex items-center gap-2.5 rounded-[var(--radius-tile)] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]/40 px-2.5 py-2 text-left transition-colors hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-soft)]/40"
+              >
+                <span
+                  className={cn(
+                    "grid h-7 w-7 shrink-0 place-items-center rounded-[0.5rem] border",
+                    stored
+                      ? "border-[var(--color-accent)]/30 bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]"
+                      : "border-[var(--color-line-2)] text-[var(--color-text-lo)]",
+                  )}
+                >
+                  <FileText size={13} strokeWidth={1.8} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-mono text-[0.6875rem] text-[var(--color-text-hi)]">{file.filename}</div>
+                  <div className="font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+                    {stored ? `${fmtFileSize(file.sizeBytes)} · ${file.storage}` : "listed, not stored"}
+                  </div>
                 </div>
-              </div>
-              <Eye
-                size={13}
-                className="shrink-0 text-[var(--color-text-lo)] opacity-0 transition-opacity group-hover:opacity-100"
-              />
-            </button>
-          ))}
+                <Eye
+                  size={13}
+                  className="shrink-0 text-[var(--color-text-lo)] opacity-0 transition-opacity group-hover:opacity-100"
+                />
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -1060,7 +1077,8 @@ function PresurveillanceFolder({ ctx }: { ctx: CasePanelCtx }) {
   const ctxLoadBlob = ctx.loadFileBlob;
   const ctxHref = ctx.fileDownloadHref;
   const loadBlob = useCallback(
-    (fileId: string) => (ctxLoadBlob ? ctxLoadBlob(fileId) : casesApi.fileBlob(c.id, fileId)),
+    (fileId: string, signal?: AbortSignal) =>
+      ctxLoadBlob ? ctxLoadBlob(fileId, signal) : casesApi.fileBlob(c.id, fileId, signal),
     [c.id, ctxLoadBlob],
   );
   const downloadUrl = useCallback(
