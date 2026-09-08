@@ -2,10 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowUpRight, Briefcase, Cake, CalendarDays, ChevronLeft, ChevronRight,
-  Droplets, GripVertical, Info, Loader2, MapPin, Search, Trash2, Users, Wind, X,
+  Droplets, Folder, GripVertical, Info, Loader2, MapPin, Search, Trash2, User, Users, Wind, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { getInitials } from "@/lib/format";
 import { useAuth } from "@/contexts/AuthContext";
 import { ViewToggle, ViewToggleGroup } from "@/components/ui/ViewToggle";
 import { weatherIcon, weatherColor, conditionLabel } from "@/components/cases/WeatherStrip";
@@ -73,6 +72,19 @@ type Mode = "investigators" | "cases";
 type DragPayload = { kind: "add"; otherId: string } | { kind: "block"; block: ScheduleBlock };
 
 const MODE_LS_KEY = "accenty.crm.schedule.mode";
+
+// Investigators = person icon / blue. Cases = folder icon / amber.
+const INVESTIGATOR_BG = "linear-gradient(135deg,#4a7fff,#7aa1ff)";
+const CASE_BG = "linear-gradient(135deg,#f59e0b,#fbbf24)";
+
+/** Always-translucent glass look for the schedule's big panels — independent
+ * of the app-wide glass theme toggle, which leaves `.surface` fully opaque. */
+const glassPanel: React.CSSProperties = {
+  background:
+    "linear-gradient(145deg, rgb(from var(--color-accent-2) r g b / 0.07), rgb(from var(--color-ink-2) r g b / 0.4) 55%, rgb(from var(--color-accent) r g b / 0.07))",
+  backdropFilter: "blur(1rem) saturate(1.4)",
+  WebkitBackdropFilter: "blur(1rem) saturate(1.4)",
+};
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -234,9 +246,12 @@ export default function Schedule() {
     return map;
   }, [blocks]);
 
-  // Weather group for the day markers: selected entity's region, else the filter.
+  // Weather group for the day markers: selected entity's region, else fall back to
+  // wherever their assigned cases actually are, else the region filter.
   const weatherRegion: Region | null =
-    (mode === "investigators" ? selectedUser?.region : selectedCase?.region) ?? (region !== "all" ? region : null);
+    (mode === "investigators"
+      ? selectedUser?.region ?? (blocks ?? []).find((b) => b.case.region)?.case.region ?? null
+      : selectedCase?.region) ?? (region !== "all" ? region : null);
   const weatherDays = useMemo(() => {
     if (!weatherRegion) return new Map<string, WeatherDay>();
     const group = weekWeather.find((g) => g.group === weatherRegion);
@@ -312,18 +327,25 @@ export default function Schedule() {
     const caseId = mode === "investigators" ? otherId : selectedId;
     const userId = mode === "investigators" ? selectedId : otherId;
 
-    const duplicate = (blocks ?? []).some((b) =>
-      mode === "investigators"
-        ? b.caseId === otherId && b.date.slice(0, 10) === dateIso
-        : b.userId === otherId && b.date.slice(0, 10) === dateIso,
-    );
-    if (duplicate) {
-      const label =
-        mode === "investigators"
-          ? cases.find((c) => c.id === otherId)?.caseNumber ?? "That case"
-          : investigators.find((i) => i.id === otherId)?.name ?? "That investigator";
-      showToast(`${label} is already assigned on that day.`);
-      return;
+    // Investigators only ever hold one slot per day — any existing block that day
+    // (for any case) blocks a new one. Cases can have several investigators per day.
+    if (mode === "investigators") {
+      const existing = (blocks ?? []).find((b) => b.date.slice(0, 10) === dateIso);
+      if (existing) {
+        showToast(
+          existing.caseId === otherId
+            ? `${existing.case.caseNumber} is already assigned on that day.`
+            : `Already assigned to ${existing.case.caseNumber} that day — remove it first.`,
+        );
+        return;
+      }
+    } else {
+      const duplicate = (blocks ?? []).some((b) => b.userId === otherId && b.date.slice(0, 10) === dateIso);
+      if (duplicate) {
+        const label = investigators.find((i) => i.id === otherId)?.name ?? "That investigator";
+        showToast(`${label} is already assigned on that day.`);
+        return;
+      }
     }
 
     const kase = cases.find((c) => c.id === caseId);
@@ -373,11 +395,13 @@ export default function Schedule() {
   /** Drag an existing chip to another day → move it. */
   const moveBlock = async (block: ScheduleBlock, dateIso: string) => {
     if (block.date.slice(0, 10) === dateIso) return;
+    // Investigator-mode blocks are already scoped to one investigator, so any other
+    // block on the target date is a clash, regardless of case.
     const duplicate = (blocks ?? []).some(
       (b) =>
         b.id !== block.id &&
         b.date.slice(0, 10) === dateIso &&
-        (mode === "investigators" ? b.caseId === block.caseId : b.userId === block.userId),
+        (mode === "investigators" ? true : b.userId === block.userId),
     );
     if (duplicate) {
       showToast(`${block.case.caseNumber} is already assigned on that day.`);
@@ -453,7 +477,7 @@ export default function Schedule() {
 
   const dayInfoMeta = dayInfo ? dayMeta(new Date(`${dayInfo}T00:00:00`)) : null;
   const contextLabel =
-    mode === "investigators" ? selectedUser?.name ?? null : selectedCase ? `${selectedCase.caseNumber} · ${selectedCase.subjectName}` : null;
+    mode === "investigators" ? selectedUser?.name ?? null : selectedCase ? `${selectedCase.subjectName} · ${selectedCase.caseNumber}` : null;
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
@@ -577,7 +601,7 @@ export default function Schedule() {
             </button>
           )}
 
-          <div className="surface flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2">
+          <div className="surface flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2" style={glassPanel}>
             {mode === "investigators" ? (
               <>
                 {filteredInvestigators.map((inv) => {
@@ -595,10 +619,10 @@ export default function Schedule() {
                       )}
                     >
                       <span
-                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[0.625rem] font-medium text-white"
-                        style={{ background: "linear-gradient(135deg,#4a7fff,#7aa1ff)" }}
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white"
+                        style={{ background: INVESTIGATOR_BG }}
                       >
-                        {getInitials(inv.name)}
+                        <User size={15} strokeWidth={1.8} />
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{inv.name}</div>
@@ -631,12 +655,12 @@ export default function Schedule() {
                           : "border-transparent hover:border-[var(--color-line-2)]",
                       )}
                     >
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--color-ink-3)] font-mono text-[0.625rem] font-medium text-[var(--color-text-hi)]">
-                        {c.region ? REGION_LABELS[c.region].slice(0, 2).toUpperCase() : "—"}
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white" style={{ background: CASE_BG }}>
+                        <Folder size={15} strokeWidth={1.8} />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-mono text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{c.caseNumber}</div>
-                        <div className="mt-0.5 truncate text-[0.65625rem] text-[var(--color-text-lo)]">{c.subjectName}</div>
+                        <div className="truncate text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{c.subjectName}</div>
+                        <div className="mt-0.5 truncate font-mono text-[0.65625rem] text-[var(--color-text-lo)]">{c.caseNumber}</div>
                       </div>
                     </button>
                   );
@@ -679,6 +703,7 @@ export default function Schedule() {
                 "surface flex shrink-0 items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
                 !selectedId && "opacity-70",
               )}
+              style={glassPanel}
             >
               <span className="shrink-0 pr-1 font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">
                 {selectedId ? "Drag onto the board ↓" : mode === "investigators" ? "Cases" : "Investigators"}
@@ -709,13 +734,13 @@ export default function Schedule() {
                         style={matched ? { background: "rgb(from #4ade80 r g b / 0.08)" } : undefined}
                       >
                         {draggable && <GripVertical size={11} strokeWidth={1.8} className="-mr-0.5 text-[var(--color-text-lo)]" />}
-                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--color-ink-3)] font-mono text-[0.5rem] font-medium text-[var(--color-text-hi)]">
-                          {c.region ? REGION_LABELS[c.region].slice(0, 2).toUpperCase() : "—"}
+                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-white" style={{ background: CASE_BG }}>
+                          <Folder size={12} strokeWidth={1.8} />
                         </span>
                         <span className="leading-tight">
-                          <span className="block whitespace-nowrap font-mono text-[0.6875rem] font-medium text-[var(--color-text-hi)]">{c.caseNumber}</span>
-                          <span className={cn("block max-w-[8rem] truncate text-[0.5625rem]", matched ? "text-[#4ade80]" : "text-[var(--color-text-lo)]")}>
-                            {c.subjectName}
+                          <span className="block whitespace-nowrap text-[0.6875rem] font-medium text-[var(--color-text-hi)]">{c.subjectName}</span>
+                          <span className={cn("block max-w-[8rem] truncate font-mono text-[0.5625rem]", matched ? "text-[#4ade80]" : "text-[var(--color-text-lo)]")}>
+                            {c.caseNumber}
                             {matched && " · match"}
                           </span>
                         </span>
@@ -748,10 +773,10 @@ export default function Schedule() {
                       >
                         {draggable && <GripVertical size={11} strokeWidth={1.8} className="-mr-0.5 text-[var(--color-text-lo)]" />}
                         <span
-                          className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[0.5rem] font-medium text-white"
-                          style={{ background: "linear-gradient(135deg,#4a7fff,#7aa1ff)" }}
+                          className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-white"
+                          style={{ background: INVESTIGATOR_BG }}
                         >
-                          {getInitials(inv.name)}
+                          <User size={12} strokeWidth={1.8} />
                         </span>
                         <span className="leading-tight">
                           <span className="block max-w-[8rem] truncate text-[0.6875rem] font-medium text-[var(--color-text-hi)]">{inv.name}</span>
@@ -772,12 +797,15 @@ export default function Schedule() {
           )}
 
           {/* Day board — one consistent week grid for both modes, glass surface */}
-          <div className="surface min-h-0 flex-1 overflow-hidden">
+          <div className="surface min-h-0 flex-1 overflow-hidden" style={glassPanel}>
             <div className="grid h-full auto-rows-fr grid-cols-7">
               {days.map((d) => {
                 const meta = dayMeta(d);
                 const dayBlocks = blocksByDay.get(meta.iso) ?? [];
                 const isOver = canDrop && dragOverIso === meta.iso;
+                // One slot per day for investigators — fall back to the compact list only
+                // if legacy data somehow left more than one block on the same day.
+                const singleSlot = mode === "investigators" && dayBlocks.length <= 1;
                 return (
                   <div key={meta.iso} className="flex min-h-0 flex-col border-l border-[var(--color-line)] first:border-l-0">
                     <div
@@ -788,14 +816,14 @@ export default function Schedule() {
                         if (e.key === "Enter" || e.key === " ") setDayInfo(meta.iso);
                       }}
                       title="Day details"
-                      className="flex shrink-0 cursor-pointer items-center justify-between gap-1 border-b border-[var(--color-line)] px-2 py-1.5 transition-colors"
+                      className="flex shrink-0 cursor-pointer items-center justify-between gap-1 border-b border-[var(--color-line)] px-2.5 py-2.5 transition-colors"
                       style={{ background: meta.isToday ? "rgb(from var(--color-accent) r g b / 0.16)" : undefined }}
                     >
                       <div className="leading-tight">
-                        <span className={cn("font-mono text-[0.5625rem] uppercase tracking-wider", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-lo)]")}>
+                        <span className={cn("font-mono text-[0.625rem] uppercase tracking-wider", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-lo)]")}>
                           {d.toLocaleDateString(undefined, { weekday: "short" })}
                         </span>
-                        <span className={cn("ml-1 text-[0.8125rem] font-medium", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-hi)]")}>
+                        <span className={cn("ml-1.5 text-[0.9375rem] font-medium", meta.isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-hi)]")}>
                           {d.getDate()}
                         </span>
                       </div>
@@ -804,7 +832,10 @@ export default function Schedule() {
 
                     <div
                       {...dropHandlersFor(meta.iso)}
-                      className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-1.5 transition-colors"
+                      className={cn(
+                        "flex min-h-0 flex-1 p-1.5 transition-colors",
+                        singleSlot ? "flex-col" : "flex-col gap-1.5 overflow-y-auto",
+                      )}
                       style={{
                         background: isOver
                           ? "rgb(from var(--color-accent) r g b / 0.22)"
@@ -818,6 +849,12 @@ export default function Schedule() {
                         <div className="grid flex-1 place-items-center">
                           <Loader2 size={14} className="animate-spin text-[var(--color-text-lo)]" />
                         </div>
+                      ) : singleSlot ? (
+                        dayBlocks[0] ? (
+                          <AssignmentSlot block={dayBlocks[0]} {...chipDragHandlers(dayBlocks[0])} canManage={canManage} />
+                        ) : (
+                          <EmptySlot canManage={canManage} />
+                        )
                       ) : (
                         <>
                           {dayBlocks.map((b) => (
@@ -831,7 +868,7 @@ export default function Schedule() {
                           ))}
                           {dayBlocks.length === 0 && (
                             <div className="grid flex-1 place-items-center py-2 font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
-                              {canManage ? (mode === "investigators" ? "Drop a case" : "Drop an investigator") : "—"}
+                              {canManage ? "Drop an investigator" : "—"}
                             </div>
                           )}
                         </>
@@ -927,9 +964,9 @@ function AssignmentChip({
   onContextMenu: (e: React.MouseEvent) => void;
 }) {
   const isTemp = block.id.startsWith("temp-");
-  const primary = variant === "case" ? block.case.caseNumber : block.user.name;
-  const secondary = variant === "case" ? block.case.subjectName : block.user.region ? REGION_LABELS[block.user.region] : "No region";
-  const badge = variant === "case" ? block.case.caseNumber.slice(-2) : getInitials(block.user.name);
+  const isCase = variant === "case";
+  const primary = isCase ? block.case.subjectName : block.user.name;
+  const secondary = isCase ? block.case.caseNumber : block.user.region ? REGION_LABELS[block.user.region] : "No region";
   return (
     <div
       draggable={draggable}
@@ -937,21 +974,79 @@ function AssignmentChip({
       onDragEnd={onDragEnd}
       onClick={onClick}
       onContextMenu={onContextMenu}
-      title={`${block.case.caseNumber} · ${block.case.subjectName} · ${block.user.name}${block.notes ? `\n${block.notes}` : ""}${canManage ? "\nClick to edit · drag to move · right-click to remove" : ""}`}
+      title={`${block.case.subjectName} · ${block.case.caseNumber} · ${block.user.name}${block.notes ? `\n${block.notes}` : ""}${canManage ? "\nClick to edit · drag to move · right-click to remove" : ""}`}
       className={cn(
-        "flex w-full items-center gap-1.5 rounded-[0.4375rem] border border-[rgba(74,127,255,0.4)] px-1.5 py-1 text-left leading-tight transition-colors",
+        "flex w-full items-center gap-2 rounded-[0.5rem] border border-[rgba(74,127,255,0.4)] px-2 py-1.5 text-left leading-tight transition-colors",
         canManage && !isTemp && "cursor-grab active:cursor-grabbing",
         isTemp && "opacity-60",
       )}
       style={{ background: "rgb(from var(--color-accent) r g b / 0.28)" }}
     >
-      <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-[var(--color-accent)] text-[0.4375rem] font-medium text-white">
-        {badge}
+      <span
+        className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-white"
+        style={{ background: isCase ? CASE_BG : INVESTIGATOR_BG }}
+      >
+        {isCase ? <Folder size={12} strokeWidth={1.8} /> : <User size={12} strokeWidth={1.8} />}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-mono text-[0.625rem] font-medium text-[var(--color-text-hi)]">{primary}</span>
-        <span className="block truncate text-[0.5625rem] text-[var(--color-text-mid)]">{secondary}</span>
+        <span className="block truncate text-[0.75rem] font-medium text-[var(--color-text-hi)]">{primary}</span>
+        <span className={cn("block truncate text-[0.625rem] text-[var(--color-text-mid)]", isCase && "font-mono")}>{secondary}</span>
       </span>
+    </div>
+  );
+}
+
+// ─── Assignment slot (investigator mode — one per day, filled or empty) ───────
+
+function AssignmentSlot({
+  block,
+  canManage,
+  draggable,
+  onDragStart,
+  onDragEnd,
+  onClick,
+  onContextMenu,
+}: {
+  block: ScheduleBlock;
+  canManage: boolean;
+  draggable: boolean;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  onClick: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+}) {
+  const isTemp = block.id.startsWith("temp-");
+  return (
+    <div
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      title={`${block.case.subjectName} · ${block.case.caseNumber}${block.notes ? `\n${block.notes}` : ""}${canManage ? "\nClick to edit · drag to move · right-click to remove" : ""}`}
+      className={cn(
+        "flex w-full flex-1 flex-col items-center justify-center gap-2 rounded-[0.625rem] border border-[rgba(245,158,11,0.4)] p-2 text-center transition-colors",
+        canManage && !isTemp && "cursor-grab active:cursor-grabbing",
+        isTemp && "opacity-60",
+      )}
+      style={{ background: "rgb(from #f59e0b r g b / 0.16)" }}
+    >
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white" style={{ background: CASE_BG }}>
+        <Folder size={17} strokeWidth={1.8} />
+      </span>
+      <span className="min-w-0">
+        <span className="block max-w-[9rem] truncate text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{block.case.subjectName}</span>
+        <span className="block truncate font-mono text-[0.625rem] text-[var(--color-text-lo)]">{block.case.caseNumber}</span>
+      </span>
+    </div>
+  );
+}
+
+function EmptySlot({ canManage }: { canManage: boolean }) {
+  return (
+    <div className="flex w-full flex-1 flex-col items-center justify-center gap-1.5 rounded-[0.625rem] border border-dashed border-[var(--color-line)] p-2 text-center">
+      <Folder size={18} strokeWidth={1.6} className="text-[var(--color-text-lo)] opacity-60" />
+      <span className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">{canManage ? "Drop a case" : "—"}</span>
     </div>
   );
 }
@@ -1145,9 +1240,9 @@ function AssignmentModal({
         <div className="surface anim-modal flex flex-col gap-4 rounded-[0.875rem] p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="editorial text-[1.25rem] leading-tight text-[var(--color-text-hi)]">{block.case.caseNumber}</h2>
+              <h2 className="editorial text-[1.25rem] leading-tight text-[var(--color-text-hi)]">{block.case.subjectName}</h2>
               <p className="mt-0.5 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
-                {block.case.subjectName} · {dateLabel} · {block.user.name}
+                {block.case.caseNumber} · {dateLabel} · {block.user.name}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -1167,7 +1262,7 @@ function AssignmentModal({
 
           {othersThatDay.length > 0 && (
             <div className="rounded-[0.5rem] border border-[rgba(251,146,60,0.3)] bg-[rgba(251,146,60,0.07)] px-3 py-2 text-[0.6875rem] text-[#fb923c]">
-              Also assigned that day: {othersThatDay.map((b) => `${b.case.caseNumber} (${b.case.subjectName})`).join(", ")}.
+              Also assigned that day: {othersThatDay.map((b) => `${b.user.name} — ${b.case.subjectName} (${b.case.caseNumber})`).join(", ")}.
             </div>
           )}
 
