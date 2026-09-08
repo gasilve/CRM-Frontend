@@ -2,8 +2,9 @@
  * Full-screen document previewer — editorial chrome matching the CRM shell.
  *
  * Bytes are pulled with `fetch` (session cookie rides along) and rendered from
- * the *response* content type: missing attachments come back as placeholder
- * artwork and should display as images even when the row still says PDF.
+ * the *response* content type. Non-previewable types (docx, etc.) never go into
+ * an iframe — browsers treat that as a download, which is what was popping a
+ * save dialog when switching files.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -44,6 +45,8 @@ type Props = {
   downloadUrl: (fileId: string) => string;
 };
 
+type Kind = "pdf" | "image" | "text" | "other";
+
 const fmtBytes = (bytes: number | null): string => {
   if (bytes === null) return "—";
   if (bytes < 1024) return `${bytes} B`;
@@ -56,7 +59,7 @@ const extOf = (name: string): string => {
   return i >= 0 ? name.slice(i + 1).toLowerCase() : "";
 };
 
-const kindFrom = (file: ViewerFile, responseType?: string): "pdf" | "image" | "text" | "other" => {
+const kindFrom = (file: ViewerFile, responseType?: string): Kind => {
   const type = (responseType || file.contentType || "").toLowerCase();
   const ext = extOf(file.filename);
   if (type.includes("pdf") || ext === "pdf") return "pdf";
@@ -67,14 +70,34 @@ const kindFrom = (file: ViewerFile, responseType?: string): "pdf" | "image" | "t
   return "other";
 };
 
-const FileKindIcon = ({ kind, className }: { kind: ReturnType<typeof kindFrom>; className?: string }) => {
+/** True when the browser can render this inline — never iframe anything else. */
+const isPreviewable = (kind: Kind, type: string): boolean => {
+  if (kind === "pdf") return type.includes("pdf") || type === "application/octet-stream" || !type;
+  if (kind === "image") return type.startsWith("image/") || type === "application/octet-stream" || !type;
+  if (kind === "text") return type.startsWith("text/") || type.includes("json") || type === "application/octet-stream" || !type;
+  return false;
+};
+
+const FileKindIcon = ({ kind, className }: { kind: Kind; className?: string }) => {
   if (kind === "pdf") return <FileText size={14} strokeWidth={1.8} className={className} />;
   if (kind === "image") return <FileImage size={14} strokeWidth={1.8} className={className} />;
   if (kind === "text") return <File size={14} strokeWidth={1.8} className={className} />;
   return <FileWarning size={14} strokeWidth={1.8} className={className} />;
 };
 
-type Cached = { url: string; type: string; text: string | null; blob: Blob };
+type Cached = { url: string; type: string; text: string | null; blob: Blob; kind: Kind };
+
+const triggerDownload = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+};
 
 export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob, downloadUrl }: Props) {
   const [activeId, setActiveId] = useState<string | null>(initialFileId ?? files[0]?.id ?? null);
@@ -83,11 +106,11 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [reloadToken, setReloadToken] = useState(0);
+  const [downloading, setDownloading] = useState(false);
   const cacheRef = useRef(new Map<string, Cached>());
 
   const index = useMemo(() => files.findIndex((f) => f.id === activeId), [files, activeId]);
   const active = index >= 0 ? files[index] : null;
-  const storedCount = useMemo(() => files.filter((f) => f.storageKey).length, [files]);
 
   useEffect(() => {
     if (open) {
@@ -96,7 +119,6 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
     }
   }, [open, initialFileId, files]);
 
-  // Drop object URLs when the modal closes so we don't leak blobs across cases.
   useEffect(() => {
     if (open) return;
     for (const entry of cacheRef.current.values()) URL.revokeObjectURL(entry.url);
@@ -106,19 +128,23 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
     setLoading(false);
   }, [open]);
 
-  const materialize = useCallback(async (fileId: string, blob: Blob): Promise<Cached> => {
-    const existing = cacheRef.current.get(fileId);
+  const materialize = useCallback(async (file: ViewerFile, blob: Blob): Promise<Cached> => {
+    const existing = cacheRef.current.get(file.id);
     if (existing) return existing;
-    const type = blob.type || "application/octet-stream";
-    const text = type.startsWith("text/") || type.includes("json") ? await blob.text() : null;
-    const url = URL.createObjectURL(blob);
-    const entry: Cached = { url, type, text, blob };
-    cacheRef.current.set(fileId, entry);
+    const type = blob.type || file.contentType || "application/octet-stream";
+    const kind = kindFrom(file, type);
+    const text =
+      kind === "text" && isPreviewable(kind, type) ? await blob.text() : null;
+    // Only mint an object URL when something will actually render it — putting
+    // a .docx blob URL into an iframe is what triggered the save dialog.
+    const url = isPreviewable(kind, type) ? URL.createObjectURL(blob) : "";
+    const entry: Cached = { url, type, text, blob, kind };
+    cacheRef.current.set(file.id, entry);
     return entry;
   }, []);
 
   useEffect(() => {
-    if (!open || !activeId) return;
+    if (!open || !activeId || !active) return;
 
     const cached = cacheRef.current.get(activeId);
     if (cached && reloadToken === 0) {
@@ -128,7 +154,11 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
       return;
     }
 
-    if (reloadToken > 0) cacheRef.current.delete(activeId);
+    if (reloadToken > 0) {
+      const stale = cacheRef.current.get(activeId);
+      if (stale?.url) URL.revokeObjectURL(stale.url);
+      cacheRef.current.delete(activeId);
+    }
 
     const controller = new AbortController();
     setLoading(true);
@@ -137,9 +167,10 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
     setZoom(1);
 
     const timeout = window.setTimeout(() => controller.abort(), 90_000);
+    const file = active;
 
     loadBlob(activeId, controller.signal)
-      .then((blob) => materialize(activeId, blob))
+      .then((blob) => materialize(file, blob))
       .then((entry) => {
         if (!controller.signal.aborted) {
           setLoaded(entry);
@@ -166,17 +197,19 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [open, activeId, loadBlob, materialize, reloadToken]);
+  }, [open, activeId, active, loadBlob, materialize, reloadToken]);
 
-  // Prefetch neighbours while the current file is on screen.
+  // Prefetch neighbours — but only previewable ones, so we never mint a blob
+  // URL that Chrome would treat as a download if it leaked into an iframe.
   useEffect(() => {
     if (!open || index < 0 || files.length < 2) return;
     const neighbours = [files[index - 1], files[index + 1]].filter(Boolean) as ViewerFile[];
     for (const neighbour of neighbours) {
       if (cacheRef.current.has(neighbour.id) || !neighbour.storageKey) continue;
+      if (kindFrom(neighbour) === "other") continue;
       const controller = new AbortController();
       void loadBlob(neighbour.id, controller.signal)
-        .then((blob) => materialize(neighbour.id, blob))
+        .then((blob) => materialize(neighbour, blob))
         .catch(() => {
           /* prefetch is best-effort */
         });
@@ -192,6 +225,21 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
     },
     [files, index],
   );
+
+  const downloadActive = useCallback(async () => {
+    if (!active) return;
+    setDownloading(true);
+    try {
+      const cached = cacheRef.current.get(active.id);
+      const blob = cached?.blob ?? (await loadBlob(active.id));
+      triggerDownload(blob, active.filename);
+    } catch {
+      // Fall back to the authenticated download URL if blob fetch fails.
+      window.location.assign(downloadUrl(active.id));
+    } finally {
+      setDownloading(false);
+    }
+  }, [active, loadBlob, downloadUrl]);
 
   useEffect(() => {
     if (!open) return;
@@ -209,9 +257,14 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
 
   if (!open || !active) return null;
 
-  const responseKind = kindFrom(active, loaded?.type);
+  const responseKind = loaded?.kind ?? kindFrom(active);
   const isPlaceholder = loaded?.type === "image/svg+xml" && !active.storageKey;
   const notStored = !active.storageKey;
+  const canPreview =
+    !notStored &&
+    !isPlaceholder &&
+    loaded != null &&
+    isPreviewable(loaded.kind, loaded.type);
 
   return createPortal(
     <div
@@ -220,45 +273,47 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
       aria-modal="true"
       aria-label={`Preview of ${active.filename}`}
     >
-      <header className="relative shrink-0 border-b border-[var(--color-line)] bg-[var(--color-ink-1)]/90 px-4 py-3 md:px-5">
+      <header className="relative shrink-0 border-b border-[var(--color-line)] bg-[var(--color-ink-1)]/90 px-4 py-2.5 md:px-5">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--color-accent-glow)] to-transparent opacity-70" />
-        <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius-tile)] border border-[var(--color-line-2)] bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]">
+        <div className="flex items-center gap-2.5">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-tile)] border border-[var(--color-line-2)] bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]">
             <FileKindIcon kind={responseKind} />
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="eyebrow text-[var(--color-text-lo)]">Case documents</div>
-            <div className="truncate font-[family-name:var(--font-display)] text-[1.15rem] italic leading-tight text-[var(--color-text-hi)]">
+            <div
+              className="truncate font-[family-name:var(--font-display)] text-[1.05rem] italic leading-tight text-[var(--color-text-hi)]"
+              title={active.filename}
+            >
               {active.filename}
             </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
               <span>{fmtBytes(active.sizeBytes)}</span>
-              <span aria-hidden>·</span>
-              <StorageChip file={active} placeholder={isPlaceholder} />
               {files.length > 1 && (
                 <>
                   <span aria-hidden>·</span>
                   <span>
-                    {index + 1} of {files.length}
+                    {index + 1} / {files.length}
                   </span>
+                </>
+              )}
+              {(notStored || isPlaceholder) && (
+                <>
                   <span aria-hidden>·</span>
-                  <span>
-                    {storedCount}/{files.length} stored
-                  </span>
+                  <span className="text-[var(--color-warn)]">Not stored</span>
                 </>
               )}
             </div>
           </div>
 
-          {responseKind === "image" && !notStored && (
-            <div className="hidden items-center gap-1 sm:flex">
+          {responseKind === "image" && canPreview && (
+            <div className="hidden items-center gap-0.5 sm:flex">
               <IconButton label="Zoom out" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}>
                 <Minus size={14} />
               </IconButton>
               <button
                 type="button"
-                className="min-w-[3rem] rounded-[0.5rem] px-1.5 py-1 font-mono text-[0.625rem] text-[var(--color-text-mid)] hover:bg-white/[0.05]"
+                className="min-w-[2.75rem] rounded-[0.5rem] px-1 py-1 font-mono text-[0.5625rem] text-[var(--color-text-mid)] hover:bg-white/[0.05]"
                 onClick={() => setZoom(1)}
                 title="Reset zoom"
               >
@@ -271,7 +326,7 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
           )}
 
           {files.length > 1 && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <IconButton label="Previous file" onClick={() => step(-1)}>
                 <ChevronLeft size={16} />
               </IconButton>
@@ -281,14 +336,13 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
             </div>
           )}
 
-          <a
-            href={downloadUrl(active.id)}
-            download={active.filename}
-            className="dashboard-modal-btn dashboard-modal-btn--primary inline-flex items-center gap-1.5 !py-1.5 !text-[0.71875rem]"
+          <IconButton
+            label={downloading ? "Downloading…" : "Download"}
+            onClick={() => void downloadActive()}
+            disabled={downloading || notStored}
           >
-            <Download size={13} />
-            Download
-          </a>
+            <Download size={15} />
+          </IconButton>
 
           <IconButton label="Close preview" onClick={onClose}>
             <X size={16} />
@@ -298,7 +352,7 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
 
       <div className="flex min-h-0 flex-1">
         {files.length > 1 && (
-          <nav className="hidden w-64 shrink-0 overflow-y-auto border-r border-[var(--color-line)] bg-[var(--color-ink-1)]/55 p-2.5 md:block">
+          <nav className="hidden w-72 shrink-0 overflow-y-auto border-r border-[var(--color-line)] bg-[var(--color-ink-1)]/55 p-2.5 md:block">
             <div className="eyebrow mb-2 px-1.5 text-[var(--color-text-lo)]">Files</div>
             <div className="anim-stagger-tight flex flex-col gap-1">
               {files.map((file) => {
@@ -308,6 +362,7 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
                   <button
                     key={file.id}
                     type="button"
+                    title={file.filename}
                     onClick={() => {
                       setActiveId(file.id);
                       setZoom(1);
@@ -329,14 +384,14 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
                     <span className="min-w-0 flex-1">
                       <span
                         className={cn(
-                          "block truncate font-mono text-[0.6875rem]",
+                          "block break-all font-mono text-[0.6875rem] leading-snug",
                           selected ? "text-[var(--color-text-hi)]" : "text-[var(--color-text-mid)]",
                         )}
                       >
                         {file.filename}
                       </span>
                       <span className="mt-0.5 block font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-                        {file.storageKey ? fmtBytes(file.sizeBytes) : "not stored"}
+                        {file.storageKey ? `${fmtBytes(file.sizeBytes)} · ${extOf(file.filename) || "file"}` : "not stored"}
                       </span>
                     </span>
                   </button>
@@ -347,14 +402,11 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
         )}
 
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4 md:p-6">
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3 md:p-5">
             {loading && (
               <div className="flex flex-col items-center gap-3" role="status" aria-live="polite" aria-busy="true">
                 <BeamLoader className="w-44" />
                 <LoadingCaption>Loading document</LoadingCaption>
-                <p className="font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-                  {fmtBytes(active.sizeBytes)}
-                </p>
               </div>
             )}
 
@@ -380,16 +432,18 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
               <Preview
                 loaded={loaded}
                 filename={active.filename}
-                kind={responseKind}
                 zoom={zoom}
                 notStored={notStored || isPlaceholder}
                 reason={active.error}
+                canPreview={canPreview}
+                onDownload={() => void downloadActive()}
+                downloading={downloading}
               />
             )}
           </div>
 
-          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--color-line)] bg-[var(--color-ink-1)]/70 px-4 py-2 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-            <span className="hidden sm:inline">Esc close · ← → navigate · − + zoom</span>
+          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--color-line)] bg-[var(--color-ink-1)]/70 px-4 py-1.5 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+            <span className="hidden sm:inline">Esc · ← → · − +</span>
             <span className="truncate sm:hidden">{active.filename}</span>
             <span className="shrink-0">{extOf(active.filename) || "file"}</span>
           </footer>
@@ -400,47 +454,36 @@ export function FileViewerModal({ open, files, initialFileId, onClose, loadBlob,
   );
 }
 
-function StorageChip({ file, placeholder }: { file: ViewerFile; placeholder: boolean }) {
-  if (!file.storageKey || placeholder) {
-    return (
-      <span className="rounded-full border border-[var(--color-warn)]/35 bg-[var(--color-warn)]/10 px-1.5 py-0.5 text-[var(--color-warn)]">
-        Not stored
-      </span>
-    );
-  }
-  return (
-    <span className="rounded-full border border-[var(--color-pos)]/30 bg-[var(--color-pos)]/10 px-1.5 py-0.5 text-[var(--color-pos)]">
-      {file.storage}
-    </span>
-  );
-}
-
 function Preview({
   loaded,
   filename,
-  kind,
   zoom,
   notStored,
   reason,
+  canPreview,
+  onDownload,
+  downloading,
 }: {
   loaded: Cached;
   filename: string;
-  kind: ReturnType<typeof kindFrom>;
   zoom: number;
   notStored: boolean;
   reason?: string | null;
+  canPreview: boolean;
+  onDownload: () => void;
+  downloading: boolean;
 }) {
-  if (notStored || (kind === "image" && loaded.type.includes("svg") && notStored)) {
+  if (notStored) {
     return (
-      <div className="flex max-w-3xl flex-col items-center gap-4 anim-rise">
-        {loaded.type.startsWith("image/") && (
+      <div className="flex max-w-lg flex-col items-center gap-4 anim-rise">
+        {loaded.type.startsWith("image/") && loaded.url && (
           <img
             src={loaded.url}
             alt={filename}
-            className="max-h-[55vh] max-w-full rounded-[var(--radius-card)] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] object-contain shadow-[0_24px_80px_rgba(0,0,0,var(--shadow-alpha))]"
+            className="max-h-[45vh] max-w-full rounded-[var(--radius-card)] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] object-contain"
           />
         )}
-        <div className="surface max-w-md px-5 py-4 text-center">
+        <div className="surface max-w-md px-5 py-5 text-center">
           <p className="font-[family-name:var(--font-display)] text-[1.15rem] italic text-[var(--color-text-hi)]">
             Contents unavailable
           </p>
@@ -452,7 +495,30 @@ function Preview({
     );
   }
 
-  if (loaded.type.startsWith("image/") || kind === "image") {
+  if (!canPreview || loaded.kind === "other") {
+    return (
+      <div className="surface max-w-md px-6 py-8 text-center anim-rise">
+        <FileWarning size={28} className="mx-auto text-[var(--color-text-lo)]" />
+        <p className="mt-3 font-[family-name:var(--font-display)] text-[1.25rem] italic text-[var(--color-text-hi)]">
+          Preview not available
+        </p>
+        <p className="mt-2 text-[0.8125rem] text-[var(--color-text-mid)]">
+          {extOf(filename).toUpperCase() || "This"} files can’t be shown in the browser. Download to open locally.
+        </p>
+        <button
+          type="button"
+          className="dashboard-modal-btn dashboard-modal-btn--primary mt-5 inline-flex items-center gap-1.5"
+          onClick={onDownload}
+          disabled={downloading}
+        >
+          <Download size={13} />
+          {downloading ? "Downloading…" : "Download file"}
+        </button>
+      </div>
+    );
+  }
+
+  if (loaded.kind === "image" && loaded.url) {
     return (
       <div className="flex min-h-full w-full items-center justify-center anim-fade">
         <img
@@ -465,10 +531,16 @@ function Preview({
     );
   }
 
-  if (loaded.type === "application/pdf" || kind === "pdf") {
+  if (loaded.kind === "pdf" && loaded.url) {
+    // Hide the browser PDF chrome so we don't stack a second Download/Print
+    // toolbar on top of ours. `#toolbar=0` is supported by Chromium + Firefox.
     return (
-      <div className="surface h-full min-h-[70vh] w-full max-w-5xl overflow-hidden p-0 anim-rise">
-        <iframe src={loaded.url} title={filename} className="h-full min-h-[70vh] w-full bg-white" />
+      <div className="h-full min-h-[70vh] w-full max-w-5xl overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] anim-rise">
+        <iframe
+          src={`${loaded.url}#toolbar=0&navpanes=0&scrollbar=1`}
+          title={filename}
+          className="h-full min-h-[70vh] w-full bg-white"
+        />
       </div>
     );
   }
@@ -481,27 +553,19 @@ function Preview({
     );
   }
 
-  return (
-    <div className="surface max-w-md px-6 py-8 text-center anim-rise">
-      <FileWarning size={28} className="mx-auto text-[var(--color-text-lo)]" />
-      <p className="mt-3 font-[family-name:var(--font-display)] text-[1.25rem] italic text-[var(--color-text-hi)]">
-        Preview not available
-      </p>
-      <p className="mt-2 text-[0.8125rem] text-[var(--color-text-mid)]">
-        This file type cannot be previewed in the browser. Download it to open it locally.
-      </p>
-    </div>
-  );
+  return null;
 }
 
 function IconButton({
   label,
   onClick,
   children,
+  disabled,
 }: {
   label: string;
   onClick: () => void;
   children: React.ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -509,7 +573,8 @@ function IconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-tile)] border border-transparent text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:bg-white/[0.05] hover:text-[var(--color-text-hi)]"
+      disabled={disabled}
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-tile)] border border-transparent text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:bg-white/[0.05] hover:text-[var(--color-text-hi)] disabled:pointer-events-none disabled:opacity-40"
     >
       {children}
     </button>
