@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowUpRight, Briefcase, Cake, CalendarDays, ChevronLeft, ChevronRight,
@@ -76,6 +76,7 @@ const MODE_LS_KEY = "accenty.crm.schedule.mode";
 // Investigators = person icon / blue. Cases = folder icon / amber.
 const INVESTIGATOR_BG = "linear-gradient(135deg,#4a7fff,#7aa1ff)";
 const CASE_BG = "linear-gradient(135deg,#f59e0b,#fbbf24)";
+const REGION_SHORT: Record<Region, string> = { ca: "CA", tristate: "TR", texas: "TX" };
 
 /** Soft accent glass used by assignment chips — same recipe as the old timed blocks. */
 const chipGlass: React.CSSProperties = {
@@ -95,7 +96,7 @@ export default function Schedule() {
 
   const [monday, setMonday] = useState(() => mondayOf(new Date()));
   const [region, setRegion] = useState<Region | "all">("all");
-  const [railSearch, setRailSearch] = useState("");
+  const [search, setSearch] = useState("");
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [investigators, setInvestigators] = useState<InvestigatorListItem[]>([]);
   const [blocks, setBlocks] = useState<ScheduleBlock[] | null>(null);
@@ -273,36 +274,61 @@ export default function Schedule() {
   );
 
   // Cases sorted so region matches come first, for the investigator-mode tray.
-  const sortedCases = useMemo(() => {
-    if (!selectedUser?.region) return cases;
-    return [...cases].sort((a, b) => {
+  // (trayCases / trayInvestigators below apply search + this sort.)
+
+  const filteredInvestigators = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return regionFilteredInvestigators;
+    return regionFilteredInvestigators.filter(
+      (i) =>
+        i.name.toLowerCase().includes(q) ||
+        i.email.toLowerCase().includes(q) ||
+        (i.region && REGION_LABELS[i.region].toLowerCase().includes(q)),
+    );
+  }, [regionFilteredInvestigators, search]);
+
+  const filteredCases = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return cases;
+    return cases.filter(
+      (c) =>
+        c.caseNumber.toLowerCase().includes(q) ||
+        c.subjectName.toLowerCase().includes(q) ||
+        (c.region && REGION_LABELS[c.region].toLowerCase().includes(q)),
+    );
+  }, [cases, search]);
+
+  // Tray chips = opposite of the rail, same search, region-match sort first.
+  const trayCases = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const pool = q ? filteredCases : cases;
+    if (!selectedUser?.region) return pool;
+    return [...pool].sort((a, b) => {
       const am = a.region === selectedUser.region ? 0 : 1;
       const bm = b.region === selectedUser.region ? 0 : 1;
       return am - bm || a.caseNumber.localeCompare(b.caseNumber);
     });
-  }, [cases, selectedUser]);
+  }, [search, filteredCases, cases, selectedUser]);
 
-  // Investigators sorted so region matches come first, for the case-mode tray.
-  const sortedInvestigators = useMemo(() => {
-    if (!selectedCase?.region) return regionFilteredInvestigators;
-    return [...regionFilteredInvestigators].sort((a, b) => {
+  const trayInvestigators = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const pool = q ? filteredInvestigators : regionFilteredInvestigators;
+    if (!selectedCase?.region) return pool;
+    return [...pool].sort((a, b) => {
       const am = a.region === selectedCase.region ? 0 : 1;
       const bm = b.region === selectedCase.region ? 0 : 1;
       return am - bm || a.name.localeCompare(b.name);
     });
-  }, [regionFilteredInvestigators, selectedCase]);
+  }, [search, filteredInvestigators, regionFilteredInvestigators, selectedCase]);
 
-  const filteredInvestigators = useMemo(() => {
-    const q = railSearch.trim().toLowerCase();
-    if (!q) return regionFilteredInvestigators;
-    return regionFilteredInvestigators.filter((i) => i.name.toLowerCase().includes(q) || i.email.toLowerCase().includes(q));
-  }, [regionFilteredInvestigators, railSearch]);
-
-  const filteredCases = useMemo(() => {
-    const q = railSearch.trim().toLowerCase();
-    if (!q) return cases;
-    return cases.filter((c) => c.caseNumber.toLowerCase().includes(q) || c.subjectName.toLowerCase().includes(q));
-  }, [cases, railSearch]);
+  const otherSearchHits =
+    mode === "investigators"
+      ? { count: filteredCases.length, label: filteredCases.length === 1 ? "case" : "cases", switchTo: "cases" as Mode }
+      : {
+          count: filteredInvestigators.length,
+          label: filteredInvestigators.length === 1 ? "investigator" : "investigators",
+          switchTo: "investigators" as Mode,
+        };
 
   const patchBlocks = (fn: (blocks: ScheduleBlock[]) => ScheduleBlock[]) =>
     setBlocks((prev) => (prev ? fn(prev) : prev));
@@ -568,12 +594,22 @@ export default function Schedule() {
           <div className="relative shrink-0">
             <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-lo)]" />
             <input
-              value={railSearch}
-              onChange={(e) => setRailSearch(e.target.value)}
-              placeholder={mode === "investigators" ? "Find an investigator…" : "Find a case…"}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search investigators & cases…"
               className="w-full rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] py-1.5 pl-8 pr-3 text-[0.75rem] text-[var(--color-text-hi)] placeholder:text-[var(--color-text-lo)] focus:outline-none focus:border-[var(--color-accent)]"
             />
           </div>
+          {search.trim() && otherSearchHits.count > 0 && (
+            <button
+              type="button"
+              onClick={() => pickMode(otherSearchHits.switchTo)}
+              className="flex shrink-0 items-center gap-1.5 rounded-[0.5rem] border border-[var(--color-line)] px-3 py-1.5 text-left text-[0.6875rem] text-[var(--color-text-mid)] transition-colors hover:border-[rgba(74,127,255,0.45)] hover:text-[var(--color-accent-2)]"
+            >
+              <Search size={11} strokeWidth={1.8} />
+              {otherSearchHits.count} {otherSearchHits.label} match — switch
+            </button>
+          )}
 
           {mode === "investigators" && selectedUser && (
             <button
@@ -702,17 +738,23 @@ export default function Schedule() {
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
           {/* Tray — draggable cases or investigators, the opposite of the rail */}
           {canManage && (
-            <div
-              className={cn(
-                "flex shrink-0 items-center gap-2 overflow-x-auto rounded-[0.75rem] border px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-                selectedId ? "border-[var(--color-line)] bg-[var(--color-ink-1)]/50" : "border-dashed border-[var(--color-line)] opacity-70",
-              )}
+            <DragTray
+              selectedId={selectedId}
+              label={selectedId ? "Drag onto the board ↓" : mode === "investigators" ? "Cases" : "Investigators"}
+              emptyLabel={
+                (mode === "investigators" ? trayCases.length === 0 : trayInvestigators.length === 0)
+                  ? mode === "investigators"
+                    ? search.trim()
+                      ? "No cases match."
+                      : "No open cases here."
+                    : search.trim()
+                      ? "No investigators match."
+                      : "No investigators here."
+                  : null
+              }
             >
-              <span className="shrink-0 pr-1 font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-mid)]">
-                {selectedId ? "Drag onto the board ↓" : mode === "investigators" ? "Cases" : "Investigators"}
-              </span>
               {mode === "investigators"
-                ? sortedCases.map((c) => {
+                ? trayCases.map((c) => {
                     const matched = !!selectedUser?.region && c.region === selectedUser.region;
                     const draggable = !!selectedId;
                     return (
@@ -735,7 +777,11 @@ export default function Schedule() {
                             ? "border-[rgba(74,222,128,0.4)] bg-[rgba(74,222,128,0.06)]"
                             : "border-[var(--color-line)] bg-[var(--color-ink-2)]",
                         )}
-                        title={draggable ? `Drag ${c.caseNumber} onto the board` : "Select an investigator first"}
+                        title={
+                          draggable
+                            ? `Drag ${c.caseNumber}${c.region ? ` (${REGION_LABELS[c.region]})` : ""} onto the board`
+                            : "Select an investigator first"
+                        }
                       >
                         {draggable && <GripVertical size={11} strokeWidth={1.8} className="-mr-0.5 text-[var(--color-text-lo)]" />}
                         <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-white" style={{ background: CASE_BG }}>
@@ -743,16 +789,15 @@ export default function Schedule() {
                         </span>
                         <span className="leading-tight">
                           <span className="block whitespace-nowrap text-[0.6875rem] font-medium text-[var(--color-text-hi)]">{c.subjectName}</span>
-                          <span className={cn("block max-w-[9rem] truncate font-mono text-[0.5625rem]", matched ? "text-[#4ade80]" : "text-[var(--color-text-mid)]")}>
+                          <span className={cn("block max-w-[8rem] truncate font-mono text-[0.5625rem]", matched ? "text-[#4ade80]" : "text-[var(--color-text-mid)]")}>
                             {c.caseNumber}
-                            {c.region ? ` · ${REGION_LABELS[c.region]}` : ""}
-                            {matched && " · match"}
+                            {c.region ? ` · ${REGION_SHORT[c.region]}` : ""}
                           </span>
                         </span>
                       </div>
                     );
                   })
-                : sortedInvestigators.map((inv) => {
+                : trayInvestigators.map((inv) => {
                     const matched = !!selectedCase?.region && inv.region === selectedCase.region;
                     const draggable = !!selectedId;
                     return (
@@ -786,20 +831,14 @@ export default function Schedule() {
                         </span>
                         <span className="leading-tight">
                           <span className="block max-w-[8rem] truncate text-[0.6875rem] font-medium text-[var(--color-text-hi)]">{inv.name}</span>
-                          <span className={cn("block max-w-[8rem] truncate text-[0.5625rem]", matched ? "text-[#4ade80]" : "text-[var(--color-text-mid)]")}>
-                            {inv.region ? REGION_LABELS[inv.region] : "No region"}
-                            {matched && " · match"}
+                          <span className={cn("block max-w-[8rem] truncate font-mono text-[0.5625rem]", matched ? "text-[#4ade80]" : "text-[var(--color-text-mid)]")}>
+                            {inv.region ? REGION_SHORT[inv.region] : "—"}
                           </span>
                         </span>
                       </div>
                     );
                   })}
-              {(mode === "investigators" ? cases.length === 0 : investigators.length === 0) && (
-                <span className="font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
-                  {mode === "investigators" ? "No open cases here." : "No investigators here."}
-                </span>
-              )}
-            </div>
+            </DragTray>
           )}
 
           {/* Day board — translucent glass panel matching the old schedule look */}
@@ -942,6 +981,103 @@ export default function Schedule() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Scrollable drag tray ─────────────────────────────────────────────────────
+
+function DragTray({
+  children,
+  selectedId,
+  label,
+  emptyLabel,
+}: {
+  children: ReactNode;
+  selectedId: string | null;
+  label: string;
+  emptyLabel: string | null;
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  const update = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 2);
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, [update, children]);
+
+  const scrollBy = (dir: -1 | 1) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.max(180, el.clientWidth * 0.55), behavior: "smooth" });
+  };
+
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 items-center gap-1.5 rounded-[0.75rem] border py-2 pl-3 pr-2",
+        selectedId ? "border-[var(--color-line)] bg-[var(--color-ink-1)]/50" : "border-dashed border-[var(--color-line)] opacity-70",
+      )}
+    >
+      <span className="shrink-0 pr-1 font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-mid)]">
+        {label}
+      </span>
+
+      <button
+        type="button"
+        aria-label="Scroll tray left"
+        disabled={!canLeft}
+        onClick={() => scrollBy(-1)}
+        className={cn(
+          "grid h-7 w-7 shrink-0 place-items-center rounded-full border border-[var(--color-line)] bg-[var(--color-ink-2)] text-[var(--color-text-hi)] transition-colors",
+          canLeft
+            ? "hover:border-[rgba(74,127,255,0.45)] hover:text-[var(--color-accent-2)]"
+            : "pointer-events-none opacity-25",
+        )}
+      >
+        <ChevronLeft size={14} strokeWidth={1.8} />
+      </button>
+
+      <div
+        ref={scrollerRef}
+        className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {children}
+        {emptyLabel && (
+          <span className="shrink-0 font-mono text-[0.6875rem] text-[var(--color-text-mid)]">{emptyLabel}</span>
+        )}
+      </div>
+
+      <button
+        type="button"
+        aria-label="Scroll tray right"
+        disabled={!canRight}
+        onClick={() => scrollBy(1)}
+        className={cn(
+          "grid h-7 w-7 shrink-0 place-items-center rounded-full border border-[var(--color-line)] bg-[var(--color-ink-2)] text-[var(--color-text-hi)] transition-colors",
+          canRight
+            ? "hover:border-[rgba(74,127,255,0.45)] hover:text-[var(--color-accent-2)]"
+            : "pointer-events-none opacity-25",
+        )}
+      >
+        <ChevronRight size={14} strokeWidth={1.8} />
+      </button>
     </div>
   );
 }
