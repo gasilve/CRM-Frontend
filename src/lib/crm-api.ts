@@ -1074,7 +1074,8 @@ export interface ScheduleBlock {
   caseId: string;
   userId: string;
   date: string;
-  startTime: string;
+  /** Null = all-day day-board assignment. */
+  startTime: string | null;
   endTime: string | null;
   notes: string | null;
   createdAt: string;
@@ -1105,7 +1106,8 @@ export interface CreateScheduleBlockPayload {
   caseId: string;
   userId: string;
   date: string;
-  startTime: string;
+  /** Omit / null for day-level assignments. */
+  startTime?: string | null;
   endTime?: string | null;
   notes?: string | null;
 }
