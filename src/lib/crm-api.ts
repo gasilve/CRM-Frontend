@@ -148,6 +148,8 @@ export interface RoleDetail extends RoleSummary {
   caseScope: CaseScope;
   peopleScope: PeopleScope;
   scheduleScope: ScheduleScope;
+  /** Holders can be assigned to cases and scheduled as field staff. */
+  canWorkCases: boolean;
   sortOrder: number;
   permissions: string[];
   /** Restrictions only — a field absent from here is unrestricted. */
@@ -215,6 +217,7 @@ export interface RolePayload {
   caseScope: CaseScope;
   peopleScope: PeopleScope;
   scheduleScope: ScheduleScope;
+  canWorkCases: boolean;
   permissions: string[];
   fieldRules: Record<string, FieldAccessLevel>;
 }
@@ -1074,7 +1077,8 @@ export interface ScheduleBlock {
   caseId: string;
   userId: string;
   date: string;
-  startTime: string;
+  /** Null = all-day day-board assignment. */
+  startTime: string | null;
   endTime: string | null;
   notes: string | null;
   createdAt: string;
@@ -1105,7 +1109,8 @@ export interface CreateScheduleBlockPayload {
   caseId: string;
   userId: string;
   date: string;
-  startTime: string;
+  /** Omit / null for day-level assignments. */
+  startTime?: string | null;
   endTime?: string | null;
   notes?: string | null;
 }

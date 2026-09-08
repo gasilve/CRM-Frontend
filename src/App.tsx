@@ -24,7 +24,6 @@ const InvestigatorNew = lazy(() => import("./pages/InvestigatorNew"));
 const InvestigatorDetail = lazy(() => import("./pages/InvestigatorDetail"));
 const Clients = lazy(() => import("./pages/Clients"));
 const ClientDetail = lazy(() => import("./pages/ClientDetail"));
-const Calendar = lazy(() => import("./pages/Calendar"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Administration = lazy(() => import("./pages/Administration"));
 const Assistant = lazy(() => import("./pages/Assistant"));
@@ -107,14 +106,6 @@ export default function App() {
               element={
                 <LazyRoute>
                   <Schedule />
-                </LazyRoute>
-              }
-            />
-            <Route
-              path="/calendar"
-              element={
-                <LazyRoute>
-                  <Calendar />
                 </LazyRoute>
               }
             />
