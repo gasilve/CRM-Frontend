@@ -315,34 +315,37 @@ export function useGridLayout<T extends GridLayoutItem>({
 
         if (!hasItems(record.items)) {
           // Server says "no saved layout" (null) or handed us a poisoned [].
-          // Keep whatever we already painted; only fall through to defaults
-          // when we have never seen a real layout for this surface.
+          // Code default is the truth — do not keep a stale in-memory seed,
+          // and never re-upload legacy localStorage onto a shared house
+          // surface (that undoes an admin reset of case-detail).
           setCached(layoutCacheKey(surface), {
             ...record,
             items: null,
           });
           clearLegacyLayout(legacyStorageKey);
 
-          const legacy = editableRef.current ? readLegacyLayout<T>(legacyStorageKey) : null;
-          if (legacy) {
-            const doc = applyDocument(legacy, defaultPagesRef.current, null);
-            if (editableRef.current && hasItems(doc.items)) {
-              gridLayoutsApi
-                .save(surface, doc.items, doc.pages ?? undefined, doc.widgets ?? undefined)
-                .then(({ layout: saved }) => {
-                  seenUpdatedAtRef.current = saved.updatedAt;
-                  clearLegacyLayout(legacyStorageKey);
-                })
-                .catch((err: unknown) => {
-                  console.error(`[grid-layout] legacy migrate failed (${surface}):`, err);
-                });
+          const isSharedSurface = surface === "case-detail" || surface === "cases-table";
+          if (!isSharedSurface && editableRef.current) {
+            const legacy = readLegacyLayout<T>(legacyStorageKey);
+            if (legacy) {
+              const doc = applyDocument(legacy, defaultPagesRef.current, null);
+              if (editableRef.current && hasItems(doc.items)) {
+                gridLayoutsApi
+                  .save(surface, doc.items, doc.pages ?? undefined, doc.widgets ?? undefined)
+                  .then(({ layout: saved }) => {
+                    seenUpdatedAtRef.current = saved.updatedAt;
+                    clearLegacyLayout(legacyStorageKey);
+                  })
+                  .catch((err: unknown) => {
+                    console.error(`[grid-layout] legacy migrate failed (${surface}):`, err);
+                  });
+              }
+              return;
             }
-            return;
           }
 
-          if (seenUpdatedAtRef.current === null) {
-            applyDocument(defaultLayoutRef.current, defaultPagesRef.current, null);
-          }
+          seenUpdatedAtRef.current = null;
+          applyDocument(defaultLayoutRef.current, defaultPagesRef.current, null, { force: true });
           return;
         }
 
