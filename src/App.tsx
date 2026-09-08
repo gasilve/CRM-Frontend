@@ -22,6 +22,8 @@ const Schedule = lazy(() => import("./pages/Schedule"));
 const Investigators = lazy(() => import("./pages/Investigators"));
 const InvestigatorNew = lazy(() => import("./pages/InvestigatorNew"));
 const InvestigatorDetail = lazy(() => import("./pages/InvestigatorDetail"));
+const Clients = lazy(() => import("./pages/Clients"));
+const ClientDetail = lazy(() => import("./pages/ClientDetail"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Administration = lazy(() => import("./pages/Administration"));
@@ -141,6 +143,24 @@ export default function App() {
               element={
                 <LazyRoute>
                   <InvestigatorNew />
+                </LazyRoute>
+              }
+            />
+          </Route>
+          <Route element={<RequirePermission anyOf={["clients.view"]} />}>
+            <Route
+              path="/clients"
+              element={
+                <LazyRoute>
+                  <Clients />
+                </LazyRoute>
+              }
+            />
+            <Route
+              path="/clients/:id"
+              element={
+                <LazyRoute>
+                  <ClientDetail />
                 </LazyRoute>
               }
             />
