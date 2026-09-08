@@ -7,6 +7,7 @@ import {
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/contexts/AuthContext";
 import { ViewToggle, ViewToggleGroup } from "@/components/ui/ViewToggle";
+import { CaseOverviewModal } from "@/components/schedule/CaseOverviewModal";
 import { weatherIcon, weatherColor, conditionLabel } from "@/components/cases/WeatherStrip";
 import {
   casesApi,
@@ -549,8 +550,8 @@ export default function Schedule() {
           <button
             type="button"
             onClick={() => setMonthOpen(true)}
-            title="Month overview"
-            aria-label="Month overview"
+            title="Case overview"
+            aria-label="Case overview"
             className="ml-1 grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[rgba(74,127,255,0.45)] hover:text-[var(--color-accent-2)]"
           >
             <CalendarDays size={14} strokeWidth={1.8} />
@@ -945,9 +946,9 @@ export default function Schedule() {
       )}
 
       {monthOpen && (
-        <MonthOverviewModal
+        <CaseOverviewModal
           anchorMonday={monday}
-          contextLabel={contextLabel}
+          region={region}
           weatherRegion={weatherRegion}
           onClose={() => setMonthOpen(false)}
           onPickDay={(iso) => {
@@ -1454,164 +1455,6 @@ function AssignmentModal({
               </div>
             </div>
           )}
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ─── Month overview modal ─────────────────────────────────────────────────────
-
-function MonthOverviewModal({
-  anchorMonday,
-  contextLabel,
-  weatherRegion,
-  onClose,
-  onPickDay,
-}: {
-  anchorMonday: string;
-  contextLabel: string | null;
-  weatherRegion: Region | null;
-  onClose: () => void;
-  onPickDay: (iso: string) => void;
-}) {
-  const [monthStart, setMonthStart] = useState(() => {
-    const d = new Date(`${anchorMonday}T00:00:00`);
-    return new Date(d.getFullYear(), d.getMonth(), 1);
-  });
-  const [wxByDay, setWxByDay] = useState<Map<string, WeatherDay>>(new Map());
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  // 6-week grid starting on the Monday on/before the 1st
-  const gridDays = useMemo(() => {
-    const start = new Date(`${mondayOf(monthStart)}T00:00:00`);
-    return Array.from({ length: 42 }, (_, i) => new Date(start.getTime() + i * DAY_MS));
-  }, [monthStart]);
-
-  useEffect(() => {
-    if (!weatherRegion) {
-      setWxByDay(new Map());
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    const mondays = [...new Set(gridDays.map((d) => mondayOf(d)))];
-    Promise.all(
-      mondays.map((m) => weatherApi.weekly(m).catch(() => ({ start: m, groups: [] as WeeklyWeather[] }))),
-    )
-      .then((results) => {
-        if (cancelled) return;
-        const map = new Map<string, WeatherDay>();
-        for (const r of results) {
-          const g = r.groups.find((x) => x.group === weatherRegion);
-          for (const day of g?.days ?? []) map.set(day.date, day);
-        }
-        setWxByDay(map);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [gridDays, weatherRegion]);
-
-  const today = isoOf(new Date());
-  const monthLabel = monthStart.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  const shiftMonth = (n: number) =>
-    setMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() + n, 1));
-
-  return (
-    <>
-      <div className="anim-backdrop fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 w-[min(46rem,94vw)] -translate-x-1/2 -translate-y-1/2">
-        <div className="surface anim-modal flex max-h-[90vh] flex-col gap-4 overflow-y-auto rounded-[0.875rem] p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="editorial text-[1.375rem] leading-tight text-[var(--color-text-hi)]">Month overview</h2>
-              {contextLabel && <p className="mt-0.5 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">{contextLabel}</p>}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => shiftMonth(-1)}
-                aria-label="Previous month"
-                className="grid h-7 w-7 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
-              >
-                <ChevronLeft size={13} strokeWidth={1.8} />
-              </button>
-              <span className="min-w-[9rem] text-center font-mono text-[0.71875rem] text-[var(--color-text-mid)]">
-                {monthLabel}
-              </span>
-              <button
-                type="button"
-                onClick={() => shiftMonth(1)}
-                aria-label="Next month"
-                className="grid h-7 w-7 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
-              >
-                <ChevronRight size={13} strokeWidth={1.8} />
-              </button>
-              {loading && <Loader2 size={13} className="animate-spin text-[var(--color-text-lo)]" />}
-              <button type="button" onClick={onClose} aria-label="Close" className="ml-2 text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]">
-                <X size={16} />
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-7 gap-1.5">
-            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((w) => (
-              <div key={w} className="text-center font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-                {w}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-1.5">
-            {gridDays.map((d) => {
-              const iso = isoOf(d);
-              const inMonth = d.getMonth() === monthStart.getMonth();
-              const isToday = iso === today;
-              const wx = wxByDay.get(iso);
-              const WxIcon = wx ? weatherIcon(wx.code) : null;
-              const tooltip = wx ? `${conditionLabel(wx.code)} — ${wx.highF ?? "—"}° / ${wx.lowF ?? "—"}°` : undefined;
-
-              return (
-                <button
-                  key={iso}
-                  type="button"
-                  onClick={() => onPickDay(iso)}
-                  title={tooltip}
-                  className={cn(
-                    "flex min-h-[3.75rem] flex-col items-start gap-1 rounded-[0.5rem] border p-1.5 text-left transition-colors",
-                    inMonth ? "border-[var(--color-line)] bg-[var(--color-ink-1)]" : "border-transparent opacity-40",
-                    "hover:border-[rgba(74,127,255,0.45)]",
-                    isToday && "ring-1 ring-[var(--color-accent)]",
-                  )}
-                >
-                  <span className={cn("font-mono text-[0.65625rem]", isToday ? "text-[var(--color-accent-2)]" : "text-[var(--color-text-mid)]")}>
-                    {d.getDate()}
-                  </span>
-                  {WxIcon && wx && (
-                    <span className="grid h-4 w-4 place-items-center rounded-full" style={{ background: `${weatherColor(wx.code)}1f` }}>
-                      <WxIcon size={10} strokeWidth={1.8} style={{ color: weatherColor(wx.code) }} />
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          <p className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
-            Click a day to jump to its week. Forecasts only exist for roughly the last 12 weeks and the next week.
-          </p>
         </div>
       </div>
     </>
