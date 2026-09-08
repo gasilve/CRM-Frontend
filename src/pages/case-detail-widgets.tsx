@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  User, Briefcase, Tag, MapPin, Car, Users2, ScrollText, Paperclip,
+  User, Briefcase, Tag, MapPin, Users2, ScrollText, Paperclip,
 } from "lucide-react";
 import type { CaseDetail, GridLayoutWidget } from "@/lib/crm-api";
 import {
@@ -14,7 +14,6 @@ import {
   IdentityPanel,
   SubjectPhotoPanel,
   TagsPanel,
-  VehiclesPanel,
   WorkPanel,
 } from "./case-detail-panels";
 
@@ -27,7 +26,6 @@ export type CasePanelId =
   | "tags"
   | "assignment"
   | "addresses-map"
-  | "vehicles"
   | "files"
   | "description";
 
@@ -131,11 +129,6 @@ export const CASE_PANELS: Record<CasePanelId, CasePanelDef> = {
     minH: 4, minW: 2, defaultW: 3, defaultH: 6,
     render: (ctx) => <AddressesMapPanel ctx={ctx} />,
   },
-  vehicles: {
-    id: "vehicles", label: "Vehicles", icon: Car,
-    minH: 3, minW: 3, defaultW: 6, defaultH: 3,
-    render: (ctx) => <VehiclesPanel ctx={ctx} />,
-  },
   files: {
     id: "files", label: "Files", icon: Paperclip,
     minH: 2, minW: 2, defaultW: 3, defaultH: 4,
@@ -224,27 +217,28 @@ export const CASE_GRID_MARGIN = 8;
 export const CASE_PAGE_ROWS = 9;
 
 export const CASE_PAGE_OVERVIEW = "page-overview";
+/** Kept for migrating older multi-page saved layouts. */
 export const CASE_PAGE_DETAILS = "page-details";
 
 export const CASE_DEFAULT_PAGES: CasePage[] = [
   { id: CASE_PAGE_OVERVIEW, name: "Overview" },
-  { id: CASE_PAGE_DETAILS, name: "Details" },
 ];
 
-/** Widgets split across carousel pages so each page fits one screen. */
+/**
+ * Single-screen house default — every premade panel except vehicles
+ * (vehicles stay in the case action-bar drawer).
+ */
 export const CASE_DEFAULT_LAYOUT: CaseLayoutItem[] = [
-  { id: "case-info", pageId: CASE_PAGE_OVERVIEW, x: 0, y: 0, w: 6, h: 3 },
-  { id: "addresses-map", pageId: CASE_PAGE_OVERVIEW, x: 6, y: 0, w: 3, h: 6 },
-  { id: "subject-photo", pageId: CASE_PAGE_OVERVIEW, x: 9, y: 0, w: 3, h: 6 },
-  { id: "identity", pageId: CASE_PAGE_OVERVIEW, x: 0, y: 3, w: 3, h: 3 },
-  { id: "work", pageId: CASE_PAGE_OVERVIEW, x: 3, y: 3, w: 3, h: 3 },
-
-  { id: "assignment", pageId: CASE_PAGE_DETAILS, x: 0, y: 0, w: 3, h: 3 },
-  { id: "client-adjuster", pageId: CASE_PAGE_DETAILS, x: 3, y: 0, w: 3, h: 3 },
-  { id: "tags", pageId: CASE_PAGE_DETAILS, x: 6, y: 0, w: 3, h: 3 },
-  { id: "description", pageId: CASE_PAGE_DETAILS, x: 9, y: 0, w: 3, h: 3 },
-  { id: "vehicles", pageId: CASE_PAGE_DETAILS, x: 0, y: 3, w: 8, h: 3 },
-  { id: "files", pageId: CASE_PAGE_DETAILS, x: 8, y: 3, w: 4, h: 3 },
+  { id: "case-info", pageId: CASE_PAGE_OVERVIEW, x: 0, y: 0, w: 4, h: 3 },
+  { id: "assignment", pageId: CASE_PAGE_OVERVIEW, x: 4, y: 0, w: 2, h: 3 },
+  { id: "client-adjuster", pageId: CASE_PAGE_OVERVIEW, x: 6, y: 0, w: 3, h: 3 },
+  { id: "tags", pageId: CASE_PAGE_OVERVIEW, x: 9, y: 0, w: 3, h: 3 },
+  { id: "subject-photo", pageId: CASE_PAGE_OVERVIEW, x: 0, y: 3, w: 3, h: 6 },
+  { id: "identity", pageId: CASE_PAGE_OVERVIEW, x: 3, y: 3, w: 3, h: 3 },
+  { id: "work", pageId: CASE_PAGE_OVERVIEW, x: 6, y: 3, w: 3, h: 3 },
+  { id: "addresses-map", pageId: CASE_PAGE_OVERVIEW, x: 9, y: 3, w: 3, h: 6 },
+  { id: "description", pageId: CASE_PAGE_OVERVIEW, x: 3, y: 6, w: 3, h: 3 },
+  { id: "files", pageId: CASE_PAGE_OVERVIEW, x: 6, y: 6, w: 3, h: 3 },
 ];
 
 /**
@@ -317,7 +311,7 @@ function injectPromotedPanels(pages: CasePage[], items: CaseLayoutItem[]): CaseL
     const sizing = caseWidgetSizing(id);
 
     // First page whose content leaves enough free rows at the bottom.
-    let pageId = pages[pages.length - 1]?.id ?? CASE_PAGE_DETAILS;
+    let pageId = pages[pages.length - 1]?.id ?? CASE_PAGE_OVERVIEW;
     let y = Math.max(0, CASE_PAGE_ROWS - sizing.defaultH);
     for (const p of pages) {
       const bottom = out

@@ -111,7 +111,8 @@ type Props = {
   gridRef: React.MutableRefObject<CaseDetailGridHandle | null>;
   gridMountKey: string | number;
   onClose: () => void;
-  onPlacingChange?: (placing: boolean) => void;
+  /** Fires with the dock widget id being dragged, or `null` once placement ends. */
+  onPlacingChange?: (widgetId: string | null) => void;
 };
 
 export default function CaseWidgetDock({
@@ -145,11 +146,11 @@ export default function CaseWidgetDock({
   const finishPlacementDrag = useCallback(() => {
     if (!placingDragRef.current) return;
     placingDragRef.current = false;
+    onPlacingChangeRef.current?.(null);
     setPlacingDrag(false);
     shellRef.current?.classList.remove("is-dock-placing");
     document.body.classList.remove("dashboard-dock-placing");
     cleanupDockDragIn(dockWidgetIdsRef.current);
-    onPlacingChangeRef.current?.(false);
   }, []);
 
   const isDockHelperDragging = useCallback(
@@ -202,19 +203,20 @@ export default function CaseWidgetDock({
     const shellEl = shellRef.current;
     let moveCleanup: (() => void) | null = null;
 
-    const beginPlacementDrag = () => {
+    const beginPlacementDrag = (widgetId: string | null) => {
       if (placingDragRef.current) return;
       placingDragRef.current = true;
       setPlacingDrag(true);
       shellEl?.classList.add("is-dock-placing");
       document.body.classList.add("dashboard-dock-placing");
       onClose();
-      onPlacingChangeRef.current?.(true);
+      onPlacingChangeRef.current?.(widgetId);
     };
 
     const onPointerDown = (e: PointerEvent) => {
       const item = (e.target as HTMLElement).closest(".dock-carousel-item") as HTMLElement | null;
       if (!item) return;
+      const widgetId = item.dataset.dockWidget ?? null;
 
       const startX = e.clientX;
       const startY = e.clientY;
@@ -222,7 +224,7 @@ export default function CaseWidgetDock({
       const onMove = (me: PointerEvent) => {
         if (Math.hypot(me.clientX - startX, me.clientY - startY) < 6) return;
         cleanup();
-        beginPlacementDrag();
+        beginPlacementDrag(widgetId);
       };
 
       const onUp = () => cleanup();
