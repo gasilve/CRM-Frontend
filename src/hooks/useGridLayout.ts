@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   gridLayoutsApi,
   type GridLayoutItem,
@@ -457,13 +457,33 @@ export function useGridLayout<T extends GridLayoutItem>({
     }
     pendingRef.current = null;
     seenUpdatedAtRef.current = null;
-    applyDocument(defaultLayoutRef.current, defaultPagesRef.current, null, { force: true });
+    const defaults = defaultLayoutRef.current;
+    const defaultPages = defaultPagesRef.current;
+    try {
+      sessionStorage.removeItem(`tc.cache:grid-layout:${surface}`);
+    } catch {
+      /* ignore */
+    }
+    applyDocument(defaults, defaultPages, null, { force: true });
     clearLegacyLayout(legacyStorageKey);
+    setCached(layoutCacheKey(surface), {
+      surface,
+      items: null,
+      pages: null,
+      widgets: null,
+      source: "default",
+      updatedAt: null,
+    });
     if (!editableRef.current) return;
     gridLayoutsApi
-      .reset(surface)
-      .then(({ layout: record }) => setCached(layoutCacheKey(surface), record))
-      .catch(() => {});
+      .save(surface, defaults, defaultPages, undefined)
+      .then(({ layout: record }) => {
+        seenUpdatedAtRef.current = record.updatedAt;
+        setCached(layoutCacheKey(surface), record);
+      })
+      .catch(() => {
+        gridLayoutsApi.reset(surface).catch(() => {});
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surface, legacyStorageKey, applyDocument]);
 

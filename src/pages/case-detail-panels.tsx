@@ -50,7 +50,7 @@ export function Field({ label, value, mono = true }: { label: string; value: str
 export function PanelShell({ title, icon, children, className, action }: { title: string; icon?: ReactNode; children: ReactNode; className?: string; action?: ReactNode }) {
   return (
     <div className={cn("surface flex h-full min-h-0 flex-col overflow-hidden", className)}>
-      <div className="eyebrow shrink-0 border-b border-[var(--color-line)] px-4 py-2.5 flex items-center gap-2">
+      <div className="widget-shell-header eyebrow shrink-0 border-b border-[var(--color-line)] px-4 py-2.5 flex items-center gap-2">
         {icon}
         {title}
         {action && <span className="ml-auto normal-case tracking-normal">{action}</span>}

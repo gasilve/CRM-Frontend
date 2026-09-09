@@ -21,6 +21,7 @@ import {
   GripVertical,
   Inbox,
   LogOut,
+  Layers,
   Pencil,
   Trash2,
   X,
@@ -53,6 +54,7 @@ import { ThemePicker } from "./ThemePicker";
 import { ConfirmModal } from "@/components/dashboard/ConfirmModal";
 import { invCases, investigators } from "@/lib/mock-data";
 import { useAuth } from "@/contexts/AuthContext";
+import { canAccessPatternLab } from "@/lib/dev-access";
 import { usePendingIntake } from "@/contexts/PendingIntakeContext";
 import type { Permission } from "@/lib/auth-client";
 import { getInitials, formatRoleList } from "@/lib/format";
@@ -96,6 +98,13 @@ const DEFAULT_GROUPS: Group[] = [
       { to: "/schedule",      label: "Scheduling",   icon: CalendarClock, permissions: ["schedule.view"] },
       { to: "/investigators", label: "Investigators",icon: Users2,        badge: clockedIn > 0 ? `${clockedIn} live` : undefined, permissions: ["team.view"] },
       { to: "/clients",       label: "Clients",      icon: Building2,     permissions: ["clients.view"] },
+    ],
+  },
+  {
+    id: "development",
+    label: "Development",
+    items: [
+      { to: "/playground", label: "Playground", icon: Layers },
     ],
   },
   {
@@ -564,22 +573,26 @@ export default function Sidebar({
   const { pendingReview: pendingCases } = usePendingIntake();
 
   const groups = useMemo(() => {
-    return sidebarState.folders.map((folder) => ({
-      id: folder.id,
-      label: folder.label,
-      items: folder.itemIds
-        .map((itemId) => ITEM_MAP[itemId])
-        .filter(Boolean)
-        .filter((item) => !item.permissions || canAny(...item.permissions))
-        .map((item) => {
-          if (item.to === "/pending-cases" && canSeeIntake && pendingCases && pendingCases > 0) {
-            return { ...item, badge: pendingCases };
-          }
-          return item;
-        }),
-    }));
+    const showLab = canAccessPatternLab(user?.email);
+    return sidebarState.folders
+      .map((folder) => ({
+        id: folder.id,
+        label: folder.label,
+        items: folder.itemIds
+          .map((itemId) => ITEM_MAP[itemId])
+          .filter(Boolean)
+          .filter((item) => !item.permissions || canAny(...item.permissions))
+          .filter((item) => item.to !== "/playground" || showLab)
+          .map((item) => {
+            if (item.to === "/pending-cases" && canSeeIntake && pendingCases && pendingCases > 0) {
+              return { ...item, badge: pendingCases };
+            }
+            return item;
+          }),
+      }))
+      .filter((folder) => folder.items.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sidebarState, canAny, canSeeIntake, pendingCases]);
+  }, [sidebarState, canAny, canSeeIntake, pendingCases, user?.email]);
 
   const updateState = (next: SidebarState) => {
     setSidebarState(next);
