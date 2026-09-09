@@ -24,6 +24,45 @@
   position: relative;
   height: 100%;
   width: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+.widget-body {
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.widget-body > * {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+.widget-shell-body {
+  display: flex;
+  flex-direction: column;
+}
+.widget-shell-header {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-ink-3) 55%, transparent),
+    transparent
+  );
+}
+.widget-feed-row {
+  animation: widget-feed-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes widget-feed-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Case detail carousel — fixed one-screen page height, all pages mounted
@@ -56,8 +95,12 @@
   opacity: 1;
 }
 
-/* Move: drag from anywhere inside the card */
+/* Move: drag from header only — body stays clickable for expand/links */
 .dashboard-edit .widget-body {
+  cursor: default;
+  -webkit-user-drag: none;
+}
+.dashboard-edit .widget-shell-header {
   cursor: grab;
   -webkit-user-drag: none;
 }
@@ -65,7 +108,7 @@
 .dashboard-edit .grid-stack-item * {
   -webkit-user-drag: none;
 }
-.dashboard-edit .widget-body:active {
+.dashboard-edit .widget-shell-header:active {
   cursor: grabbing;
 }
 .dashboard-edit .grid-stack > .grid-stack-item > .grid-stack-item-content {
@@ -318,8 +361,8 @@ body.dashboard-dock-placing .case-action-bar-wrap {
 .case-action-bar-toggle {
   display: grid;
   place-items: center;
-  width: 2rem;
-  height: 1rem;
+  width: 4rem;
+  height: 2rem;
   border: none;
   background: none;
   color: var(--color-text-lo);
@@ -334,6 +377,88 @@ body.dashboard-dock-placing .case-action-bar-wrap {
 }
 .case-action-bar-wrap.is-collapsed .case-action-bar-toggle__icon {
   transform: rotate(180deg);
+}
+
+/* Dashboard action bar — same family, larger chevron (3× case baseline) */
+.dashboard-action-bar-wrap {
+  position: fixed;
+  left: var(--app-sidebar-w, 16rem);
+  right: 0;
+  bottom: 1.125rem;
+  margin-inline: auto;
+  width: max-content;
+  z-index: 56;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  transition:
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dashboard-action-bar-wrap.is-dock-hidden,
+body.dashboard-widget-dragging .dashboard-action-bar-wrap,
+body.dashboard-dock-placing .dashboard-action-bar-wrap {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(0.875rem);
+}
+.dashboard-action-bar-toggle {
+  display: grid;
+  place-items: center;
+  width: 6rem;
+  height: 3rem;
+  border: none;
+  background: none;
+  color: var(--color-text-lo);
+  transition: color 150ms ease;
+}
+.dashboard-action-bar-toggle:hover {
+  color: var(--color-text-hi);
+}
+.dashboard-action-bar-toggle__icon {
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dashboard-action-bar-wrap.is-collapsed .dashboard-action-bar-toggle__icon {
+  transform: rotate(180deg);
+}
+.dashboard-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.55rem 1.15rem;
+  border-radius: 62rem;
+  border: 0.0625rem solid var(--color-line-2);
+  background: color-mix(in srgb, var(--color-ink-1) 92%, transparent);
+  backdrop-filter: blur(0.75rem);
+  -webkit-backdrop-filter: blur(0.75rem);
+  box-shadow: 0 1rem 2.5rem -1rem rgba(0, 0, 0, 0.65);
+  transition:
+    opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    max-height 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  max-height: 5rem;
+  overflow: hidden;
+}
+.dashboard-action-bar-wrap.is-collapsed .dashboard-action-bar {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  border-width: 0;
+  pointer-events: none;
+}
+
+/* Theme B · Buzz — same palette, higher attention (badges / urgency), not neon social */
+.pattern-buzz-frame {
+  background:
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 42%),
+    color-mix(in srgb, var(--color-ink-2) 92%, transparent);
+  border: 0.0625rem solid color-mix(in srgb, var(--color-accent) 28%, var(--color-line-2));
+  border-radius: 0.875rem;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-accent) 12%, transparent),
+    0 0.75rem 1.75rem -0.85rem color-mix(in srgb, var(--color-accent-glow) 55%, transparent);
 }
 .case-action-bar {
   display: flex;

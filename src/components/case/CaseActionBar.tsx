@@ -69,7 +69,7 @@ export function CaseActionBar({ canEditLayout, activeDrawer, dockOpen, onToggleD
         aria-expanded={!collapsed}
         onClick={toggleCollapsed}
       >
-        <ChevronDown size={14} strokeWidth={2} className="case-action-bar-toggle__icon" />
+        <ChevronDown size={28} strokeWidth={2} className="case-action-bar-toggle__icon" />
       </button>
 
       <div className="case-action-bar">

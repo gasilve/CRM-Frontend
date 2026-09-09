@@ -6,6 +6,7 @@ import {
   WIDGET_LIST,
   dockPreviewDimensions,
   widgetFootprint,
+  type WidgetDef,
   type WidgetId,
 } from "./dashboard-widgets";
 import type { DashboardGridHandle } from "./DashboardGrid";
@@ -230,10 +231,20 @@ export default function WidgetDock({
     if (el) setActualGridWidth(el.clientWidth);
   }, [open, gridRef]);
 
-  const availableWidgets = useMemo(
-    () => WIDGET_LIST.filter((w) => hiddenIds.has(w.id)),
-    [hiddenIds],
-  );
+  const [folderFilter, setFolderFilter] = useState<"All" | WidgetDef["folder"]>("All");
+
+  const availableWidgets = useMemo(() => {
+    const base = WIDGET_LIST.filter((w) => hiddenIds.has(w.id));
+    if (folderFilter === "All") return base;
+    return base.filter((w) => w.folder === folderFilter);
+  }, [hiddenIds, folderFilter]);
+
+  const folderCounts = useMemo(() => {
+    const base = WIDGET_LIST.filter((w) => hiddenIds.has(w.id));
+    const counts: Record<string, number> = { All: base.length };
+    for (const w of base) counts[w.folder] = (counts[w.folder] ?? 0) + 1;
+    return counts;
+  }, [hiddenIds]);
 
   const applyMagnification = (clientX: number | null) => {
     const lane = laneRef.current;
@@ -506,10 +517,33 @@ export default function WidgetDock({
     >
       {showInner && (
       <div className="widget-dock-inner">
+        <div className="flex flex-wrap items-center justify-center gap-1 px-4 pb-2 pt-1">
+          {(["All", "Ops", "Intel", "Evidence", "Field", "Admin"] as const).map((f) => {
+            const n = folderCounts[f] ?? 0;
+            if (f !== "All" && n === 0) return null;
+            return (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setFolderFilter(f)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 font-mono text-[0.5rem] uppercase tracking-wider transition-colors",
+                  folderFilter === f
+                    ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
+                    : "border-[var(--color-line)] text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]",
+                )}
+              >
+                {f}
+                {f !== "All" ? ` · ${n}` : n ? ` · ${n}` : ""}
+              </button>
+            );
+          })}
+        </div>
         {availableWidgets.length === 0 ? (
           <p className="widget-dock-empty">
-            All widgets are on the dashboard. Remove one to add it again from
-            here.
+            {folderFilter === "All"
+              ? "All widgets are on the dashboard. Remove one to add it again from here."
+              : `No ${folderFilter} widgets available in the dock.`}
           </p>
         ) : (
           <div ref={viewportRef} className="widget-dock-viewport widget-dock-viewport--scrollable">

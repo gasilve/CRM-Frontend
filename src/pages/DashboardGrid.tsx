@@ -3,10 +3,16 @@ import { createRoot, type Root } from "react-dom/client";
 import { GridStack, type GridStackNode, type GridStackOptions } from "gridstack";
 import { designPx } from "@/lib/rem";
 import { settleGridMetrics } from "@/lib/grid-stack-host";
+import { WidgetSizeProvider } from "@/lib/widget-size";
+import {
+  getWidgetBridge,
+  subscribeWidgetBridge,
+  WidgetTreeProviders,
+} from "@/lib/widget-bridge";
+import { WidgetErrorBoundary } from "@/components/widgets/WidgetErrorBoundary";
 import {
   canPlaceAtY,
   clampY,
-  enforceLayoutRowRules,
   gridMaxRow,
 } from "./dashboard-grid-layout";
 import {
@@ -14,6 +20,7 @@ import {
   COLUMNS,
   GRID_MARGIN,
   WIDGETS,
+  dashboardBoardHeightPx,
   layoutToGridWidgets,
   widgetFootprint,
   type LayoutItem,
@@ -27,6 +34,12 @@ export type DashboardGridHandle = {
   getGrid: () => GridStack | null;
   getEl: () => HTMLDivElement | null;
   releaseWidgetRoot: (id: WidgetId) => void;
+  /**
+   * Update the sync baseline *before* an intentional remove. Without this,
+   * GridStack's `removed` → syncLayout sees a shrink vs a stale layoutRef and
+   * re-adds the widget (trash appears broken).
+   */
+  syncLayoutBaseline: (items: LayoutItem[]) => void;
   /** Dock drag in flight — show where it would land if Gridstack isn't already. */
   previewDockDrop: (id: WidgetId, clientX: number, clientY: number) => void;
   clearDockPreview: () => void;
@@ -108,13 +121,27 @@ function renderWidgetContent(host: HTMLElement, id: WidgetId) {
     allRoots.add(root);
   }
 
+  // Key resets the error boundary after the auth/navigate bridge becomes ready
+  // (first paint can race sync and leave widgets stuck on the failed state).
+  const bridgeKey = getWidgetBridge() ? "ready" : "pending";
+
   root.render(
     <div className="widget-frame h-full w-full">
       <div className="widget-body h-full w-full">
-        {def.render()}
+        <WidgetErrorBoundary key={bridgeKey} name={id}>
+          <WidgetTreeProviders>
+            <WidgetSizeProvider>{def.render()}</WidgetSizeProvider>
+          </WidgetTreeProviders>
+        </WidgetErrorBoundary>
       </div>
     </div>,
   );
+}
+
+function rerenderAllWidgetHosts() {
+  for (const [id, host] of hostById) {
+    if (widgetRoots.has(host)) renderWidgetContent(host, id);
+  }
 }
 
 /** Imperative Gridstack host — never re-renders when parent toggles edit/dock UI */
@@ -149,6 +176,9 @@ function DashboardGridInner({
       getGrid: () => gridInstanceRef.current,
       getEl: () => hostRef.current,
       releaseWidgetRoot,
+      syncLayoutBaseline: (items) => {
+        layoutRef.current = items;
+      },
       previewDockDrop: (id, x, y) => previewDockRef.current?.(id, x, y),
       clearDockPreview: () => clearPreviewRef.current?.(),
       dropDockWidget: (id, x, y) => dropDockRef.current?.(id, x, y) ?? false,
@@ -158,6 +188,12 @@ function DashboardGridInner({
     };
   }, [gridRef]);
 
+  // Keep baseline current even when mountKey is unchanged (memo used to skip
+  // re-renders on layout-only updates — that broke intentional deletes).
+  useEffect(() => {
+    layoutRef.current = layout;
+  }, [layout]);
+
   useEffect(() => {
     const hostEl = hostRef.current;
     if (!hostEl) return;
@@ -166,6 +202,10 @@ function DashboardGridInner({
     initSettledRef.current = false;
 
     unmountAllWidgetRoots();
+
+    const unsubBridge = subscribeWidgetBridge(() => {
+      if (!cancelled) rerenderAllWidgetHosts();
+    });
 
     GridStack.renderCB = (el, node) => {
       const id = (node.id ?? el.getAttribute("gs-id")) as WidgetId | null;
@@ -191,6 +231,7 @@ function DashboardGridInner({
       margin: designPx(GRID_MARGIN),
       float: true,
       animate: false,
+      maxRow: gridMaxRow(layoutRef.current),
       // Dock cards are NOT .grid-stack-item, so `true` would reject them.
       // Accept both dock cards and real items.
       acceptWidgets: (el: Element) =>
@@ -198,22 +239,22 @@ function DashboardGridInner({
         el.classList.contains("grid-stack-item"),
       disableResize: false,
       disableDrag: false,
-      draggable: { handle: ".widget-body", appendTo: "body" },
+      draggable: {
+        handle: ".widget-shell-header",
+        cancel: ".widget-shell-body,input,textarea,button,a,select",
+        appendTo: "body",
+      },
       resizable: { handles: "n,e,s,w,se,sw,ne,nw" },
     };
 
     const grid = GridStack.init(opts, hostEl);
     gridInstanceRef.current = grid;
 
-    const widgets = layoutToGridWidgets(
-      enforceLayoutRowRules(layoutRef.current),
-    );
+    const widgets = layoutToGridWidgets(layoutRef.current);
     if (widgets.length > 0) {
       grid.load(widgets);
     }
-    grid.engine.maxRow = gridMaxRow(
-      enforceLayoutRowRules(layoutRef.current),
-    );
+    grid.engine.maxRow = gridMaxRow(layoutRef.current);
     settleGridMetrics(grid, CELL_HEIGHT, GRID_MARGIN);
 
     const syncCellMetrics = () => {
@@ -230,6 +271,12 @@ function DashboardGridInner({
     let syncQueued = false;
     let replacingDockDrop = false;
     const placedDockIds = new Set<string>();
+    /** Ignore GridStack churn right after load — it can report a partial node
+     *  list and we must not persist that (it silently deletes widgets). */
+    let persistUnlocked = false;
+    const unlockPersist = window.setTimeout(() => {
+      persistUnlocked = true;
+    }, 1500);
 
     const nodesToLayout = (nodes: GridStackNode[]): LayoutItem[] =>
       nodes
@@ -299,6 +346,7 @@ function DashboardGridInner({
 
     const syncLayout = () => {
       if (cancelled || !initSettledRef.current || replacingDockDrop) return;
+      if (!persistUnlocked) return;
       if (grid.isIgnoreChangeCB?.()) return;
       if (
         isDraggingWidget &&
@@ -310,10 +358,44 @@ function DashboardGridInner({
       syncQueued = true;
       queueMicrotask(() => {
         syncQueued = false;
-        if (cancelled || !initSettledRef.current || replacingDockDrop) return;
+        if (cancelled || !initSettledRef.current || replacingDockDrop || !persistUnlocked) return;
         const nodes = grid.save(false) as GridStackNode[];
         const next = nodesToLayout(nodes);
+        const prev = layoutRef.current;
+        // GridStack occasionally reports a truncated node list after remount /
+        // collision resolution. Persisting that deletes widgets from the user's
+        // saved layout (dock then says "all widgets are on the dashboard" while
+        // half of them are gone from the grid). Refuse mysterious shrinks —
+        // intentional removes update layoutRef first via removeWidget/persist.
+        if (prev.length > 0 && next.length < prev.length) {
+          const nextIds = new Set(next.map((i) => i.id));
+          const missing = prev.filter((i) => !nextIds.has(i.id));
+          console.warn(
+            `[dashboard] grid lost ${missing.length} widget(s) — restoring instead of persisting. Missing:`,
+            missing.map((m) => m.id),
+          );
+          replacingDockDrop = true;
+          try {
+            for (const item of missing) {
+              const def = WIDGETS[item.id];
+              if (!def) continue;
+              grid.addWidget({
+                id: item.id,
+                x: item.x,
+                y: item.y,
+                w: item.w,
+                h: item.h,
+                minW: def.minW,
+                minH: def.minH,
+              });
+            }
+          } finally {
+            replacingDockDrop = false;
+          }
+          return;
+        }
         applyMaxRow(next);
+        layoutRef.current = next;
         onLayoutPersistRef.current(next);
       });
     };
@@ -348,7 +430,7 @@ function DashboardGridInner({
       const existing = nodesToLayout(
         grid.save(false) as GridStackNode[],
       );
-      const y = clampY(existing, newNode.y ?? 0);
+      const y = clampY(existing, newNode.y ?? 0, undefined, h);
 
       replacingDockDrop = true;
       try {
@@ -409,7 +491,12 @@ function DashboardGridInner({
         Math.min(COLUMNS - w, Math.round((clientX - rect.left - (w * cellW) / 2) / cellW)),
       );
       const existing = nodesToLayout(grid.save(false) as GridStackNode[]);
-      const y = clampY(existing, Math.max(0, Math.round((clientY - rect.top - (h * cellH) / 2) / cellH)));
+      const y = clampY(
+        existing,
+        Math.max(0, Math.round((clientY - rect.top - (h * cellH) / 2) / cellH)),
+        undefined,
+        h,
+      );
       return { def, x, y, w, h, cellW, cellH };
     };
 
@@ -574,6 +661,8 @@ function DashboardGridInner({
     return () => {
       cancelled = true;
       initSettledRef.current = false;
+      unsubBridge();
+      window.clearTimeout(unlockPersist);
       clearDockPreview();
       previewDockRef.current = null;
       clearPreviewRef.current = null;
@@ -603,11 +692,24 @@ function DashboardGridInner({
   }, [mountKey]);
 
   return (
-    <div ref={hostRef} key={mountKey} className="grid-stack min-h-[30rem]" />
+    <div
+      ref={hostRef}
+      key={mountKey}
+      className="grid-stack"
+      style={{ minHeight: dashboardBoardHeightPx() }}
+    />
   );
 }
 
+/** Remount only when mountKey changes; layout updates still flow through. */
 export const DashboardGrid = memo(
   DashboardGridInner,
-  (prev, next) => prev.mountKey === next.mountKey,
+  (prev, next) =>
+    prev.mountKey === next.mountKey &&
+    prev.layout === next.layout &&
+    prev.onLayoutPersist === next.onLayoutPersist &&
+    prev.onWidgetDragStart === next.onWidgetDragStart &&
+    prev.onWidgetDragStop === next.onWidgetDragStop &&
+    prev.onAfterExternalDrop === next.onAfterExternalDrop &&
+    prev.gridRef === next.gridRef,
 );

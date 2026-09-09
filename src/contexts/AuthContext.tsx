@@ -21,7 +21,7 @@ interface AuthUser {
   twoFactorEnabled: boolean;
 }
 
-interface AuthContextValue {
+export interface AuthContextValue {
   isPending: boolean;
   isAuthenticated: boolean;
   user: AuthUser | null;
@@ -43,7 +43,7 @@ interface AuthContextValue {
   refresh: () => void;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+export const AuthContext = createContext<AuthContextValue | null>(null);
 
 const EMPTY_ACCESS: EffectiveAccess = {
   roles: [],

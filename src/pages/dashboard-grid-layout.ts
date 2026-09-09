@@ -1,4 +1,4 @@
-import { COLUMNS, type LayoutItem } from "./dashboard-widgets";
+import { COLUMNS, DASHBOARD_MAX_ROWS, type LayoutItem } from "./dashboard-widgets";
 
 /**
  * One level = 3 grid rows × 12 columns (full width).
@@ -6,8 +6,11 @@ import { COLUMNS, type LayoutItem } from "./dashboard-widgets";
  */
 export const ROWS_PER_LEVEL = 3;
 
-/** User levels 1–3 (indices 0–2) have no placement restrictions */
-export const FREE_LEVEL_COUNT = 3;
+/**
+ * Free levels cover the full 11-row board (4 × 3 = 12 soft rows, hard-capped
+ * to DASHBOARD_MAX_ROWS). Case detail keeps its own fixed page height.
+ */
+export const FREE_LEVEL_COUNT = 4;
 
 /** How many full levels above the target are summed for the 25% check */
 export const LOOKBACK_LEVELS = 3;
@@ -159,10 +162,13 @@ export function maxAllowedLevel(nodes: GridRect[]): number {
 export function maxAllowedY(nodes: GridRect[]): number {
   const allowedLevelCount = maxAllowedLevel(nodes);
   if (allowedLevelCount <= 0) return 0;
-  return allowedLevelCount * ROWS_PER_LEVEL - 1;
+  const softMax = allowedLevelCount * ROWS_PER_LEVEL - 1;
+  // Hard board cap (11 rows) — mirrors case-detail's fixed page height.
+  return Math.min(softMax, DASHBOARD_MAX_ROWS - 1);
 }
 
 export function canPlaceAtY(nodes: GridRect[], y: number): boolean {
+  if (y >= DASHBOARD_MAX_ROWS) return false;
   return canPlaceAtLevel(nodes, levelIndexForY(y));
 }
 
@@ -170,27 +176,28 @@ export function clampY(
   nodes: GridRect[],
   y: number,
   excludeId?: string,
+  itemH = 1,
 ): number {
   const peers = excludeId
     ? nodes.filter((n) => n.id !== excludeId)
     : nodes;
-  const maxY = maxAllowedY(peers);
+  const maxY = Math.min(maxAllowedY(peers), DASHBOARD_MAX_ROWS - Math.max(1, itemH));
   return Math.max(0, Math.min(Math.floor(y), maxY));
 }
 
 export function enforceLayoutRowRules(items: LayoutItem[]): LayoutItem[] {
-  return items.map((item) => ({
-    ...item,
-    y: clampY(
+  return items.map((item) => {
+    const h = Math.min(item.h, DASHBOARD_MAX_ROWS);
+    const y = clampY(
       items.filter((i) => i.id !== item.id),
       item.y,
       item.id,
-    ),
-  }));
+      h,
+    );
+    return { ...item, h, y };
+  });
 }
 
-export function gridMaxRow(items: LayoutItem[]): number {
-  const deepest = items.reduce((m, n) => Math.max(m, n.y + n.h), 0);
-  const allowedTop = maxAllowedY(items);
-  return Math.max(deepest + 1, allowedTop + ROWS_PER_LEVEL);
+export function gridMaxRow(_items: LayoutItem[]): number {
+  return DASHBOARD_MAX_ROWS;
 }
