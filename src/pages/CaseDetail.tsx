@@ -6,6 +6,7 @@ import { casesApi, investigatorsApi, ApiError, type CaseDetail as CaseDetailType
 import { invalidateQueries, useQuery } from "@/lib/query-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGridLayout } from "@/hooks/useGridLayout";
+import { WidgetBridgeSync } from "@/lib/widget-bridge";
 import { CaseSubjectHeader } from "@/components/case/CaseSubjectHeader";
 import { CaseActionBar, type CaseDrawerId } from "@/components/case/CaseActionBar";
 import { CasePageArrows } from "@/components/case/CasePageArrows";
@@ -614,6 +615,8 @@ export default function CaseDetail() {
   const drawerMeta = activeDrawer ? DRAWER_META[activeDrawer] : null;
 
   return (
+    <>
+    <WidgetBridgeSync />
     <div className="case-detail-page">
       <CaseSubjectHeader
         className="mb-4 shrink-0"
@@ -802,5 +805,6 @@ export default function CaseDetail() {
         </>
       )}
     </div>
+    </>
   );
 }

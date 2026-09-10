@@ -4,6 +4,12 @@ import { GridStack, type GridStackNode, type GridStackOptions } from "gridstack"
 import { settleGridMetrics } from "@/lib/grid-stack-host";
 import { designPx } from "@/lib/rem";
 import { WidgetSizeProvider } from "@/lib/widget-size";
+import {
+  getWidgetBridge,
+  subscribeWidgetBridge,
+  WidgetTreeProviders,
+} from "@/lib/widget-bridge";
+import { WidgetErrorBoundary } from "@/components/widgets/WidgetErrorBoundary";
 import { caseWidgetDebug, type DragDropTarget } from "@/lib/case-widget-debug";
 import {
   CASE_CELL_HEIGHT,
@@ -21,6 +27,7 @@ import {
   type CasePanelCtx,
   type CasePanelId,
 } from "./case-detail-widgets";
+import { packLayoutWithinMaxRows } from "./dashboard-grid-layout";
 import { CustomCaseWidget } from "./CustomCaseWidget";
 
 export type CaseDetailGridHandle = {
@@ -110,15 +117,27 @@ function renderPanel(host: HTMLElement, id: string, ctx: CasePanelCtx) {
     allRoots.add(root);
   }
 
+  const bridgeKey = getWidgetBridge() ? "ready" : "pending";
+
   root.render(
     <div className="widget-frame h-full w-full">
       <div className="widget-body h-full w-full">
-        <WidgetSizeProvider>
-          {def ? def.render(ctx) : <CustomCaseWidget ctx={ctx} id={id} />}
-        </WidgetSizeProvider>
+        <WidgetErrorBoundary key={bridgeKey} name={id}>
+          <WidgetTreeProviders>
+            <WidgetSizeProvider>
+              {def ? def.render(ctx) : <CustomCaseWidget ctx={ctx} id={id} />}
+            </WidgetSizeProvider>
+          </WidgetTreeProviders>
+        </WidgetErrorBoundary>
       </div>
     </div>,
   );
+}
+
+function rerenderAllPanelHosts(ctx: CasePanelCtx) {
+  for (const [id, host] of hostById) {
+    if (panelRoots.has(host)) renderPanel(host, id, ctx);
+  }
 }
 
 export function caseGridShellHeightPx(): number {
@@ -198,6 +217,10 @@ function CaseDetailGridInner({
     let cancelled = false;
 
     unmountAll();
+
+    const unsubBridge = subscribeWidgetBridge(() => {
+      if (!cancelled) rerenderAllPanelHosts(ctxRef.current);
+    });
 
     GridStack.renderCB = (el, node) => {
       const id = (node.id ?? el.getAttribute("gs-id")) as string | null;
@@ -512,9 +535,26 @@ function CaseDetailGridInner({
       gridsRef.current.set(pageId, grid);
       settled.set(pageId, false);
 
-      const items = itemsForPage(layoutRef.current, pageId);
+      const items = packLayoutWithinMaxRows(
+        itemsForPage(layoutRef.current, pageId),
+        CASE_PAGE_ROWS,
+        CASE_COLUMNS,
+      );
       const widgets = layoutToCaseGridWidgets(items);
-      if (widgets.length > 0) grid.load(widgets);
+      if (widgets.length > 0) {
+        try {
+          grid.batchUpdate(true);
+          grid.load(widgets);
+          grid.batchUpdate(false);
+        } catch (err) {
+          console.warn("[case-grid] load failed — retrying without maxRow", err);
+          grid.engine.maxRow = 0;
+          grid.batchUpdate(true);
+          grid.load(widgets);
+          grid.batchUpdate(false);
+          grid.engine.maxRow = CASE_PAGE_ROWS;
+        }
+      }
       settleGridMetrics(grid, CASE_CELL_HEIGHT, CASE_GRID_MARGIN);
 
       // Attach change/added/removed listeners only after settle — grid.load
@@ -549,6 +589,7 @@ function CaseDetailGridInner({
 
     return () => {
       cancelled = true;
+      unsubBridge();
       dragActive = false;
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);

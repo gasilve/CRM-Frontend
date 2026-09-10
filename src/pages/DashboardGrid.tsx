@@ -14,6 +14,7 @@ import {
   canPlaceAtY,
   clampY,
   gridMaxRow,
+  packLayoutWithinMaxRows,
 } from "./dashboard-grid-layout";
 import {
   CELL_HEIGHT,
@@ -250,9 +251,20 @@ function DashboardGridInner({
     const grid = GridStack.init(opts, hostEl);
     gridInstanceRef.current = grid;
 
-    const widgets = layoutToGridWidgets(layoutRef.current);
+    const widgets = layoutToGridWidgets(packLayoutWithinMaxRows(layoutRef.current));
     if (widgets.length > 0) {
-      grid.load(widgets);
+      try {
+        grid.batchUpdate(true);
+        grid.load(widgets);
+        grid.batchUpdate(false);
+      } catch (err) {
+        console.warn("[dashboard] grid.load failed — retrying without maxRow", err);
+        grid.engine.maxRow = 0;
+        grid.batchUpdate(true);
+        grid.load(widgets);
+        grid.batchUpdate(false);
+        grid.engine.maxRow = gridMaxRow(layoutRef.current);
+      }
     }
     grid.engine.maxRow = gridMaxRow(layoutRef.current);
     settleGridMetrics(grid, CELL_HEIGHT, GRID_MARGIN);
@@ -376,7 +388,9 @@ function DashboardGridInner({
           );
           replacingDockDrop = true;
           try {
-            for (const item of missing) {
+            const restored = packLayoutWithinMaxRows([...next, ...missing]);
+            for (const item of restored) {
+              if (nextIds.has(item.id)) continue;
               const def = WIDGETS[item.id];
               if (!def) continue;
               grid.addWidget({

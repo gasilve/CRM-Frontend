@@ -198,6 +198,67 @@ export function enforceLayoutRowRules(items: LayoutItem[]): LayoutItem[] {
   });
 }
 
+/**
+ * Collision-free pack inside the hard row cap. GridStack + maxRow infinite-loops
+ * when saved layouts overlap or sit past the bottom — call this before load().
+ */
+export function packLayoutWithinMaxRows<
+  T extends { id: string; x: number; y: number; w: number; h: number },
+>(items: T[], maxRows = DASHBOARD_MAX_ROWS, columns = COLUMNS): T[] {
+  const sorted = [...items].sort((a, b) => a.y - b.y || a.x - b.x || a.id.localeCompare(b.id));
+  const occupied: boolean[][] = Array.from({ length: maxRows }, () =>
+    Array<boolean>(columns).fill(false),
+  );
+  const placed: T[] = [];
+
+  const fits = (x: number, y: number, w: number, h: number) => {
+    if (x < 0 || y < 0 || w < 1 || h < 1) return false;
+    if (x + w > columns || y + h > maxRows) return false;
+    for (let row = y; row < y + h; row++) {
+      for (let col = x; col < x + w; col++) {
+        if (occupied[row][col]) return false;
+      }
+    }
+    return true;
+  };
+
+  const mark = (x: number, y: number, w: number, h: number) => {
+    for (let row = y; row < y + h; row++) {
+      for (let col = x; col < x + w; col++) occupied[row][col] = true;
+    }
+  };
+
+  const findSpot = (w: number, h: number, preferX: number, preferY: number) => {
+    if (fits(preferX, preferY, w, h)) return { x: preferX, y: preferY };
+    for (let y = 0; y <= maxRows - h; y++) {
+      for (let x = 0; x <= columns - w; x++) {
+        if (fits(x, y, w, h)) return { x, y };
+      }
+    }
+    return null;
+  };
+
+  for (const raw of sorted) {
+    let w = Math.min(Math.max(1, Math.floor(raw.w)), columns);
+    let h = Math.min(Math.max(1, Math.floor(raw.h)), maxRows);
+    let x = Math.max(0, Math.min(Math.floor(raw.x), columns - w));
+    let y = Math.max(0, Math.min(Math.floor(raw.y), maxRows - h));
+
+    let spot = findSpot(w, h, x, y);
+    while (!spot && h > 1) {
+      h -= 1;
+      y = Math.min(y, maxRows - h);
+      spot = findSpot(w, h, x, y);
+    }
+    if (!spot) continue;
+
+    mark(spot.x, spot.y, w, h);
+    placed.push({ ...raw, x: spot.x, y: spot.y, w, h });
+  }
+
+  return placed;
+}
+
 export function gridMaxRow(_items: LayoutItem[]): number {
   return DASHBOARD_MAX_ROWS;
 }
