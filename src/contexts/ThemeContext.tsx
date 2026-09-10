@@ -153,7 +153,7 @@ const ThemeContext = createContext<ThemeCtx>({
   themeId: DEFAULT_THEME,
   themeMeta: defaultThemeMeta,
   setTheme: () => {},
-  glass: DEFAULT_GLASS_MODE !== "off",
+  glass: true,
   glassMode: DEFAULT_GLASS_MODE,
   setGlassMode: () => {},
   setGlass: () => {},
