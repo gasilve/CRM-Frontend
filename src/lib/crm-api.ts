@@ -1141,6 +1141,16 @@ export const geocodeApi = {
 
 // ─── Scheduling ──────────────────────────────────────────────────────────────
 
+export interface ScheduleBlockCaseAddress {
+  id: string;
+  label: string | null;
+  line1: string;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  isPrimary: boolean;
+}
+
 export interface ScheduleBlock {
   id: string;
   caseId: string;
@@ -1161,9 +1171,18 @@ export interface ScheduleBlock {
     status: CaseStatus;
     priority: CasePriority;
     dueDate: string | null;
+    service: CaseService;
+    startTime: string | null;
+    client: { id: string; company: string } | null;
+    addresses: ScheduleBlockCaseAddress[];
   };
   user: { id: string; name: string; email: string; region: Region | null };
   createdBy: { id: string; name: string } | null;
+}
+
+export interface SchedulePriorWork {
+  caseId: string;
+  userId: string;
 }
 
 export interface ScheduleListParams {
@@ -1172,6 +1191,10 @@ export interface ScheduleListParams {
   region?: Region;
   caseId?: string;
   userId?: string;
+  /** When true, response includes priorWork pairs for cases in the result. */
+  includePriorWork?: boolean;
+  /** Comma-separated case UUIDs to include in prior-work lookup. */
+  priorWorkCaseIds?: string;
 }
 
 export interface CreateScheduleBlockPayload {
@@ -1186,7 +1209,7 @@ export interface CreateScheduleBlockPayload {
 
 export const scheduleApi = {
   list: (params: ScheduleListParams = {}) =>
-    request<{ blocks: ScheduleBlock[] }>(`/schedule${toQuery(params)}`),
+    request<{ blocks: ScheduleBlock[]; priorWork?: SchedulePriorWork[] }>(`/schedule${toQuery(params)}`),
   create: (body: CreateScheduleBlockPayload) =>
     request<{ block: ScheduleBlock }>("/schedule", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: Partial<Omit<CreateScheduleBlockPayload, "caseId" | "userId">>) =>

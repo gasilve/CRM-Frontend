@@ -398,7 +398,7 @@ export const DASHBOARD_MAX_BOARDS = 5;
  * Hard cap on dashboard grid rows (case detail uses 9). Sized to fill a typical
  * laptop viewport with cellHeight 84 + margin 8.
  */
-export const DASHBOARD_MAX_ROWS = 11;
+export const DASHBOARD_MAX_ROWS = 10;
 
 /** Intel-first starter layout — fits within DASHBOARD_MAX_ROWS. */
 export const DEFAULT_LAYOUT: LayoutItem[] = [
@@ -407,12 +407,12 @@ export const DEFAULT_LAYOUT: LayoutItem[] = [
   { id: "regulatory-watch", x: 9, y: 0, w: 3, h: 4, pageId: DASHBOARD_BOARD_1 },
   { id: "fraud-intel-research", x: 0, y: 4, w: 3, h: 3, pageId: DASHBOARD_BOARD_1 },
   { id: "caseload-overview", x: 3, y: 4, w: 3, h: 3, pageId: DASHBOARD_BOARD_1 },
-  { id: "rush-overdue-queue", x: 6, y: 4, w: 3, h: 4, pageId: DASHBOARD_BOARD_1 },
-  { id: "notes-checklist", x: 9, y: 4, w: 3, h: 4, pageId: DASHBOARD_BOARD_1 },
+  { id: "rush-overdue-queue", x: 6, y: 4, w: 3, h: 3, pageId: DASHBOARD_BOARD_1 },
+  { id: "notes-checklist", x: 9, y: 4, w: 3, h: 3, pageId: DASHBOARD_BOARD_1 },
   { id: "case-aging-funnel", x: 0, y: 7, w: 3, h: 3, pageId: DASHBOARD_BOARD_1 },
   { id: "case-aging-turnaround", x: 3, y: 7, w: 3, h: 3, pageId: DASHBOARD_BOARD_1 },
-  { id: "my-active-cases", x: 6, y: 8, w: 3, h: 3, pageId: DASHBOARD_BOARD_1 },
-  { id: "recent-case-activity", x: 9, y: 8, w: 3, h: 3, pageId: DASHBOARD_BOARD_1 },
+  { id: "my-active-cases", x: 6, y: 7, w: 3, h: 3, pageId: DASHBOARD_BOARD_1 },
+  { id: "recent-case-activity", x: 9, y: 7, w: 3, h: 3, pageId: DASHBOARD_BOARD_1 },
 ];
 
 /**
@@ -425,7 +425,7 @@ export const COLUMNS = 12;
 export const CELL_HEIGHT = 84;
 export const GRID_MARGIN = 8;
 
-/** Pixel height of a full 11-row dashboard board (matches case-detail shell math). */
+/** Pixel height of a full dashboard board (matches case-detail shell math). */
 export function dashboardBoardHeightPx(): number {
   const cell = designPx(CELL_HEIGHT);
   const margin = designPx(GRID_MARGIN);

@@ -165,7 +165,7 @@ export function BackgroundPicker({ open, onClose, triggerRef, align = "bottom-en
   );
 }
 
-function BgSwatch({
+export function BgSwatch({
   bg,
   active,
   onSelect,

@@ -175,14 +175,22 @@ html[data-glass="true"] .atmo-glass-scene {
   z-index: 0;
 }
 
-html:not([data-glass="true"]) .atmo-glass-scene {
+html:not([data-glass="true"]):not([data-glass="tinted"]):not([data-glass="dark"]) .atmo-glass-scene {
   display: none;
 }
 
 html[data-glass="true"] .atmo-radial,
 html[data-glass="true"] .atmo-noise,
 html[data-glass="true"] .atmo-scanlines,
-html[data-glass="true"] .atmo-sweep {
+html[data-glass="true"] .atmo-sweep,
+html[data-glass="tinted"] .atmo-radial,
+html[data-glass="tinted"] .atmo-noise,
+html[data-glass="tinted"] .atmo-scanlines,
+html[data-glass="tinted"] .atmo-sweep,
+html[data-glass="dark"] .atmo-radial,
+html[data-glass="dark"] .atmo-noise,
+html[data-glass="dark"] .atmo-scanlines,
+html[data-glass="dark"] .atmo-sweep {
   display: none !important;
 }
 
@@ -227,8 +235,6 @@ html[data-theme^="light"][data-glass="true"] .atmo-glass-scene {
 
 html[data-glass="true"] .surveil-shell {
   background: transparent !important;
-  padding: 0.75rem;
-  gap: 0.75rem;
   box-sizing: border-box;
   color: #ffffff;
 }
@@ -303,7 +309,6 @@ html[data-glass="true"] .app-shell-main {
   /* No overflow:hidden here — it clips the topbar’s 0.0625rem top border. */
   overflow: visible;
   min-width: 0;
-  gap: 0.625rem;
 }
 
 html[data-glass="true"] .app-main {
@@ -343,10 +348,15 @@ html[data-glass="true"] .case-detail-page .surface {
     inset 0 -0.0625rem 0 rgb(from var(--color-accent) r g b / 0.12) !important;
 }
 
-/* ── Floating sidebar ── */
+/* ── Floating sidebar — visual inset only (margins must not widen the flex column) ── */
 html[data-glass="true"] .app-sidebar {
   align-self: stretch;
-  height: auto !important;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  margin-left: 0.5rem;
+  /* Cancel left inset so page content stays put */
+  margin-right: -0.5rem;
+  height: calc(100% - 2rem) !important;
   border-radius: 1.375rem !important;
   border: 0.0625rem solid var(--glass-edge) !important;
   border-right: 0.0625rem solid var(--glass-edge) !important;
@@ -383,7 +393,7 @@ html[data-glass="true"] .app-sidebar .surface {
     ) !important;
 }
 
-/* ── Top bar — fully rounded floating strip ── */
+/* ── Top bar — frosted strip, flush with Off framing (no floating inset) ── */
 html[data-glass="true"] .app-topbar {
   background:
     linear-gradient(
@@ -394,14 +404,11 @@ html[data-glass="true"] .app-topbar {
     var(--glass-fill) !important;
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) !important;
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) !important;
-  /* Explicit all-sides border — Tailwind `border-b` leaves top width at 0
-     until this overrides it. */
-  border: 0.0625rem solid var(--glass-edge) !important;
-  border-top-width: 0.0625rem !important;
+  border-bottom: 0.0625rem solid var(--glass-edge) !important;
   box-shadow:
     inset 0 0.0625rem 0 var(--glass-shine),
     var(--glass-shadow);
-  border-radius: 1.125rem !important;
+  border-radius: 0 !important;
 }
 
 html[data-glass="true"] .app-topbar > div:first-child,
@@ -591,4 +598,227 @@ html[data-theme^="light"][data-glass="true"] .app-sidebar .surface {
 .glass-opacity-slider:disabled::-moz-range-thumb {
   box-shadow: none;
   opacity: 0.55;
+}
+
+/* ── Frosted schedule bands (solid defaults live in components.css) ── */
+html[data-glass="true"] .calendar-assign-band {
+  background:
+    linear-gradient(
+      145deg,
+      rgb(from var(--band-accent, var(--color-accent)) r g b / calc(var(--glass-accent-alpha) + 0.18)) 0%,
+      rgb(from var(--color-ink-2) r g b / var(--glass-alpha)) 100%
+    );
+  border-color: color-mix(
+    in srgb,
+    var(--band-accent, var(--color-accent)) 58%,
+    var(--glass-edge)
+  );
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+  box-shadow: inset 0 0.0625rem 0 var(--glass-shine);
+}
+
+html[data-glass="true"] .calendar-empty-slot {
+  background: rgb(from var(--color-ink-3) r g b / var(--glass-alpha));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tinted + Dark glass — Off chrome (sidebar / framing / text) + scene plate +
+   dark translucent cards/items. No blur, no frosted floating chrome.
+   Tinted keeps accent wash gradients; Dark is the flat variant.
+   Opacity is forced to slider-equivalent 100% in ThemeProvider (no slider).
+   ═══════════════════════════════════════════════════════════════════════════ */
+html:is([data-glass="tinted"], [data-glass="dark"]) {
+  --glass-alpha: 0.54;
+  --glass-alpha-strong: 0.66;
+  --glass-accent-alpha: 0.3;
+  --glass-shine-alpha: 0.28;
+  --glass-blur: 0;
+  --glass-blur-sm: 0;
+  --glass-saturate: 1;
+  --glass-scrim: 54%;
+  --glass-scene-ink: var(--color-ink-0);
+  --glass-tint: rgb(from var(--color-accent) r g b / 0.22);
+  --glass-tint-strong: rgb(from var(--color-accent) r g b / 0.38);
+  --glass-fill: rgb(from var(--color-ink-2) r g b / var(--glass-alpha));
+  --glass-fill-strong: rgb(from var(--color-ink-3) r g b / var(--glass-alpha-strong));
+  --glass-edge: color-mix(
+    in srgb,
+    var(--color-accent-2) 36%,
+    rgba(255, 255, 255, 0.12)
+  );
+  --glass-shine: rgb(from var(--color-accent-2) r g b / var(--glass-shine-alpha));
+  --glass-shadow:
+    0 0.5rem 1.25rem -0.5rem rgba(0, 0, 0, 0.45),
+    0 1rem 2.5rem -0.875rem color-mix(in srgb, var(--color-ink-0) 70%, transparent);
+}
+
+/* Light themes: keep Off ink/text on chrome; cards use dark translucent fills. */
+html[data-theme^="light"]:is([data-glass="tinted"], [data-glass="dark"]) {
+  --glass-scene-ink: color-mix(in srgb, var(--color-accent) 18%, #060a12);
+  --glass-scrim: 58%;
+  --glass-fill: rgb(
+    from color-mix(in srgb, var(--color-accent) 28%, #0a101c)
+      r g b / var(--glass-alpha)
+  );
+  --glass-fill-strong: rgb(
+    from color-mix(in srgb, var(--color-accent) 34%, #0c1220)
+      r g b / var(--glass-alpha-strong)
+  );
+  --glass-edge: color-mix(
+    in srgb,
+    var(--color-accent-2) 42%,
+    rgba(160, 190, 255, 0.1)
+  );
+  --theme-main-bg: transparent;
+}
+
+/* Tinted scene: accent wash gradients over the photo */
+html[data-glass="tinted"] .atmo-glass-scene {
+  display: block;
+  background:
+    linear-gradient(
+      115deg,
+      color-mix(in srgb, var(--glass-scene-ink) var(--glass-scrim), transparent) 0%,
+      rgb(from var(--color-accent) r g b / 0.22) 46%,
+      color-mix(in srgb, var(--glass-scene-ink) var(--glass-scrim), transparent) 100%
+    ),
+    radial-gradient(
+      ellipse 72% 58% at 74% 38%,
+      color-mix(in srgb, var(--color-bg-tint) 85%, var(--color-accent-glow)),
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 18% 78%,
+      var(--glass-tint-strong),
+      transparent 70%
+    ),
+    url("/glass-backdrop.jpg") center / cover no-repeat;
+  z-index: 0;
+}
+
+html[data-theme^="light"][data-glass="tinted"] .atmo-glass-scene {
+  background:
+    linear-gradient(
+      115deg,
+      color-mix(in srgb, var(--glass-scene-ink) var(--glass-scrim), transparent) 0%,
+      rgb(from var(--color-accent) r g b / 0.22) 46%,
+      color-mix(in srgb, var(--glass-scene-ink) var(--glass-scrim), transparent) 100%
+    ),
+    radial-gradient(
+      ellipse 72% 58% at 74% 38%,
+      color-mix(in srgb, var(--color-bg-tint) 85%, var(--color-accent-glow)),
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 18% 78%,
+      var(--glass-tint-strong),
+      transparent 70%
+    ),
+    url("/glass-backdrop.jpg") center / cover no-repeat;
+}
+
+/* Dark scene: lighter flat scrim so the city plate / live video still reads */
+html[data-glass="dark"] .atmo-glass-scene {
+  display: block;
+  background:
+    color-mix(in srgb, var(--glass-scene-ink) 38%, transparent),
+    url("/glass-backdrop.jpg") center / cover no-repeat;
+  z-index: 0;
+}
+
+/* Live video wins over the static plate (same as frosted / tinted). */
+html[data-bg]:not([data-bg="static"]):is([data-glass="dark"], [data-glass="tinted"]) .atmo-glass-scene {
+  background: transparent !important;
+}
+
+html:is([data-glass="tinted"], [data-glass="dark"]) .atmo-vignette {
+  opacity: 0.55;
+  background: radial-gradient(
+    circle at 50% 56%,
+    transparent 42%,
+    color-mix(in srgb, var(--glass-scene-ink) 72%, transparent) 100%
+  );
+}
+
+/* Let the scene read through the middle — leave sidebar/topbar Off-solid. */
+html:is([data-glass="tinted"], [data-glass="dark"]) .surveil-shell {
+  background: transparent !important;
+}
+
+html:is([data-glass="tinted"], [data-glass="dark"]) .app-shell-main,
+html:is([data-glass="tinted"], [data-glass="dark"]) .app-main {
+  background: transparent !important;
+}
+
+/* Tinted cards: soft top shine gradient + translucent fill */
+html[data-glass="tinted"] .surface {
+  border-radius: var(--radius-card) !important;
+  background:
+    linear-gradient(
+      180deg,
+      rgb(from var(--color-accent-2) r g b / calc(var(--glass-shine-alpha) * 0.55)) 0%,
+      transparent 55%
+    ),
+    var(--glass-fill) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  border: 0.0625rem solid var(--glass-edge) !important;
+  box-shadow:
+    inset 0 0.0625rem 0 var(--glass-shine),
+    var(--glass-shadow) !important;
+}
+
+/* Dark cards: flat translucent fill — no gradient wash */
+html[data-glass="dark"] .surface {
+  border-radius: var(--radius-card) !important;
+  background: var(--glass-fill) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  border: 0.0625rem solid var(--glass-edge) !important;
+  box-shadow:
+    inset 0 0.0625rem 0 var(--glass-shine),
+    var(--glass-shadow) !important;
+}
+
+html:is([data-glass="tinted"], [data-glass="dark"]) .surface-hover:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent-2) 48%,
+    rgba(255, 255, 255, 0.2)
+  ) !important;
+  box-shadow:
+    inset 0 0.0625rem 0 rgb(from var(--color-accent-2) r g b / 0.28),
+    0 1.125rem 2.5rem -0.875rem rgba(0, 0, 0, 0.5),
+    0 0 1.5rem -0.625rem var(--color-accent-glow) !important;
+}
+
+html:is([data-glass="tinted"], [data-glass="dark"]) .calendar-assign-band {
+  background: color-mix(
+    in srgb,
+    var(--band-accent, var(--color-accent)) 38%,
+    rgb(from var(--color-ink-2) r g b / var(--glass-alpha-strong))
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--band-accent, var(--color-accent)) 58%,
+    var(--glass-edge)
+  );
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+html:is([data-glass="tinted"], [data-glass="dark"]) .calendar-empty-slot {
+  background: rgb(from var(--color-ink-3) r g b / var(--glass-alpha));
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Picker stays opaque for swatch readability (same idea as frosted). */
+html:is([data-glass="tinted"], [data-glass="dark"]) .theme-picker-panel {
+  background: var(--color-ink-1) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }

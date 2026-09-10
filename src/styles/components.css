@@ -49,6 +49,27 @@
       0 0 1.5rem -0.625rem var(--color-accent-glow);
   }
 
+  /* Schedule day-board assignment chips — solid when glass is off; frosted in glass.css */
+  .calendar-assign-band {
+    background: color-mix(in srgb, var(--band-accent, var(--color-accent)) 34%, var(--color-ink-3));
+    border-color: color-mix(in srgb, var(--band-accent, var(--color-accent)) 52%, var(--color-line));
+  }
+
+  /* Soft glyph outline + drop shadow — text only, no field chrome */
+  .calendar-band-text {
+    text-shadow:
+      -0.5px -0.5px 0 rgba(0, 0, 0, 0.4),
+      0.5px -0.5px 0 rgba(0, 0, 0, 0.4),
+      -0.5px 0.5px 0 rgba(0, 0, 0, 0.4),
+      0.5px 0.5px 0 rgba(0, 0, 0, 0.4),
+      0 1px 2px rgba(0, 0, 0, 0.45),
+      0 2px 6px rgba(0, 0, 0, 0.28);
+  }
+
+  .calendar-empty-slot {
+    background: var(--color-ink-3);
+  }
+
   .hairline {
     background: linear-gradient(90deg, transparent, var(--color-line-2), transparent);
     height: 0.0625rem;

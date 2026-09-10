@@ -10,9 +10,10 @@ const FULL_BLEED_ROUTES = ["/assistant", "/video"];
  * Pages that own the viewport with `h-full` flex layouts (tables, grids,
  * calendars). They must NOT sit under a `min-h-full`-only wrapper — percentage
  * height only resolves when the parent has an explicit height.
- * Dashboard (`/`) is intentionally excluded so GridStack can grow and scroll.
+ * Dashboard (`/`) uses fill-height so the fixed board does not create page scroll.
  */
 const FILL_HEIGHT_PREFIXES = [
+  "/",
   "/cases",
   "/pending-cases",
   "/schedule",
