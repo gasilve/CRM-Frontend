@@ -30,6 +30,7 @@ import type { Subject } from "@/lib/mock-data";
 import {
   CASE_DEFAULT_LAYOUT,
   CASE_DEFAULT_PAGES,
+  CASE_DEFAULT_WIDGETS,
   normalizeCaseDocument,
   normalizeCaseLayout,
   type CaseLayoutItem,
@@ -102,6 +103,7 @@ export default function PendingCaseDetail() {
     normalizeDocument: (items, savedPages, savedWidgets, phase) =>
       normalizeCaseDocument(items, savedPages, savedWidgets as CustomCaseWidgetDef[] | null, phase),
     defaultPages: CASE_DEFAULT_PAGES,
+    defaultWidgets: CASE_DEFAULT_WIDGETS,
     editable: false,
   });
   const gridHandleRef = useRef<CaseDetailGridHandle | null>(null);

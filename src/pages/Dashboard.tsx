@@ -78,7 +78,7 @@ function DashboardInner() {
   }, [activeBoardId]);
 
   useEffect(() => {
-    if (boards.length <= 1) setDeleteMode(false);
+    if (boards.length <= 2) setDeleteMode(false);
   }, [boards.length]);
 
   const layout = useMemo(
@@ -204,14 +204,14 @@ function DashboardInner() {
   const deleteBoard = useCallback(
     (pageId: string) => {
       const current = boardsRef.current;
-      if (current.length <= 1) return;
+      if (current.length <= 2) return;
       const next = current.filter((p) => p.id !== pageId);
       // Drop widgets that lived only on the deleted board (don't rehome — dashboards are independent).
       const items = allItemsRef.current.filter((i) => (i.pageId ?? DASHBOARD_BOARD_1) !== pageId);
       persistLayout(items, next);
       setActiveBoardId((cur) => (cur === pageId ? next[0].id : cur));
       setMountKey((v) => v + 1);
-      if (next.length <= 1) setDeleteMode(false);
+      if (next.length <= 2) setDeleteMode(false);
     },
     [persistLayout],
   );
@@ -234,14 +234,14 @@ function DashboardInner() {
                   activeBoardId === board.id
                     ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
                     : "border-[var(--color-line)] text-[var(--color-text-lo)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]",
-                  deleteMode && boards.length > 1 && "rounded-r-none border-r-0",
+                  deleteMode && boards.length > 2 && "rounded-r-none border-r-0",
                 )}
                 aria-label={`Dashboard ${board.name}`}
                 aria-current={activeBoardId === board.id ? "page" : undefined}
               >
                 {board.name}
               </button>
-              {deleteMode && boards.length > 1 && (
+              {deleteMode && boards.length > 2 && (
                 <button
                   type="button"
                   onClick={() => deleteBoard(board.id)}
@@ -265,7 +265,7 @@ function DashboardInner() {
               <Plus size={14} strokeWidth={2} />
             </button>
           )}
-          {boards.length > 1 && (
+          {boards.length > 2 && (
             <button
               type="button"
               onClick={() => setDeleteMode((v) => !v)}

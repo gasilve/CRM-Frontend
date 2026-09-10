@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Car, ChevronDown, Folder, Plus, Sparkles, Users } from "lucide-react";
+import { Car, ChevronDown, Folder, NotebookPen, Plus, Users } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export type CaseDrawerId = "vehicles" | "people" | "folder";
+export type CaseDrawerId = "vehicles" | "people" | "folder" | "notebook";
 
 const BAR_COLLAPSED_LS_KEY = "accenty.crm.case-action-bar.collapsed";
 
@@ -21,7 +21,13 @@ type Props = {
  * chevron above it to collapse/expand. Hidden while a widget is being dragged
  * or the widget dock is open.
  */
-export function CaseActionBar({ canEditLayout, activeDrawer, dockOpen, onToggleDock, onOpenDrawer }: Props) {
+export function CaseActionBar({
+  canEditLayout,
+  activeDrawer,
+  dockOpen,
+  onToggleDock,
+  onOpenDrawer,
+}: Props) {
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(BAR_COLLAPSED_LS_KEY) === "1";
@@ -87,15 +93,7 @@ export function CaseActionBar({ canEditLayout, activeDrawer, dockOpen, onToggleD
           </button>
         )}
         {btn("Case folder", <Folder size={17} strokeWidth={1.8} />, () => onOpenDrawer("folder"), activeDrawer === "folder")}
-        <button
-          type="button"
-          title="Coming soon"
-          aria-label="Coming soon"
-          className="case-bar-btn case-bar-btn--soon"
-          onClick={(e) => e.preventDefault()}
-        >
-          <Sparkles size={17} strokeWidth={1.8} />
-        </button>
+        {btn("Field notebook", <NotebookPen size={17} strokeWidth={1.8} />, () => onOpenDrawer("notebook"), activeDrawer === "notebook")}
       </div>
     </div>,
     document.body,

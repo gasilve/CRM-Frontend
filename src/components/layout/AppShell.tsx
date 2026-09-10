@@ -34,6 +34,8 @@ export default function AppShell() {
   const fullBleed = FULL_BLEED_ROUTES.some((r) => pathname.startsWith(r));
   const fillHeight = FILL_HEIGHT_PREFIXES.some((r) => pathMatchesPrefix(pathname, r));
   const noScroll = fullBleed || fillHeight;
+  /** Pending case detail only — not the list. Full-screen caution wash. */
+  const pendingCaseDetail = /^\/pending-cases\/[^/]+/.test(pathname);
   const [navOpen, setNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -125,6 +127,7 @@ export default function AppShell() {
       <div className="atmo atmo-scanlines" aria-hidden />
       <div className="atmo atmo-sweep" aria-hidden />
       <div className="atmo atmo-vignette" aria-hidden />
+      {pendingCaseDetail ? <div className="pending-case-hazard-bg" aria-hidden /> : null}
 
       {navOpen ? (
         <button

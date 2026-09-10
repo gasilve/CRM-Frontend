@@ -332,6 +332,20 @@ body.dashboard-trash-hovered
   overflow: hidden;
 }
 
+/* Pending case detail — full-viewport hazard wash (set from AppShell) */
+.pending-case-hazard-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    #0a0a0a 0 0.7rem,
+    #eab308 0.7rem 1.4rem
+  );
+  opacity: 0.07;
+}
+
 /* ── Case page action bar — always visible, centered along the bottom ────── */
 /* Wrapper only positions; the pill chrome lives on `.case-action-bar`. The
    chevron toggle sits above with no background of its own. */
@@ -576,9 +590,11 @@ body.dashboard-dock-placing .case-page-arrow {
 
 /* ── Case drawers — workspaces over the case page, leaving the bottom bar
    clear so the menu stays usable while a drawer is open ─────────────────── */
+/* Action bar: bottom 1.125 + toggle 2 + gap 0.25 + pill ~4.4 + breathing room */
 .case-drawer-backdrop {
+  --case-drawer-bottom: 8rem;
   position: fixed;
-  inset: 0;
+  inset: 0 0 var(--case-drawer-bottom) 0;
   z-index: 55;
   background: rgba(4, 6, 12, 0.5);
   backdrop-filter: blur(0.1875rem);
@@ -586,7 +602,7 @@ body.dashboard-dock-placing .case-page-arrow {
 }
 .case-drawer {
   position: absolute;
-  inset: 1.5rem 3.5rem 1rem;
+  inset: 1.5rem 3.5rem 0;
   display: flex;
   flex-direction: column;
   border-radius: 1rem;
