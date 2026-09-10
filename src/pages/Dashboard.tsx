@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { CasePageArrows } from "@/components/case/CasePageArrows";
 import { DashboardActionBar } from "@/components/dashboard/DashboardActionBar";
 import { DragDock } from "@/components/dashboard/DragDock";
 import { PanelLoader } from "@/components/ui/LoadingState";
@@ -216,8 +217,8 @@ function DashboardInner() {
   );
 
   return (
-    <div className="relative pb-24">
-      <div className="page-header mb-4 flex flex-wrap items-end justify-between gap-4">
+    <div className="relative flex h-full min-h-0 flex-col">
+      <div className="page-header mb-3 flex shrink-0 flex-wrap items-end justify-between gap-4">
         <h1 className="page-title editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">Dashboard</h1>
         <div className="mb-0.5 flex flex-wrap items-center gap-1">
           {boards.map((board) => (
@@ -284,12 +285,12 @@ function DashboardInner() {
       </div>
 
       {layoutError && (
-        <div className="anim-banner surface mb-4 rounded-[0.875rem] border border-[rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.06)] px-4 py-3 text-[0.8125rem] text-[var(--color-warn)]">
+        <div className="anim-banner surface mb-3 shrink-0 rounded-[0.875rem] border border-[rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.06)] px-4 py-3 text-[0.8125rem] text-[var(--color-warn)]">
           {layoutError} Showing the default arrangement — changes may not be saved.
         </div>
       )}
 
-      <div className="relative">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         {!layoutReady ? (
           <PanelLoader message="Loading your layout" />
         ) : (
@@ -315,6 +316,15 @@ function DashboardInner() {
           </>
         )}
       </div>
+
+      <CasePageArrows
+        pages={boards}
+        activePageId={activeBoardId}
+        onSelect={(pageId) => {
+          setActiveBoardId(pageId);
+          setMountKey((v) => v + 1);
+        }}
+      />
 
       <DashboardActionBar
         visible={layoutReady && draggingWidgetId === null}

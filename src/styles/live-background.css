@@ -100,6 +100,12 @@ html[data-bg]:not([data-bg="static"]) .atmo-sweep {
 
 html[data-bg]:not([data-bg="static"])[data-glass="true"] .atmo-noise,
 html[data-bg]:not([data-bg="static"])[data-glass="true"] .atmo-scanlines,
-html[data-bg]:not([data-bg="static"])[data-glass="true"] .atmo-sweep {
+html[data-bg]:not([data-bg="static"])[data-glass="true"] .atmo-sweep,
+html[data-bg]:not([data-bg="static"])[data-glass="tinted"] .atmo-noise,
+html[data-bg]:not([data-bg="static"])[data-glass="tinted"] .atmo-scanlines,
+html[data-bg]:not([data-bg="static"])[data-glass="tinted"] .atmo-sweep,
+html[data-bg]:not([data-bg="static"])[data-glass="dark"] .atmo-noise,
+html[data-bg]:not([data-bg="static"])[data-glass="dark"] .atmo-scanlines,
+html[data-bg]:not([data-bg="static"])[data-glass="dark"] .atmo-sweep {
   display: none !important;
 }

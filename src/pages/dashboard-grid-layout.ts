@@ -7,7 +7,7 @@ import { COLUMNS, DASHBOARD_MAX_ROWS, type LayoutItem } from "./dashboard-widget
 export const ROWS_PER_LEVEL = 3;
 
 /**
- * Free levels cover the full 11-row board (4 × 3 = 12 soft rows, hard-capped
+ * Free levels cover the full board (4 × 3 = 12 soft rows, hard-capped
  * to DASHBOARD_MAX_ROWS). Case detail keeps its own fixed page height.
  */
 export const FREE_LEVEL_COUNT = 4;
@@ -163,7 +163,7 @@ export function maxAllowedY(nodes: GridRect[]): number {
   const allowedLevelCount = maxAllowedLevel(nodes);
   if (allowedLevelCount <= 0) return 0;
   const softMax = allowedLevelCount * ROWS_PER_LEVEL - 1;
-  // Hard board cap (11 rows) — mirrors case-detail's fixed page height.
+  // Hard board cap — mirrors case-detail's fixed page height.
   return Math.min(softMax, DASHBOARD_MAX_ROWS - 1);
 }
 

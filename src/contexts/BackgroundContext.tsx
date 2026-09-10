@@ -37,6 +37,12 @@ const stillThumb = `${import.meta.env.BASE_URL}glass-backdrop.jpg`.replace(
   "$1",
 );
 
+/** Hosted locally so the default scene does not depend on Mixkit CDN. */
+const rangesVideo = `${import.meta.env.BASE_URL}backgrounds/aerial-ranges.mp4`.replace(
+  /([^:]\/)\/+/g,
+  "$1",
+);
+
 /** Mixkit free 1080p CDN */
 const mix = (id: number) =>
   `https://assets.mixkit.co/videos/${id}/${id}-1080.mp4`;
@@ -365,8 +371,8 @@ export const BACKGROUNDS: BackgroundMeta[] = [
     name: "Ranges",
     subtitle: "Mountain landscape",
     category: "aerial",
-    videoSrc: mix(4366),
-    thumb: mix(4366),
+    videoSrc: rangesVideo,
+    thumb: rangesVideo,
   },
   {
     id: "aerial-dusk",
@@ -395,7 +401,22 @@ export const BACKGROUNDS: BackgroundMeta[] = [
 ];
 
 export const BACKGROUND_LS_KEY = "accenty.crm.background.v3";
-const DEFAULT_BACKGROUND: BackgroundId = "static";
+/** Video URL or still image URL — used by boot / full-screen loaders. */
+export const BACKGROUND_SRC_LS_KEY = "accenty.crm.background-src.v1";
+const DEFAULT_BACKGROUND: BackgroundId = "aerial-ranges";
+
+function sceneSrcFor(meta: BackgroundMeta): string {
+  if (meta.videoSrc) return meta.videoSrc;
+  return meta.thumb || stillThumb;
+}
+
+function persistBackgroundSrc(meta: BackgroundMeta) {
+  try {
+    localStorage.setItem(BACKGROUND_SRC_LS_KEY, sceneSrcFor(meta));
+  } catch {
+    /* ignore */
+  }
+}
 
 type BackgroundCtx = {
   backgroundId: BackgroundId;
@@ -433,6 +454,9 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
   const [backgroundId, setBackgroundId] =
     useState<BackgroundId>(readStoredBackground);
 
+  const backgroundMeta =
+    BACKGROUNDS.find((b) => b.id === backgroundId) ?? BACKGROUNDS[0];
+
   useLayoutEffect(() => {
     document.documentElement.setAttribute("data-bg", backgroundId);
     try {
@@ -440,10 +464,8 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-  }, [backgroundId]);
-
-  const backgroundMeta =
-    BACKGROUNDS.find((b) => b.id === backgroundId) ?? BACKGROUNDS[0];
+    persistBackgroundSrc(backgroundMeta);
+  }, [backgroundId, backgroundMeta]);
 
   return (
     <BackgroundContext.Provider

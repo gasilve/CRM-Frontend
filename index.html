@@ -26,7 +26,7 @@
 
         root.setAttribute(
           "data-theme",
-          theme && valid.indexOf(theme) !== -1 ? theme : "light-10"
+          theme && valid.indexOf(theme) !== -1 ? theme : "dark-16"
         );
 
         var palettes = {
@@ -61,20 +61,32 @@
           "light-9": ["#f6f2ff", "#00b8ff"],
           "light-1": ["#f0f4ff", "#3b6ff5"]
         };
-        var activeTheme = theme && valid.indexOf(theme) !== -1 ? theme : "light-10";
-        var pal = palettes[activeTheme] || palettes["light-10"];
+        var activeTheme = theme && valid.indexOf(theme) !== -1 ? theme : "dark-16";
+        var pal = palettes[activeTheme] || palettes["dark-16"];
         root.style.setProperty("--boot-bg", pal[0]);
         root.style.setProperty("--boot-accent", pal[1]);
         root.style.backgroundColor = pal[0];
 
-        var glassOn = glass === "1" || glass === "true";
-        root.setAttribute("data-glass", glassOn ? "true" : "false");
+        var glassMode =
+          glass === "tinted" ? "tinted"
+          : glass === "dark" ? "dark"
+          : glass === "frosted" || glass === "1" || glass === "true" ? "frosted"
+          : glass === "off" || glass === "0" || glass === "false" ? "off"
+          : "dark";
+        root.setAttribute(
+          "data-glass",
+          glassMode === "frosted" ? "true"
+            : glassMode === "tinted" ? "tinted"
+            : glassMode === "dark" ? "dark"
+            : "false"
+        );
 
-        root.setAttribute("data-bg", bg && bg.length ? bg : "static");
+        root.setAttribute("data-bg", bg && bg.length ? bg : "aerial-ranges");
 
         var op = Number(opacity);
         if (!Number.isFinite(op)) op = 23;
         op = Math.min(100, Math.max(0, Math.round(op)));
+        if (glassMode === "tinted" || glassMode === "dark") op = 100;
         var t = op / 100;
         var alpha = 0.04 + t * 0.5;
         var alphaStrong = Math.min(0.72, alpha + 0.12);
@@ -86,6 +98,7 @@
         var bl = Number(blur);
         if (!Number.isFinite(bl)) bl = 13;
         bl = Math.min(60, Math.max(0, Math.round(bl)));
+        if (glassMode !== "frosted") bl = 0;
         var blSm = Math.max(0, Math.round(bl * 0.7));
         root.style.setProperty("--glass-blur", bl + "px");
         root.style.setProperty("--glass-blur-sm", blSm + "px");
@@ -136,6 +149,37 @@
         </div>
       </div>
     </div>
+    <script>
+      (function () {
+        var el = document.getElementById("boot-loader");
+        if (!el) return;
+        var src = null;
+        try {
+          src = localStorage.getItem("accenty.crm.background-src.v1");
+        } catch (_) {}
+        if (!src) src = "/admin/backgrounds/aerial-ranges.mp4";
+        var isVideo =
+          /\.mp4($|\?)/i.test(src) || src.indexOf("mixkit.co/videos") !== -1;
+        var media;
+        if (isVideo) {
+          media = document.createElement("video");
+          media.src = src;
+          media.muted = true;
+          media.autoplay = true;
+          media.loop = true;
+          media.playsInline = true;
+          media.setAttribute("playsinline", "");
+          media.preload = "auto";
+        } else {
+          media = document.createElement("div");
+          media.style.backgroundImage = 'url("' + String(src).replace(/"/g, "") + '")';
+        }
+        media.className = "boot-scene-media";
+        media.setAttribute("aria-hidden", "true");
+        el.classList.add("boot-screen--scene");
+        el.insertBefore(media, el.firstChild);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

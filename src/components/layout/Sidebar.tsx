@@ -5,7 +5,6 @@ import {
   Check,
   CircleUserRound,
   Plus,
-  Image,
   LayoutDashboard,
   Users2,
   Building2,
@@ -49,7 +48,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/cn";
-import { BackgroundPicker } from "./BackgroundPicker";
 import { ThemePicker } from "./ThemePicker";
 import { ConfirmModal } from "@/components/dashboard/ConfirmModal";
 import { invCases, investigators } from "@/lib/mock-data";
@@ -559,9 +557,7 @@ export default function Sidebar({
   const [sidebarState, setSidebarState] = useState<SidebarState>(readSidebarState);
   const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<string | null>(null);
   const [themeOpen, setThemeOpen] = useState(false);
-  const [bgOpen, setBgOpen] = useState(false);
   const themeButtonRef = useRef<HTMLButtonElement>(null);
-  const bgButtonRef = useRef<HTMLButtonElement>(null);
   const { user, roles, canAny, logout } = useAuth();
 
   const sensors = useSensors(
@@ -870,29 +866,12 @@ export default function Sidebar({
               ref={themeButtonRef}
               type="button"
               aria-label="Choose theme"
-              title="Theme"
+              title="Theme & background"
               aria-expanded={themeOpen}
-              onClick={() => {
-                setThemeOpen((v) => !v);
-                setBgOpen(false);
-              }}
+              onClick={() => setThemeOpen((v) => !v)}
               className="grid h-7 w-7 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)] aria-expanded:border-[var(--color-line-3)] aria-expanded:text-[var(--color-text-hi)]"
             >
               <Palette size={13} strokeWidth={1.6} />
-            </button>
-            <button
-              ref={bgButtonRef}
-              type="button"
-              aria-label="Choose background"
-              title="Background"
-              aria-expanded={bgOpen}
-              onClick={() => {
-                setBgOpen((v) => !v);
-                setThemeOpen(false);
-              }}
-              className="grid h-7 w-7 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)] aria-expanded:border-[var(--color-line-3)] aria-expanded:text-[var(--color-text-hi)]"
-            >
-              <Image size={13} strokeWidth={1.6} />
             </button>
             <button
               type="button"
@@ -910,12 +889,6 @@ export default function Sidebar({
           open={themeOpen}
           onClose={() => setThemeOpen(false)}
           triggerRef={themeButtonRef}
-          align="top-start"
-        />
-        <BackgroundPicker
-          open={bgOpen}
-          onClose={() => setBgOpen(false)}
-          triggerRef={bgButtonRef}
           align="top-start"
         />
       </div>
