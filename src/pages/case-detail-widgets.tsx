@@ -1,33 +1,21 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  User, Briefcase, Tag, MapPin, Users2, ScrollText, Paperclip,
+  User, MapPin, Users2, Paperclip,
 } from "lucide-react";
 import type { CaseDetail, GridLayoutWidget } from "@/lib/crm-api";
 import {
   AddressesMapPanel,
   AssignmentPanel,
   CaseFilesPanel,
-  CaseInfoPanel,
-  ClientAdjusterPanel,
-  DescriptionPanel,
-  IdentityPanel,
   SubjectPhotoPanel,
-  TagsPanel,
-  WorkPanel,
 } from "./case-detail-panels";
 
 export type CasePanelId =
   | "subject-photo"
-  | "identity"
-  | "work"
-  | "client-adjuster"
-  | "case-info"
-  | "tags"
   | "assignment"
   | "addresses-map"
-  | "files"
-  | "description";
+  | "files";
 
 export type CasePage = {
   id: string;
@@ -94,31 +82,6 @@ export const CASE_PANELS: Record<CasePanelId, CasePanelDef> = {
     minH: 4, minW: 2, defaultW: 3, defaultH: 6,
     render: (ctx) => <SubjectPhotoPanel ctx={ctx} />,
   },
-  identity: {
-    id: "identity", label: "Identity", icon: User,
-    minH: 3, minW: 2, defaultW: 3, defaultH: 3,
-    render: (ctx) => <IdentityPanel ctx={ctx} />,
-  },
-  work: {
-    id: "work", label: "Work", icon: Briefcase,
-    minH: 3, minW: 2, defaultW: 3, defaultH: 3,
-    render: (ctx) => <WorkPanel ctx={ctx} />,
-  },
-  "client-adjuster": {
-    id: "client-adjuster", label: "Client", icon: Briefcase,
-    minH: 3, minW: 2, defaultW: 3, defaultH: 3,
-    render: (ctx) => <ClientAdjusterPanel ctx={ctx} />,
-  },
-  "case-info": {
-    id: "case-info", label: "Assignment details", icon: Briefcase,
-    minH: 3, minW: 3, defaultW: 6, defaultH: 3,
-    render: (ctx) => <CaseInfoPanel ctx={ctx} />,
-  },
-  tags: {
-    id: "tags", label: "Tags", icon: Tag,
-    minH: 2, minW: 2, defaultW: 3, defaultH: 3,
-    render: (ctx) => <TagsPanel ctx={ctx} />,
-  },
   assignment: {
     id: "assignment", label: "Assignment", icon: Users2,
     minH: 2, minW: 2, defaultW: 3, defaultH: 3,
@@ -133,11 +96,6 @@ export const CASE_PANELS: Record<CasePanelId, CasePanelDef> = {
     id: "files", label: "Files", icon: Paperclip,
     minH: 2, minW: 2, defaultW: 3, defaultH: 4,
     render: (ctx) => <CaseFilesPanel ctx={ctx} />,
-  },
-  description: {
-    id: "description", label: "Description", icon: ScrollText,
-    minH: 2, minW: 2, defaultW: 3, defaultH: 3,
-    render: (ctx) => <DescriptionPanel ctx={ctx} />,
   },
 };
 
@@ -187,6 +145,70 @@ export function createCustomWidgetDef(title = RESERVED_WIDGET_TITLE): CustomCase
   return { id: newCustomWidgetId(), type: "custom", title, fields: [], columns: 1, persisted: false };
 }
 
+/** Stable ids for the house-default text panels (editable custom widgets). */
+export const CUSTOM_ASSIGNMENT_DETAILS_ID = "custom-assignment-details";
+export const CUSTOM_CLIENT_ID = "custom-client";
+export const CUSTOM_ADJUSTER_ID = "custom-adjuster";
+export const CUSTOM_CASE_STATUS_ID = "custom-case-status";
+
+/**
+ * Seed definitions for the text panels that used to be premade. Stable ids so
+ * reset / migration / dock stay aligned. `persisted: true` keeps them in the
+ * dock when removed from the board.
+ */
+export const CASE_DEFAULT_WIDGETS: CustomCaseWidgetDef[] = [
+  {
+    id: CUSTOM_ASSIGNMENT_DETAILS_ID,
+    type: "custom",
+    title: "Assignment details",
+    columns: 2,
+    persisted: true,
+    fields: [
+      { key: "case.client.company", label: "Client" },
+      { key: "case.claimNumber", label: "Claim #" },
+      { key: "case.city", label: "City" },
+      { key: "case.policyNumber", label: "Policy #" },
+      { key: "case.startTime", label: "Start time" },
+      { key: "case.dueDate", label: "Due date" },
+      { key: "case.adjusterName", label: "Adjuster" },
+      { key: "case.daysAllotted", label: "Days" },
+      { key: "case.dateOfInjury", label: "Date of injury" },
+      { key: "case.service", label: "Service" },
+    ],
+  },
+  {
+    id: CUSTOM_CLIENT_ID,
+    type: "custom",
+    title: "Client",
+    columns: 1,
+    persisted: true,
+    fields: [
+      { key: "case.client.company", label: "Client" },
+      { key: "case.claimNumber", label: "Claim #" },
+      { key: "case.policyNumber", label: "Policy #" },
+    ],
+  },
+  {
+    id: CUSTOM_ADJUSTER_ID,
+    type: "custom",
+    title: "Adjuster",
+    columns: 1,
+    persisted: true,
+    fields: [
+      { key: "case.adjusterName", label: "Adjuster" },
+      { key: "case.adjusterEmail", label: "Adjuster email" },
+    ],
+  },
+  {
+    id: CUSTOM_CASE_STATUS_ID,
+    type: "custom",
+    title: "Case status",
+    columns: 1,
+    persisted: true,
+    fields: [{ key: "case.status", label: "Status" }],
+  },
+];
+
 /** Label for any placeable widget — premade or custom. */
 export function caseWidgetLabel(id: string, widgets: CustomCaseWidgetDef[] | null | undefined): string {
   const panel = CASE_PANELS[id as CasePanelId];
@@ -199,6 +221,10 @@ type WidgetSizing = { minW: number; minH: number; defaultW: number; defaultH: nu
 export function caseWidgetSizing(id: string): WidgetSizing {
   const panel = CASE_PANELS[id as CasePanelId];
   if (panel) return { minW: panel.minW, minH: panel.minH, defaultW: panel.defaultW, defaultH: panel.defaultH };
+  // Assignment details is wider by default (was the premade footprint).
+  if (id === CUSTOM_ASSIGNMENT_DETAILS_ID) {
+    return { minW: CUSTOM_WIDGET_MIN_W, minH: CUSTOM_WIDGET_MIN_H, defaultW: 6, defaultH: 3 };
+  }
   return {
     minW: CUSTOM_WIDGET_MIN_W,
     minH: CUSTOM_WIDGET_MIN_H,
@@ -225,20 +251,18 @@ export const CASE_DEFAULT_PAGES: CasePage[] = [
 ];
 
 /**
- * Single-screen house default — every premade panel except vehicles
- * (vehicles stay in the case action-bar drawer).
+ * Built-in house board when no server layout exists yet.
+ * Used only as a fallback — never overwrites a saved board on load.
  */
 export const CASE_DEFAULT_LAYOUT: CaseLayoutItem[] = [
-  { id: "case-info", pageId: CASE_PAGE_OVERVIEW, x: 0, y: 0, w: 4, h: 3 },
-  { id: "assignment", pageId: CASE_PAGE_OVERVIEW, x: 4, y: 0, w: 2, h: 3 },
-  { id: "client-adjuster", pageId: CASE_PAGE_OVERVIEW, x: 6, y: 0, w: 3, h: 3 },
-  { id: "tags", pageId: CASE_PAGE_OVERVIEW, x: 9, y: 0, w: 3, h: 3 },
-  { id: "subject-photo", pageId: CASE_PAGE_OVERVIEW, x: 0, y: 3, w: 3, h: 6 },
-  { id: "identity", pageId: CASE_PAGE_OVERVIEW, x: 3, y: 3, w: 3, h: 3 },
-  { id: "work", pageId: CASE_PAGE_OVERVIEW, x: 6, y: 3, w: 3, h: 3 },
-  { id: "addresses-map", pageId: CASE_PAGE_OVERVIEW, x: 9, y: 3, w: 3, h: 6 },
-  { id: "description", pageId: CASE_PAGE_OVERVIEW, x: 3, y: 6, w: 3, h: 3 },
-  { id: "files", pageId: CASE_PAGE_OVERVIEW, x: 6, y: 6, w: 3, h: 3 },
+  { id: CUSTOM_ASSIGNMENT_DETAILS_ID, pageId: CASE_PAGE_OVERVIEW, x: 0, y: 0, w: 5, h: 6 },
+  { id: CUSTOM_CLIENT_ID, pageId: CASE_PAGE_OVERVIEW, x: 5, y: 0, w: 2, h: 4 },
+  { id: "assignment", pageId: CASE_PAGE_OVERVIEW, x: 7, y: 0, w: 2, h: 4 },
+  { id: "subject-photo", pageId: CASE_PAGE_OVERVIEW, x: 9, y: 0, w: 3, h: 4 },
+  { id: "files", pageId: CASE_PAGE_OVERVIEW, x: 5, y: 4, w: 2, h: 5 },
+  { id: "addresses-map", pageId: CASE_PAGE_OVERVIEW, x: 7, y: 4, w: 5, h: 5 },
+  { id: CUSTOM_ADJUSTER_ID, pageId: CASE_PAGE_OVERVIEW, x: 0, y: 6, w: 3, h: 3 },
+  { id: CUSTOM_CASE_STATUS_ID, pageId: CASE_PAGE_OVERVIEW, x: 3, y: 6, w: 2, h: 3 },
 ];
 
 /**
@@ -293,41 +317,66 @@ function sanitizeWidgets(widgets: CustomCaseWidgetDef[] | null | undefined): Cus
   return out;
 }
 
-/**
- * Panels shipped after layouts were already saved. Saved layouts predate them,
- * so on LOAD (never on persist) any missing promoted panel is pushed into the
- * first page with room. Removing one still works — the removal persists a doc
- * without it and nothing re-injects until the next full load. Once any layout
- * edit is saved, the injected panel is part of the document for good.
- */
-const PROMOTED_PANEL_IDS: CasePanelId[] = ["files"];
-
-function injectPromotedPanels(pages: CasePage[], items: CaseLayoutItem[]): CaseLayoutItem[] {
-  const present = new Set(items.map((i) => i.id));
-  let out = items;
-
-  for (const id of PROMOTED_PANEL_IDS) {
-    if (present.has(id)) continue;
-    const sizing = caseWidgetSizing(id);
-
-    // First page whose content leaves enough free rows at the bottom.
-    let pageId = pages[pages.length - 1]?.id ?? CASE_PAGE_OVERVIEW;
-    let y = Math.max(0, CASE_PAGE_ROWS - sizing.defaultH);
-    for (const p of pages) {
-      const bottom = out
-        .filter((i) => i.pageId === p.id)
-        .reduce((max, i) => Math.max(max, i.y + i.h), 0);
-      if (bottom + sizing.defaultH <= CASE_PAGE_ROWS) {
-        pageId = p.id;
-        y = bottom;
-        break;
-      }
-    }
-
-    out = [...out, { id, pageId, x: 0, y, w: sizing.defaultW, h: sizing.defaultH }];
+/** Ensure stock custom defs exist without overwriting admin edits. */
+function mergeDefaultWidgets(widgets: CustomCaseWidgetDef[]): CustomCaseWidgetDef[] {
+  const byId = new Map(widgets.map((w) => [w.id, w]));
+  for (const def of CASE_DEFAULT_WIDGETS) {
+    if (!byId.has(def.id)) byId.set(def.id, { ...def, fields: def.fields.map((f) => ({ ...f })) });
   }
+  return [...byId.values()];
+}
 
+/**
+ * Former text-only premades → stable custom widgets. Identity / work / tags /
+ * description are dropped (rebuild via custom widgets if needed).
+ */
+const LEGACY_TEXT_PANEL_MAP: Record<string, string | null> = {
+  "case-info": CUSTOM_ASSIGNMENT_DETAILS_ID,
+  "client-adjuster": CUSTOM_CLIENT_ID,
+  identity: null,
+  work: null,
+  tags: null,
+  description: null,
+};
+
+function migrateLegacyLayoutItems(
+  items: Array<Partial<CaseLayoutItem> & { id: string }>,
+): Array<Partial<CaseLayoutItem> & { id: string }> {
+  const out: Array<Partial<CaseLayoutItem> & { id: string }> = [];
+  const seen = new Set<string>();
+  for (const raw of items) {
+    if (!(raw.id in LEGACY_TEXT_PANEL_MAP)) {
+      if (seen.has(raw.id)) continue;
+      seen.add(raw.id);
+      out.push(raw);
+      continue;
+    }
+    const nextId = LEGACY_TEXT_PANEL_MAP[raw.id];
+    if (!nextId || seen.has(nextId)) continue;
+    seen.add(nextId);
+    out.push({ ...raw, id: nextId });
+  }
   return out;
+}
+
+/** True when a saved board still carries the old text-panel house default. */
+function looksLikeLegacyHouseDefault(
+  items: Array<Partial<CaseLayoutItem> & { id: string }>,
+): boolean {
+  const ids = new Set(items.map((i) => i.id));
+  const markers = ["identity", "work", "description", "case-info", "tags"] as const;
+  return markers.filter((id) => ids.has(id)).length >= 3;
+}
+
+/**
+ * Force only the pre-custom-widget text-panel house default onto the current
+ * CASE_DEFAULT_LAYOUT. Any board the admin has arranged is left alone so
+ * drags persist.
+ */
+function shouldForceCaseHouseDefault(
+  items: Array<Partial<CaseLayoutItem> & { id: string }>,
+): boolean {
+  return looksLikeLegacyHouseDefault(items);
 }
 
 /**
@@ -336,8 +385,11 @@ function injectPromotedPanels(pages: CasePage[], items: CaseLayoutItem[]): CaseL
  * Unlike the pre-dock era this does NOT force missing premade panels back in —
  * a panel absent from the layout is simply "removed" and lives in the dock.
  * Items whose id is neither a premade panel nor a known custom widget are
- * dropped (stale ids from an older catalog). The one exception: on load,
- * PROMOTED_PANEL_IDS are injected into layouts saved before they existed.
+ * dropped (stale ids from an older catalog).
+ *
+ * Layouts that still look like the pre-custom-widget house default are
+ * replaced with CASE_DEFAULT_LAYOUT on load so the cleared board ships without
+ * a manual reset.
  */
 export function normalizeCaseDocument(
   items: Array<Partial<CaseLayoutItem> & { id: string }>,
@@ -345,11 +397,21 @@ export function normalizeCaseDocument(
   widgets?: CustomCaseWidgetDef[] | null,
   phase: "load" | "persist" = "load",
 ): { pages: CasePage[]; items: CaseLayoutItem[]; widgets: CustomCaseWidgetDef[] } {
-  const cleanWidgets = sanitizeWidgets(widgets);
+  if (phase === "load" && shouldForceCaseHouseDefault(items)) {
+    return normalizeCaseDocument(
+      CASE_DEFAULT_LAYOUT,
+      CASE_DEFAULT_PAGES,
+      CASE_DEFAULT_WIDGETS,
+      "persist",
+    );
+  }
+
+  const migratedItems = migrateLegacyLayoutItems(items);
+  const cleanWidgets = mergeDefaultWidgets(sanitizeWidgets(widgets));
   const customIds = new Set(cleanWidgets.map((w) => w.id));
   const isKnown = (id: string) => Boolean(CASE_PANELS[id as CasePanelId]) || customIds.has(id);
 
-  const hasPageIds = items.some((i) => typeof i.pageId === "string" && i.pageId.length > 0);
+  const hasPageIds = migratedItems.some((i) => typeof i.pageId === "string" && i.pageId.length > 0);
 
   let nextPages: CasePage[] =
     pages && pages.length > 0
@@ -377,7 +439,7 @@ export function normalizeCaseDocument(
     const page1 = nextPages[0].id;
     const page2 = nextPages[1].id;
 
-    for (const raw of items) {
+    for (const raw of migratedItems) {
       if (!isKnown(raw.id) || seen.has(raw.id)) continue;
       seen.add(raw.id);
       const sizing = caseWidgetSizing(raw.id);
@@ -390,7 +452,7 @@ export function normalizeCaseDocument(
       }
     }
   } else {
-    for (const raw of items) {
+    for (const raw of migratedItems) {
       if (!isKnown(raw.id) || seen.has(raw.id)) continue;
       seen.add(raw.id);
       const pageId = raw.pageId && pageIds.has(raw.pageId) ? raw.pageId : nextPages[0].id;
@@ -400,7 +462,7 @@ export function normalizeCaseDocument(
 
   return {
     pages: nextPages,
-    items: phase === "load" ? injectPromotedPanels(nextPages, out) : out,
+    items: out,
     widgets: cleanWidgets,
   };
 }

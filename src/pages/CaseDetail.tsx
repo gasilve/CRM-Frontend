@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarPlus, Car, Folder, Users } from "lucide-react";
+import { ArrowLeft, CalendarPlus, Car, Folder, NotebookPen, Users } from "lucide-react";
 import { CaseDetailSkeleton, PanelLoader } from "@/components/ui/LoadingState";
 import { casesApi, investigatorsApi, ApiError, type CaseDetail as CaseDetailType, type CaseStatus } from "@/lib/crm-api";
 import { invalidateQueries, useQuery } from "@/lib/query-cache";
@@ -20,6 +20,7 @@ import type { Subject } from "@/lib/mock-data";
 import {
   CASE_DEFAULT_LAYOUT,
   CASE_DEFAULT_PAGES,
+  CASE_DEFAULT_WIDGETS,
   CASE_LEGACY_LS_KEY,
   CASE_PAGE_ROWS,
   RESERVED_WIDGET_TITLE,
@@ -37,6 +38,7 @@ import {
 import { CaseDetailGrid, type CaseDetailGridHandle } from "./CaseDetailGrid";
 import { CaseDetailPageNav } from "./CaseDetailPageNav";
 import { CustomWidgetBuilderModal } from "./CustomCaseWidget";
+import { CustomFieldsNotebook } from "./CustomFieldsNotebookModal";
 import CaseWidgetDock from "./CaseWidgetDock";
 import { caseWidgetDebug, resolveDragDropTarget, type DragDropTarget } from "@/lib/case-widget-debug";
 
@@ -50,6 +52,7 @@ const DRAWER_META: Record<CaseDrawerId, { title: string; icon: React.ReactNode }
   vehicles: { title: "Vehicles", icon: <Car size={16} strokeWidth={1.8} /> },
   people: { title: "People", icon: <Users size={16} strokeWidth={1.8} /> },
   folder: { title: "Case folder", icon: <Folder size={16} strokeWidth={1.8} /> },
+  notebook: { title: "Field notebook", icon: <NotebookPen size={16} strokeWidth={1.8} /> },
 };
 
 export default function CaseDetail() {
@@ -98,6 +101,7 @@ export default function CaseDetail() {
     normalizeDocument: (items, savedPages, savedWidgets, phase) =>
       normalizeCaseDocument(items, savedPages, savedWidgets as CustomCaseWidgetDef[] | null, phase),
     defaultPages: CASE_DEFAULT_PAGES,
+    defaultWidgets: CASE_DEFAULT_WIDGETS,
     legacyStorageKey: CASE_LEGACY_LS_KEY,
     editable: canEditLayout,
   });
@@ -715,6 +719,7 @@ export default function CaseDetail() {
           {activeDrawer === "vehicles" && <CaseVehiclesDrawer ctx={panelCtx} />}
           {activeDrawer === "people" && <CasePeopleDrawer ctx={panelCtx} />}
           {activeDrawer === "folder" && <CaseFolderDrawer ctx={panelCtx} />}
+          {activeDrawer === "notebook" && <CustomFieldsNotebook canEdit={canEditLayout} />}
         </CaseDrawer>
       )}
 
@@ -759,6 +764,7 @@ export default function CaseDetail() {
           <CustomWidgetBuilderModal
             open={builderWidgetId !== null}
             def={builderDef}
+            caseDetail={kase}
             canSee={canSee}
             onChange={handleWidgetDefChange}
             onClose={() => setBuilderWidgetId(null)}

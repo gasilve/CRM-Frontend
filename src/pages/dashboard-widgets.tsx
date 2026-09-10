@@ -392,7 +392,12 @@ export type LayoutItem = {
 };
 
 export const DASHBOARD_BOARD_1 = "board-1";
-export const DASHBOARD_DEFAULT_PAGES = [{ id: DASHBOARD_BOARD_1, name: "1" }];
+export const DASHBOARD_BOARD_2 = "board-2";
+/** Two boards by default so carousel arrows match the case page. */
+export const DASHBOARD_DEFAULT_PAGES = [
+  { id: DASHBOARD_BOARD_1, name: "1" },
+  { id: DASHBOARD_BOARD_2, name: "2" },
+];
 export const DASHBOARD_MAX_BOARDS = 5;
 /**
  * Hard cap on dashboard grid rows (case detail uses 9). Sized to fill a typical
@@ -468,10 +473,21 @@ export function normalizeDashboardDocument(
   items: LayoutItem[],
   pages: { id: string; name: string }[] | null | undefined,
 ): { items: LayoutItem[]; pages: { id: string; name: string }[] } {
-  const nextPages =
+  let nextPages =
     pages && pages.length > 0
       ? pages.map((p, i) => ({ id: p.id, name: p.name?.trim() || String(i + 1) })).slice(0, DASHBOARD_MAX_BOARDS)
       : [...DASHBOARD_DEFAULT_PAGES];
+  // Always keep at least two boards so case-style carousel arrows are available.
+  if (nextPages.length < 2) {
+    const first = nextPages[0] ?? { id: DASHBOARD_BOARD_1, name: "1" };
+    nextPages = [
+      first,
+      {
+        id: first.id === DASHBOARD_BOARD_2 ? `${DASHBOARD_BOARD_1}-extra` : DASHBOARD_BOARD_2,
+        name: "2",
+      },
+    ];
+  }
   const pageIds = new Set(nextPages.map((p) => p.id));
   const nextItems = normalizeLayout(items).map((item) => ({
     ...item,

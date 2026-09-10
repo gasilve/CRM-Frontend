@@ -1,5 +1,10 @@
 import { SERVICE_LABELS } from "@/lib/mock-data";
 import type { CaseDetail } from "@/lib/crm-api";
+import {
+  getCustomCaseFieldByKey,
+  getCustomCaseFields,
+  type CustomCaseFieldDef,
+} from "@/lib/custom-case-fields";
 
 /**
  * Catalog of case data a SuperAdmin can pull into a custom widget. Each entry
@@ -8,6 +13,9 @@ import type { CaseDetail } from "@/lib/crm-api";
  *
  * Removing an entry never breaks saved widgets — unknown keys render nothing
  * and are dropped the next time the widget is edited.
+ *
+ * Notebook-defined fields (`placeholder.*`) are merged in at read time from
+ * the custom-case-fields store.
  */
 
 export type CaseFieldEntry = {
@@ -77,7 +85,17 @@ export const CASE_FIELD_CATALOG: CaseFieldEntry[] = [
     resolve: (c) => dash(c.policyNumber),
   },
   { key: "case.service", label: "Service", group: "Assignment", resolve: (c) => SERVICE_LABELS[c.service] ?? c.service },
-  { key: "case.status", label: "Status", group: "Assignment", resolve: (c) => c.status },
+  {
+    key: "case.status",
+    label: "Status",
+    group: "Assignment",
+    resolve: (c) => {
+      if (c.status === "open") return "Open";
+      if (c.status === "suspended") return "Suspended";
+      if (c.status === "closed") return "Closed";
+      return c.status;
+    },
+  },
   { key: "case.priority", label: "Priority", group: "Assignment", resolve: (c) => c.priority },
   { key: "case.dueDate", label: "Due date", group: "Assignment", resolve: (c) => fmtDate(c.dueDate) },
   {
@@ -118,6 +136,17 @@ export const CASE_FIELD_CATALOG: CaseFieldEntry[] = [
   },
 
   // ── Addresses / tags / people ─────────────────────────────────────────────
+  {
+    key: "case.city",
+    label: "City",
+    group: "Location",
+    rbacField: "case.subjectAddresses",
+    resolve: (c) => {
+      const a = c.addresses.find((x) => x.isPrimary) ?? c.addresses[0];
+      const city = [a?.city, a?.state ?? c.state].filter(Boolean).join(", ");
+      return city || "—";
+    },
+  },
   {
     key: "case.primaryAddress", label: "Primary address", group: "Location", rbacField: "case.subjectAddresses",
     resolve: (c) => {
@@ -164,8 +193,25 @@ export const CASE_FIELD_CATALOG: CaseFieldEntry[] = [
 
 const BY_KEY = new Map(CASE_FIELD_CATALOG.map((f) => [f.key, f]));
 
+const NOTEBOOK_GROUP = "Notebook";
+
+function customDefToEntry(def: CustomCaseFieldDef): CaseFieldEntry {
+  const sample = def.placeholderValue.trim();
+  return {
+    key: def.key,
+    label: def.label,
+    group: NOTEBOOK_GROUP,
+    // Pending mapping — show the notebook sample (or em-dash) until real case data fills this key.
+    resolve: () => (sample ? sample : "—"),
+  };
+}
+
 export function caseFieldEntry(key: string): CaseFieldEntry | undefined {
-  return BY_KEY.get(key);
+  const builtIn = BY_KEY.get(key);
+  if (builtIn) return builtIn;
+  const custom = getCustomCaseFieldByKey(key);
+  if (!custom || !custom.label.trim()) return undefined;
+  return customDefToEntry(custom);
 }
 
 export function caseFieldGroups(): { group: string; fields: CaseFieldEntry[] }[] {
@@ -175,5 +221,9 @@ export function caseFieldGroups(): { group: string; fields: CaseFieldEntry[] }[]
     list.push(f);
     groups.set(f.group, list);
   }
+  const notebook = getCustomCaseFields()
+    .filter((f) => f.label.trim())
+    .map(customDefToEntry);
+  if (notebook.length > 0) groups.set(NOTEBOOK_GROUP, notebook);
   return [...groups.entries()].map(([group, fields]) => ({ group, fields }));
 }
