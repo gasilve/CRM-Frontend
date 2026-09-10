@@ -38,17 +38,30 @@ function Meta({ item }: { item: IntelItem }) {
   );
 }
 
+/** Tabs with live sources. Statute stays out until we seed a statute feed. */
+const TICKER_TABS = ["all", "news", "case_law", "regulation", "fraud_trend"] as const;
+type TickerTab = (typeof TICKER_TABS)[number];
+
 /** Cross-category headline feed — chrome tabs at XL, cards that never clip mid-line. */
 export function FraudIntelTicker() {
   const [expanded, setExpanded] = useState(false);
-  const [tab, setTab] = useState<IntelCategory | "all">("all");
+  const [tab, setTab] = useState<TickerTab>("all");
   const [q, setQ] = useState("");
   const [idx, setIdx] = useState(0);
   const base = useWidgetLayout({ rowPx: 58, reservedPx: 28 });
   const chrome = useWidgetLayout({ rowPx: 72, reservedPx: 72 });
   const { density, showChrome, showSummary } = base;
   const slots = showChrome ? chrome.slots : base.slots;
-  const { data, loading, error } = useQuery("intel:ticker", () => intelApi.list({ limit: 40 }), { staleMs: 60_000 });
+  const queryKey = `intel:ticker:${tab}`;
+  const { data, loading, error } = useQuery(
+    queryKey,
+    () =>
+      intelApi.list({
+        limit: 40,
+        ...(tab !== "all" ? { category: tab } : {}),
+      }),
+    { staleMs: 60_000 },
+  );
   const items = data?.items ?? [];
 
   useEffect(() => {
@@ -58,7 +71,6 @@ export function FraudIntelTicker() {
   }, [density, items.length]);
 
   const filtered = items.filter((item) => {
-    if (tab !== "all" && item.category !== tab) return false;
     if (!q.trim()) return true;
     const hay = `${item.title} ${item.summary ?? ""} ${item.tags.join(" ")}`.toLowerCase();
     return hay.includes(q.trim().toLowerCase());
@@ -108,7 +120,7 @@ export function FraudIntelTicker() {
         <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden">
           {showChrome && (
             <div className="flex shrink-0 flex-wrap items-center gap-1">
-              {(["all", "news", "case_law", "regulation", "statute", "fraud_trend"] as const).map((c) => (
+              {TICKER_TABS.map((c) => (
                 <button
                   key={c}
                   type="button"

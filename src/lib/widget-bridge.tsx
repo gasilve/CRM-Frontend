@@ -24,6 +24,25 @@ function notify() {
   listeners.forEach((fn) => fn());
 }
 
+/** Safe stub so createRoot trees never call useAuth() without a provider. */
+const PENDING_AUTH: AuthContextValue = {
+  isPending: true,
+  isAuthenticated: false,
+  user: null,
+  roles: [],
+  isSuperadmin: false,
+  caseScope: "none",
+  peopleScope: "self",
+  scheduleScope: "own",
+  can: () => false,
+  canAny: () => false,
+  fieldAccess: () => "write",
+  canSee: () => true,
+  canEdit: () => true,
+  logout: async () => {},
+  refresh: () => {},
+};
+
 /** Mount once under AppShell (Dashboard + Case detail). Keeps the bridge fresh. */
 export function WidgetBridgeSync() {
   const navigate = useNavigate();
@@ -31,20 +50,20 @@ export function WidgetBridgeSync() {
 
   // Assign during render so the very first createRoot paint already has auth/
   // navigate — an effect would run too late and widgets would crash on mount.
-  const prev = bridge;
-  if (!prev || prev.navigate !== navigate || prev.auth !== auth) {
-    bridge = { navigate, auth };
-  }
+  bridge = { navigate, auth };
 
   useLayoutEffect(() => {
+    bridge = { navigate, auth };
     notify();
-    return () => {
-      if (bridge?.navigate === navigate) {
-        bridge = null;
-        notify();
-      }
-    };
   }, [navigate, auth]);
+
+  // Only clear on full unmount — never on auth identity churn (that used to
+  // notify listeners with bridge=null and blow up every widget).
+  useEffect(() => {
+    return () => {
+      bridge = null;
+    };
+  }, []);
 
   return null;
 }
@@ -55,8 +74,9 @@ export function WidgetTreeProviders({ children }: { children: ReactNode }) {
   useEffect(() => subscribeWidgetBridge(() => bump((n) => n + 1)), []);
 
   const snap = bridge;
-  if (!snap) return <>{children}</>;
-  return <AuthContext.Provider value={snap.auth}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={snap?.auth ?? PENDING_AUTH}>{children}</AuthContext.Provider>
+  );
 }
 
 /** Drop-in for useNavigate() inside createRoot widget trees. */
