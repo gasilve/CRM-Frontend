@@ -41,8 +41,6 @@ const stillThumb = `${import.meta.env.BASE_URL}glass-backdrop.jpg`.replace(
 const mix = (id: number) =>
   `https://assets.mixkit.co/videos/${id}/${id}-1080.mp4`;
 
-/** Default Ranges scene — CDN-hosted (Pages rejects local files over 25 MiB). */
-const rangesVideo = mix(4281);
 export const BACKGROUND_CATEGORIES: BackgroundCategory[] = [
   { id: "cities", name: "Cities", blurb: "Skylines, towers & top-down urban" },
   { id: "nature", name: "Nature", blurb: "Forests, falls & green" },
@@ -367,8 +365,8 @@ export const BACKGROUNDS: BackgroundMeta[] = [
     name: "Ranges",
     subtitle: "Mountain landscape",
     category: "aerial",
-    videoSrc: rangesVideo,
-    thumb: rangesVideo,
+    videoSrc: mix(4366),
+    thumb: mix(4366),
   },
   {
     id: "aerial-dusk",
