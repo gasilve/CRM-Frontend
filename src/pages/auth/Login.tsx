@@ -16,6 +16,7 @@ import { isDatabaseUnavailableMessage, SERVICE_UNAVAILABLE_MESSAGE } from "@/lib
 import { useServiceHealth } from "@/hooks/useServiceHealth";
 import { ServiceUnavailableBanner } from "@/components/auth/ServiceUnavailableBanner";
 import { useAuth, getPostAuthPath } from "@/contexts/AuthContext";
+import { isMfaRequired } from "@/lib/mfa";
 
 export default function Login() {
   const auth = useAuth();
@@ -56,8 +57,12 @@ export default function Login() {
         return;
       }
       auth.refresh();
-      // Fresh session without MFA yet — carry the password so setup doesn't re-ask.
-      navigate("/mfa-setup", { replace: true, state: { password, from: from || "/" } });
+      if (isMfaRequired()) {
+        // Fresh session without MFA yet — carry the password so setup doesn't re-ask.
+        navigate("/mfa-setup", { replace: true, state: { password, from: from || "/" } });
+        return;
+      }
+      navigate(from || "/", { replace: true });
     } catch {
       setError("Could not sign in. Check your connection and try again.");
     } finally {
