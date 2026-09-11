@@ -12,6 +12,7 @@ import {
 } from "@/components/auth/form";
 import { authClient } from "@/lib/auth-client";
 import { useAuth, getPostAuthPath } from "@/contexts/AuthContext";
+import { isMfaRequired } from "@/lib/mfa";
 
 export default function Register() {
   const auth = useAuth();
@@ -52,7 +53,11 @@ export default function Register() {
         return;
       }
       auth.refresh();
-      navigate("/mfa-setup", { replace: true, state: { password } });
+      if (isMfaRequired()) {
+        navigate("/mfa-setup", { replace: true, state: { password } });
+        return;
+      }
+      navigate("/", { replace: true });
     } catch {
       setError("Could not create your account. Try again.");
     } finally {
