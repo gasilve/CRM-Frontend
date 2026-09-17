@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Columns2, MapPin, User, Plus, X, Loader2, Car, ShieldQuestion, StickyNote,
-  ImagePlus, ScanFace, Trash2, UserPlus, Lock, Paperclip, FileText, Eye, Home, Users2,
+  ImagePlus, ScanFace, UserPlus, Lock, Paperclip, FileText, Eye, Home, Briefcase, Users2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/format";
@@ -13,6 +13,7 @@ import {
   caseFilePath,
   fileDownloadUrl,
   geocodeApi,
+  noteVersionsOf,
   type CaseDetail,
   type CaseStatus,
   type CaseDayEntry,
@@ -314,6 +315,7 @@ export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
         subjectOnFileId={photos[0]?.id}
         subjectName={c.subjectName}
         caseReference={c.claimNumber ?? c.caseNumber}
+        caseId={c.id}
         onClose={() => setCompareOpen(false)}
       />
     </PanelShell>
@@ -988,7 +990,9 @@ const ENTRY_ICON: Record<CaseDayEntryType, typeof StickyNote> = {
   qa: ShieldQuestion,
   photo_person: ImagePlus,
   photo_vehicle: Car,
+  photo_home: Home,
   face_match: ScanFace,
+  manager_note: Briefcase,
 };
 
 const ENTRY_LABEL: Record<CaseDayEntryType, string> = {
@@ -996,17 +1000,16 @@ const ENTRY_LABEL: Record<CaseDayEntryType, string> = {
   qa: "Q&A",
   photo_person: "Subject photo",
   photo_vehicle: "Vehicle photo",
+  photo_home: "Home photo",
   face_match: "Face match",
+  manager_note: "Office note",
 };
 
-function EntryCard({ entry, caseId, dayId, canDelete, onDeleted }: { entry: CaseDayEntry; caseId: string; dayId: string; canDelete: boolean; onDeleted: () => void }) {
+function EntryCard({ entry, caseId }: { entry: CaseDayEntry; caseId: string }) {
   const Icon = ENTRY_ICON[entry.type];
-  const isPhoto = entry.type === "photo_person" || entry.type === "photo_vehicle" || entry.type === "face_match";
-
-  const remove = async () => {
-    await casesApi.deleteDayEntry(caseId, dayId, entry.id);
-    onDeleted();
-  };
+  const isPhoto = entry.type === "photo_person" || entry.type === "photo_vehicle" || entry.type === "photo_home" || entry.type === "face_match";
+  const versions = noteVersionsOf(entry);
+  const [showHistory, setShowHistory] = useState(false);
 
   return (
     <div className="group flex gap-2.5 rounded-[0.625rem] border border-[var(--color-line)] p-2.5">
@@ -1014,11 +1017,20 @@ function EntryCard({ entry, caseId, dayId, canDelete, onDeleted }: { entry: Case
         <Icon size={13} strokeWidth={1.7} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <span className="font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">{ENTRY_LABEL[entry.type]}</span>
           <span className="text-[var(--color-text-lo)]">·</span>
           <span className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
           {entry.author && <span className="truncate font-mono text-[0.59375rem] text-[var(--color-text-lo)]">· {entry.author.name}</span>}
+          {versions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowHistory((v) => !v)}
+              className="font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]"
+            >
+              Edited · {versions.length} prior
+            </button>
+          )}
         </div>
         {entry.type === "qa" && (
           <div className="mt-1">
@@ -1026,7 +1038,22 @@ function EntryCard({ entry, caseId, dayId, canDelete, onDeleted }: { entry: Case
             <div className="mt-0.5 text-[0.75rem] text-[var(--color-text-mid)]">{entry.body}</div>
           </div>
         )}
-        {entry.type === "note" && <p className="mt-1 text-[0.75rem] leading-relaxed text-[var(--color-text-mid)]">{entry.body}</p>}
+        {(entry.type === "note" || entry.type === "manager_note") && (
+          <p className="mt-1 text-[0.75rem] leading-relaxed text-[var(--color-text-mid)]">{entry.body}</p>
+        )}
+        {showHistory && versions.length > 0 && (
+          <div className="mt-1.5 flex flex-col gap-1 border-t border-[var(--color-line)] pt-1.5">
+            {[...versions].reverse().map((v, i) => (
+              <div key={`${v.at}-${i}`} className="rounded-[0.375rem] bg-[var(--color-ink-3)] px-2 py-1">
+                <div className="font-mono text-[0.53125rem] text-[var(--color-text-lo)]">
+                  {new Date(v.at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  {v.authorName ? ` · ${v.authorName}` : ""}
+                </div>
+                <p className="text-[0.6875rem] text-[var(--color-text-mid)]">{v.body}</p>
+              </div>
+            ))}
+          </div>
+        )}
         {isPhoto && (
           <div className="mt-1.5 flex items-center gap-2">
             <img src={entry.photoUrl ?? placeholderPhotoFor(entry.id)} alt="" className="h-12 w-12 shrink-0 rounded-[0.375rem] object-cover" />
@@ -1034,11 +1061,6 @@ function EntryCard({ entry, caseId, dayId, canDelete, onDeleted }: { entry: Case
           </div>
         )}
       </div>
-      {canDelete && (
-        <button onClick={remove} className="hidden shrink-0 self-start text-[var(--color-text-lo)] hover:text-[var(--color-neg)] group-hover:block">
-          <Trash2 size={12} />
-        </button>
-      )}
     </div>
   );
 }
@@ -1632,9 +1654,6 @@ function DayFolderContent({
             key={entry.id}
             entry={entry}
             caseId={c.id}
-            dayId={day?.id ?? ""}
-            canDelete={!!day && (ctx.canModerateJournal || entry.author?.id === ctx.currentUserId)}
-            onDeleted={ctx.onRefresh}
           />
         ))}
         {entries.length === 0 && (

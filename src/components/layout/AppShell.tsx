@@ -15,6 +15,7 @@ const FULL_BLEED_ROUTES = ["/assistant", "/video"];
 const FILL_HEIGHT_PREFIXES = [
   "/",
   "/cases",
+  "/my-day",
   "/pending-cases",
   "/schedule",
   "/investigators",

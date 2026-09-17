@@ -6,6 +6,7 @@ import {
   CircleUserRound,
   Plus,
   LayoutDashboard,
+  Sun,
   Users2,
   Building2,
   FolderOpen,
@@ -50,7 +51,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/cn";
 import { ThemePicker } from "./ThemePicker";
 import { ConfirmModal } from "@/components/dashboard/ConfirmModal";
-import { invCases, investigators } from "@/lib/mock-data";
+import { invCases } from "@/lib/mock-data";
+import { investigatorsApi } from "@/lib/crm-api";
+import { useQuery } from "@/lib/query-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { canAccessPatternLab } from "@/lib/dev-access";
 import { usePendingIntake } from "@/contexts/PendingIntakeContext";
@@ -58,9 +61,8 @@ import type { Permission } from "@/lib/auth-client";
 import { getInitials, formatRoleList } from "@/lib/format";
 import accentyLogo from "@/assets/branding/accenty-logo.png";
 
-// Live badge counts — swap with API data later
+// Cases badge still on mock data — swap with API later.
 const openCases = invCases.filter((c) => c.status === "open").length;
-const clockedIn = investigators.filter((i) => i.status !== "off_duty").length;
 
 type Item = {
   to: string;
@@ -91,10 +93,11 @@ const DEFAULT_GROUPS: Group[] = [
     label: "Operations",
     items: [
       { to: "/",              label: "Dashboard",    icon: LayoutDashboard },
+      { to: "/my-day",        label: "My Day",       icon: Sun,          permissions: ["cases.view"] },
       { to: "/cases",         label: "Cases",        icon: FolderOpen,   badge: openCases, permissions: ["cases.view"] },
       { to: "/pending-cases", label: "Pending cases", icon: Inbox, permissions: ["intake.view"] },
       { to: "/schedule",      label: "Scheduling",   icon: CalendarClock, permissions: ["schedule.view"] },
-      { to: "/investigators", label: "Investigators",icon: Users2,        badge: clockedIn > 0 ? `${clockedIn} live` : undefined, permissions: ["team.view"] },
+      { to: "/investigators", label: "Investigators",icon: Users2,        permissions: ["team.view"] },
       { to: "/clients",       label: "Clients",      icon: Building2,     permissions: ["clients.view"] },
     ],
   },
@@ -566,7 +569,13 @@ export default function Sidebar({
   );
 
   const canSeeIntake = canAny("intake.view");
+  const canSeeTeam = canAny("team.view");
   const { pendingReview: pendingCases } = usePendingIntake();
+  const investigatorsQuery = useQuery(
+    canSeeTeam ? "investigators:list" : null,
+    () => investigatorsApi.list(),
+  );
+  const investigatorCount = investigatorsQuery.data?.investigators.length;
 
   const groups = useMemo(() => {
     const showLab = canAccessPatternLab(user?.email);
@@ -583,12 +592,15 @@ export default function Sidebar({
             if (item.to === "/pending-cases" && canSeeIntake && pendingCases && pendingCases > 0) {
               return { ...item, badge: pendingCases };
             }
+            if (item.to === "/investigators" && investigatorCount != null && investigatorCount > 0) {
+              return { ...item, badge: investigatorCount };
+            }
             return item;
           }),
       }))
       .filter((folder) => folder.items.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sidebarState, canAny, canSeeIntake, pendingCases, user?.email]);
+  }, [sidebarState, canAny, canSeeIntake, pendingCases, investigatorCount, user?.email]);
 
   const updateState = (next: SidebarState) => {
     setSidebarState(next);

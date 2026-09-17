@@ -327,7 +327,16 @@ export const investigatorsApi = {
 export type CaseStatus = "open" | "suspended" | "closed";
 export type CasePriority = "rush" | "asap" | "standard";
 export type CaseService = "SURV" | "WC" | "FMLA" | "BG" | "DOM" | "SOC" | "DIS" | "LOC" | "PS" | "LIA";
-export type CaseDayEntryType = "note" | "qa" | "photo_person" | "photo_vehicle" | "face_match";
+export type CaseDayEntryType =
+  | "note"
+  | "qa"
+  | "photo_person"
+  | "photo_vehicle"
+  | "photo_home"
+  | "face_match"
+  /** Written by the office rather than the field investigator. */
+  | "manager_note";
+export type QuestionSource = "standard" | "dynamic" | "free";
 
 export interface CaseClient {
   id: string;
@@ -447,7 +456,28 @@ export type CasePersonRelationship =
   | "passer_by"
   | "other";
 
+export const CASE_PERSON_RELATIONSHIP_LABELS: Record<CasePersonRelationship, string> = {
+  cohabitant: "Cohabitant",
+  neighbor: "Neighbor",
+  family: "Family",
+  coworker: "Coworker",
+  visitor: "Visitor",
+  passer_by: "Passer-by",
+  other: "Other",
+};
+
 export type PersonVehicleRole = "owner" | "driver" | "passenger" | "observed_in";
+export type VehicleKind = "subject" | "neighbor" | "unknown";
+export const VEHICLE_SEAT_COUNTS = [2, 4, 5, 6, 7] as const;
+
+/** A point-in-time seat-occupancy observation — powers the seat-hover history. */
+export interface VehicleOccupancyEvent {
+  id: string;
+  role: PersonVehicleRole;
+  at: string;
+  note: string | null;
+  person: { id: string; name: string; photoUrl: string | null; relationship?: CasePersonRelationship; isSubject?: boolean };
+}
 
 export interface CaseVehicle {
   id: string;
@@ -461,12 +491,18 @@ export interface CaseVehicle {
   photoUrl: string | null;
   notes: string | null;
   registeredOwner: string | null;
+  /** Seats in the chassis diagram — 1 driver + (seatCount - 1) passenger slots. Defaults to 5. */
+  seatCount: number;
+  /** Whose car this presumably is — badges it in the Vehicles list. */
+  kind: VehicleKind;
   /** People linked to this vehicle (owner/driver/…). Present on case detail. */
   personLinks?: {
     id: string;
     role: PersonVehicleRole;
     person: { id: string; name: string; relationship: CasePersonRelationship };
   }[];
+  /** Chronological log of who was tagged driver/passenger/etc. and when. Present on case detail. */
+  occupancyEvents?: VehicleOccupancyEvent[];
 }
 
 export interface CasePersonVehicleLink {
@@ -494,6 +530,9 @@ export interface CasePerson {
   vehicleLinks: CasePersonVehicleLink[];
   createdAt: string;
   updatedAt: string;
+  /** Server-managed mirror of the subject — lets the subject be assigned to a vehicle seat
+   *  like anyone else. Always hide these from the cohabitant roster. */
+  isSubject?: boolean;
 }
 
 export interface CaseParticipant {
@@ -526,7 +565,46 @@ export interface CaseDayEntry {
   photoUrl: string | null;
   meta: Record<string, unknown> | null;
   createdAt: string;
+  updatedAt?: string;
   author: CaseParticipant | null;
+  /** Quick-capture tagging — which associate or vehicle this entry is about. */
+  personId?: string | null;
+  vehicleId?: string | null;
+  questionSource?: QuestionSource | null;
+  standardQuestionId?: string | null;
+  ruleId?: string | null;
+}
+
+/** Prior wording of a field note, appended on each edit so nothing is lost. */
+export interface NoteVersion {
+  body: string;
+  at: string;
+  authorId?: string | null;
+  authorName?: string | null;
+}
+
+export function noteVersionsOf(entry: CaseDayEntry): NoteVersion[] {
+  const raw = entry.meta?.versions;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (v): v is NoteVersion =>
+      !!v && typeof v === "object" && typeof (v as NoteVersion).body === "string" && typeof (v as NoteVersion).at === "string",
+  );
+}
+
+export type CaseTodoKind = "system" | "manual";
+export type CaseTodoStatus = "open" | "done";
+
+export interface CaseTodo {
+  id: string;
+  caseId: string;
+  title: string;
+  kind: CaseTodoKind;
+  sourceRef: string | null;
+  status: CaseTodoStatus;
+  dueBy: string | null;
+  completedAt: string | null;
+  createdAt: string;
 }
 
 export interface CaseDay {
@@ -583,7 +661,10 @@ export interface CaseDetail extends CaseListItem {
   people: CasePerson[];
   presurveillance: CasePresurveillance | null;
   days: CaseDay[];
+  /** Who was scheduled in the field on which date — the journal's day-crew credit. */
+  scheduleBlocks: { id: string; date: string; notes: string | null; user: CaseParticipant }[];
   files: CaseFile[];
+  todos: CaseTodo[];
   situationSummary: string | null;
   createdBy: CaseParticipant | null;
   createdAt: string;
@@ -671,6 +752,8 @@ export interface CaseVehicleInput {
   photoUrl?: string | null;
   notes?: string;
   registeredOwner?: string | null;
+  seatCount?: number;
+  kind?: VehicleKind;
 }
 
 export interface CasePersonInput {
@@ -729,12 +812,137 @@ export interface AddDayEntryPayload {
   body?: string;
   photoUrl?: string;
   meta?: Record<string, unknown>;
+  /** Quick-capture tagging — which associate or vehicle this entry is about. */
+  personId?: string | null;
+  vehicleId?: string | null;
+  /** Set on `type: "qa"` rows written from the question banks. */
+  questionSource?: QuestionSource;
+  standardQuestionId?: string | null;
+  ruleId?: string | null;
+}
+
+// ─── My Day — this investigator's own assignments ──────────────────────────
+
+export interface MyAssignment {
+  id: string;
+  date: string;
+  startTime: string | null;
+  endTime: string | null;
+  notes: string | null;
+  case: {
+    id: string;
+    caseNumber: string;
+    claimNumber: string | null;
+    subjectName: string;
+    subjectPhotoUrl: string | null;
+    service: CaseService;
+    status: CaseStatus;
+    priority: CasePriority;
+    dueDate: string | null;
+    dateOpened: string;
+    region: Region | null;
+    state: string | null;
+    tags: string[];
+    situationSummary: string | null;
+    description: string | null;
+    subjectWorkStatus: string | null;
+    client: { id: string; company: string } | null;
+    addresses: { label: string | null; line1: string; city: string | null; state: string | null; zip: string | null; isPrimary: boolean }[];
+    _count: { people: number; vehicles: number; days: number };
+  };
+}
+
+export type MyCaseloadBucket = "today" | "current" | "past" | "closed";
+
+export interface MyCaseloadItem {
+  caseId: string;
+  bucket: MyCaseloadBucket;
+  assignedAt: string;
+  lastScheduledDate: string | null;
+  /** Next date this case is on your schedule, when it's still ahead of you. */
+  nextScheduledDate: string | null;
+  /** How many days you've already been in the field on this case. */
+  daysWorked: number;
+  todayNotes: string | null;
+  case: MyAssignment["case"];
+}
+
+export interface MyCaseloadResponse {
+  todayCaseId: string | null;
+  cases: MyCaseloadItem[];
+}
+
+export interface CaseTodoInput {
+  title: string;
+  dueBy?: string | null;
+}
+
+export interface CaseTodoUpdateInput {
+  title?: string;
+  status?: CaseTodoStatus;
+  dueBy?: string | null;
+}
+
+export interface VehicleEventInput {
+  personId: string;
+  role: PersonVehicleRole;
+  at?: string;
+  note?: string | null;
+}
+
+// ─── Clarification questions ────────────────────────────────────────────────
+
+export interface MatchedQuestionRule {
+  ruleId: string;
+  label: string;
+  matchedOn: string;
+  followUpQuestions: string[];
+}
+
+export interface UnansweredStandardQuestion {
+  standardQuestionId: string;
+  text: string;
+}
+
+export interface SuggestQuestionsResult {
+  dayId: string;
+  dynamicMatches: MatchedQuestionRule[];
+  standardQuestions: UnansweredStandardQuestion[];
+}
+
+// ─── Visual comparison (CFR adapter) ────────────────────────────────────────
+
+export interface VisualComparisonResult {
+  /** 0–100 similarity score. */
+  score: number;
+  verdict: "MATCH" | "NO MATCH";
+  threshold: number;
+  /** Which implementation produced this — surfaced for transparency while CFR is pending integration. */
+  source: "mock" | "cfr";
+}
+
+export interface VisualComparisonPayload {
+  subjectPhotoUrl: string;
+  probePhotoUrl: string;
+  subjectLabel?: string;
+  probeLabel?: string;
+  date?: string;
+}
+
+export interface VisualComparisonResponse {
+  result: VisualComparisonResult;
+  entry: CaseDayEntry;
 }
 
 export const casesApi = {
   list: (params: CasesListParams = {}) =>
     request<{ cases: CaseListItem[]; total: number; page: number; pageSize: number }>(`/cases${toQuery(params)}`),
   summary: () => request<CaseSummary>("/cases/summary"),
+  /** My Day — this investigator's own schedule blocks (+ the case each points at) between two dates, inclusive. */
+  mine: (from: string, to: string) =>
+    request<{ assignments: MyAssignment[] }>(`/cases/mine${toQuery({ from, to })}`),
+  /** Investigator caseload for My Day — today / current / past / closed buckets. */
+  myCaseload: () => request<MyCaseloadResponse>("/cases/mine/caseload"),
   get: (id: string) => request<{ case: CaseDetail }>(`/cases/${id}`),
   create: (body: CreateCasePayload) =>
     request<{ case: CaseDetail }>("/cases", { method: "POST", body: JSON.stringify(body) }),
@@ -764,6 +972,28 @@ export const casesApi = {
 
   listFiles: (id: string) => request<{ files: CaseFile[] }>(`/cases/${id}/files`),
   fileBlob: (id: string, fileId: string, signal?: AbortSignal) => requestBlob(caseFilePath(id, fileId), signal),
+  /** Upload a field-capture photo (multipart). Returns a CaseFile URL usable as day-entry photoUrl. */
+  uploadCapturePhoto: async (id: string, file: File) => {
+    const form = new FormData();
+    form.append("photo", file);
+    const res = await fetch(`${CRM_API_URL}/cases/${id}/capture-photo`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      body: form,
+    });
+    type UploadPayload = { file: { fileId: string; url: string; contentType: string | null; sizeBytes: number | null } };
+    let json: ApiEnvelope<UploadPayload> | null = null;
+    try {
+      json = (await res.json()) as ApiEnvelope<UploadPayload>;
+    } catch {
+      /* no body */
+    }
+    if (!res.ok || !json?.success || !json.payload) {
+      throw new ApiError(json?.message || `Upload failed (${res.status})`, res.status);
+    }
+    return json.payload.file;
+  },
   /** Wipes and re-fetches every attachment from the ingestor — for rows stuck on a wiped local disk. */
   resyncFiles: (id: string) => request<{ case: CaseDetail }>(`/cases/${id}/files/resync`, { method: "POST" }),
 
@@ -783,6 +1013,11 @@ export const casesApi = {
 
   addDayEntry: (id: string, body: AddDayEntryPayload) =>
     request<{ days: CaseDay[] }>(`/cases/${id}/days/entries`, { method: "POST", body: JSON.stringify(body) }),
+  updateDayEntry: (id: string, dayId: string, entryId: string, body: string) =>
+    request<{ days: CaseDay[] }>(`/cases/${id}/days/${dayId}/entries/${entryId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ body }),
+    }),
   deleteDayEntry: (id: string, dayId: string, entryId: string) =>
     request<null>(`/cases/${id}/days/${dayId}/entries/${entryId}`, { method: "DELETE" }),
 
@@ -813,12 +1048,149 @@ export const casesApi = {
       body: JSON.stringify({ date, summary }),
     }),
 
+  // ─── Todos ────────────────────────────────────────────────────────────────
+  listTodos: (id: string) => request<{ todos: CaseTodo[] }>(`/cases/${id}/todos`),
+  addTodo: (id: string, body: CaseTodoInput) =>
+    request<{ todo: CaseTodo }>(`/cases/${id}/todos`, { method: "POST", body: JSON.stringify(body) }),
+  updateTodo: (id: string, todoId: string, body: CaseTodoUpdateInput) =>
+    request<{ todo: CaseTodo }>(`/cases/${id}/todos/${todoId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteTodo: (id: string, todoId: string) => request<null>(`/cases/${id}/todos/${todoId}`, { method: "DELETE" }),
+
+  // ─── Vehicle seat-occupancy events ─────────────────────────────────────────
+  addVehicleEvent: (id: string, vehicleId: string, body: VehicleEventInput) =>
+    request<{ event: VehicleOccupancyEvent }>(`/cases/${id}/vehicles/${vehicleId}/events`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deleteVehicleEvent: (id: string, vehicleId: string, eventId: string) =>
+    request<null>(`/cases/${id}/vehicles/${vehicleId}/events/${eventId}`, { method: "DELETE" }),
+
+  // ─── Clarification questions ────────────────────────────────────────────────
+  suggestQuestions: (id: string, body: { date: string; text?: string }) =>
+    request<SuggestQuestionsResult>(`/cases/${id}/days/suggest-questions`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  // ─── Visual comparison (CFR adapter) ────────────────────────────────────────
+  runVisualComparison: (id: string, body: VisualComparisonPayload) =>
+    request<VisualComparisonResponse>(`/cases/${id}/visual-comparison`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   // ─── Dashboard aggregate widgets ─────────────────────────────────────────
   urgent: () => request<UrgentCasesSummary>("/cases/urgent"),
   aging: () => request<CaseAgingSummary>("/cases/aging"),
   journalRecent: () => request<{ entries: JournalEntry[] }>("/cases/journal/recent"),
   filesHealth: () => request<FilesHealthSummary>("/cases/files/health"),
   presurveillanceSummary: () => request<PresurveillanceSummary>("/cases/presurveillance/summary"),
+};
+
+// ─── Time entries — clock-in/out + foreground location pings ──────────────
+
+export type TimeEntryStatus = "active" | "ended";
+
+export interface TimeEntry {
+  id: string;
+  caseId: string;
+  userId: string;
+  status: TimeEntryStatus;
+  clockInAt: string;
+  clockOutAt: string | null;
+  createdAt: string;
+  case?: {
+    id: string;
+    caseNumber: string;
+    claimNumber: string | null;
+    subjectName: string;
+    subjectPhotoUrl: string | null;
+  };
+}
+
+export interface GeoPingInput {
+  lat: number;
+  lng: number;
+  accuracy?: number | null;
+  /** ISO timestamp. */
+  capturedAt: string;
+}
+
+export interface ActiveWorkResponse {
+  active: TimeEntry | null;
+  /** Time already banked today from finished sessions — the clock counts up from here. */
+  settledMsToday: number;
+  /** When the running session started counting toward today (null when clocked out). */
+  runningSince: string | null;
+  /** Snapshot of settled + running at response time. */
+  msToday: number;
+  hoursToday: number;
+}
+
+export const timeEntriesApi = {
+  /** "Start working the case" — clocks in, ending any other active entry first. */
+  start: (caseId: string) => request<{ entry: TimeEntry }>("/time-entries", { method: "POST", body: JSON.stringify({ caseId }) }),
+  stop: (id: string) => request<{ entry: TimeEntry }>(`/time-entries/${id}/stop`, { method: "POST" }),
+  /** Batched foreground location breadcrumbs from the browser Geolocation API. Foreground-only — see the working-mode UI copy. */
+  addPings: (id: string, pings: GeoPingInput[]) =>
+    request<{ created: number }>(`/time-entries/${id}/pings`, { method: "POST", body: JSON.stringify({ pings }) }),
+  /** The signed-in investigator's active clock-in (if any) + total hours worked today. */
+  active: () => request<ActiveWorkResponse>("/time-entries/active"),
+};
+
+// ─── Question bank (admin) — standard questions + dynamic rules ───────────
+
+export interface StandardQuestion {
+  id: string;
+  text: string;
+  appliesToService: CaseService | null;
+  active: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StandardQuestionInput {
+  text: string;
+  appliesToService?: CaseService | null;
+  active?: boolean;
+}
+
+export interface QuestionRule {
+  id: string;
+  label: string;
+  triggerExamples: string[];
+  followUpQuestions: string[];
+  active: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuestionRuleInput {
+  label: string;
+  triggerExamples: string[];
+  followUpQuestions: string[];
+  active?: boolean;
+}
+
+export const questionBankApi = {
+  listStandardQuestions: () => request<{ questions: StandardQuestion[] }>("/question-bank/standard-questions"),
+  createStandardQuestion: (body: StandardQuestionInput) =>
+    request<{ question: StandardQuestion }>("/question-bank/standard-questions", { method: "POST", body: JSON.stringify(body) }),
+  updateStandardQuestion: (id: string, body: Partial<StandardQuestionInput>) =>
+    request<{ question: StandardQuestion }>(`/question-bank/standard-questions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteStandardQuestion: (id: string) => request<null>(`/question-bank/standard-questions/${id}`, { method: "DELETE" }),
+
+  listRules: () => request<{ rules: QuestionRule[] }>("/question-bank/rules"),
+  createRule: (body: QuestionRuleInput) =>
+    request<{ rule: QuestionRule }>("/question-bank/rules", { method: "POST", body: JSON.stringify(body) }),
+  updateRule: (id: string, body: Partial<QuestionRuleInput>) =>
+    request<{ rule: QuestionRule }>(`/question-bank/rules/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteRule: (id: string) => request<null>(`/question-bank/rules/${id}`, { method: "DELETE" }),
 };
 
 export interface UrgentCase {

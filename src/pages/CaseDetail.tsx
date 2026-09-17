@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, CalendarPlus, Car, Folder, NotebookPen, Users } from "lucide-react";
 import { CaseDetailSkeleton, PanelLoader } from "@/components/ui/LoadingState";
-import { casesApi, investigatorsApi, ApiError, type CaseDetail as CaseDetailType, type CaseStatus } from "@/lib/crm-api";
+import { casesApi, investigatorsApi, ApiError, type CaseStatus } from "@/lib/crm-api";
 import { invalidateQueries, useQuery } from "@/lib/query-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGridLayout } from "@/hooks/useGridLayout";
@@ -534,14 +534,15 @@ export default function CaseDetail() {
     () =>
       casesApi
         .get(id!)
-        .then((res): CaseDetailType | null => res.case)
+        .then((res) => res)
         .catch((err: unknown) => {
           if (err instanceof ApiError && err.status === 404) return null;
           throw err;
         }),
     { enabled: !!id },
   );
-  const kase = caseQuery.data ?? null;
+  // Shared cache key with My Day / CaseWorkMode — always `{ case }` (or `null` for 404).
+  const kase = caseQuery.data?.case ?? null;
   const notFound = caseQuery.data === null;
   const error = caseQuery.error;
 
@@ -585,7 +586,8 @@ export default function CaseDetail() {
   }
 
   const cfg = STATUS_CONFIG[kase.status];
-  const primaryAddress = kase.addresses.find((a) => a.isPrimary) ?? kase.addresses[0];
+  const addresses = kase.addresses ?? [];
+  const primaryAddress = addresses.find((a) => a.isPrimary) ?? addresses[0];
   const subject: Subject = {
     name: kase.subjectName,
     dob: kase.subjectDob ? kase.subjectDob.slice(0, 10) : undefined,

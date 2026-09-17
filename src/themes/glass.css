@@ -348,6 +348,19 @@ html[data-glass="true"] .case-detail-page .surface {
     inset 0 -0.0625rem 0 rgb(from var(--color-accent) r g b / 0.12) !important;
 }
 
+/*
+ * Investigator work surfaces (My Day / Case Work Mode) are large, mostly
+ * empty panels — a single card can cover most of the viewport. At low glass
+ * opacity settings that reads as "no card at all" against a bright scene,
+ * unlike small, content-dense cards elsewhere. Give panels tagged
+ * `.investigator-surface` a sane opacity floor so they always read as a
+ * card, while still tracking the user's slider above that floor.
+ */
+.investigator-surface {
+  --glass-alpha: max(var(--glass-alpha, 0.155), 0.4);
+  --glass-alpha-strong: max(var(--glass-alpha-strong, 0.275), 0.55);
+}
+
 /* ── Floating sidebar — visual inset only (margins must not widen the flex column) ── */
 html[data-glass="true"] .app-sidebar {
   align-self: stretch;
