@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   gridLayoutsApi,
   type GridLayoutItem,
@@ -55,6 +55,8 @@ type Options<T extends GridLayoutItem> = {
   editable?: boolean;
   /** When set, this surface persists carousel pages with the item list. */
   defaultPages?: GridLayoutPage[];
+  /** Seed custom-widget defs used on reset / first paint when nothing is saved. */
+  defaultWidgets?: GridLayoutWidget[];
   /**
    * Normalize items + optional saved pages + optional saved custom-widget
    * definitions into a coherent document. Required when `defaultPages` is set.
@@ -117,6 +119,7 @@ function seedDocument<T extends GridLayoutItem>(
   surface: GridSurface,
   defaultLayout: T[],
   defaultPages: GridLayoutPage[] | undefined,
+  defaultWidgets: GridLayoutWidget[] | undefined,
   normalize: (items: T[]) => T[],
   normalizeDocument:
     | ((
@@ -133,7 +136,7 @@ function seedDocument<T extends GridLayoutItem>(
       const doc = normalizeDocument(
         cached.items as T[],
         cached.pages ?? defaultPages,
-        cached.widgets,
+        cached.widgets ?? defaultWidgets ?? null,
         "load",
       );
       if (hasItems(doc.items)) {
@@ -153,10 +156,15 @@ function seedDocument<T extends GridLayoutItem>(
   }
 
   if (normalizeDocument && defaultPages) {
-    const doc = normalizeDocument(defaultLayout, defaultPages, null, "load");
+    const doc = normalizeDocument(defaultLayout, defaultPages, defaultWidgets ?? null, "load");
     return { items: doc.items, pages: doc.pages, widgets: doc.widgets ?? [], updatedAt: null };
   }
-  return { items: normalize(defaultLayout), pages: defaultPages ?? null, widgets: null, updatedAt: null };
+  return {
+    items: normalize(defaultLayout),
+    pages: defaultPages ?? null,
+    widgets: defaultWidgets ?? null,
+    updatedAt: null,
+  };
 }
 
 export function useGridLayout<T extends GridLayoutItem>({
@@ -166,10 +174,11 @@ export function useGridLayout<T extends GridLayoutItem>({
   legacyStorageKey,
   editable = true,
   defaultPages,
+  defaultWidgets,
   normalizeDocument,
 }: Options<T>): GridLayoutState<T> {
   const [seed] = useState(() =>
-    seedDocument(surface, defaultLayout, defaultPages, normalize, normalizeDocument),
+    seedDocument(surface, defaultLayout, defaultPages, defaultWidgets, normalize, normalizeDocument),
   );
 
   const [layout, setLayout] = useState<T[] | null>(() => seed.items);
@@ -186,6 +195,8 @@ export function useGridLayout<T extends GridLayoutItem>({
   defaultLayoutRef.current = defaultLayout;
   const defaultPagesRef = useRef(defaultPages);
   defaultPagesRef.current = defaultPages;
+  const defaultWidgetsRef = useRef(defaultWidgets);
+  defaultWidgetsRef.current = defaultWidgets;
   const pendingRef = useRef<{ items: T[]; pages?: GridLayoutPage[]; widgets?: GridLayoutWidget[] } | null>(null);
   const timerRef = useRef<number | null>(null);
   const seenUpdatedAtRef = useRef<string | null>(seed.updatedAt);
@@ -210,6 +221,8 @@ export function useGridLayout<T extends GridLayoutItem>({
     ) => {
       // A remount race can hand us []. Never replace a real layout with nothing.
       const items = hasItems(rawItems) ? rawItems : defaultLayoutRef.current;
+      const widgetsOrDefault =
+        savedWidgets ?? defaultWidgetsRef.current ?? null;
 
       const commit = (
         nextItems: T[],
@@ -231,7 +244,12 @@ export function useGridLayout<T extends GridLayoutItem>({
       };
 
       if (normalizeDocRef.current && defaultPagesRef.current) {
-        const doc = normalizeDocRef.current(items, savedPages ?? defaultPagesRef.current, savedWidgets, "load");
+        const doc = normalizeDocRef.current(
+          items,
+          savedPages ?? defaultPagesRef.current,
+          widgetsOrDefault,
+          "load",
+        );
         const w = doc.widgets ?? [];
         const applied = commit(doc.items, doc.pages, w);
         if (!applied) {
@@ -345,7 +363,12 @@ export function useGridLayout<T extends GridLayoutItem>({
           }
 
           seenUpdatedAtRef.current = null;
-          applyDocument(defaultLayoutRef.current, defaultPagesRef.current, null, { force: true });
+          applyDocument(
+            defaultLayoutRef.current,
+            defaultPagesRef.current,
+            defaultWidgetsRef.current,
+            { force: true },
+          );
           return;
         }
 
@@ -359,7 +382,11 @@ export function useGridLayout<T extends GridLayoutItem>({
         if (!active) return;
         setError(err instanceof Error ? err.message : "Could not load your saved layout.");
         if (seenUpdatedAtRef.current === null) {
-          applyDocument(defaultLayoutRef.current, defaultPagesRef.current, null);
+          applyDocument(
+            defaultLayoutRef.current,
+            defaultPagesRef.current,
+            defaultWidgetsRef.current,
+          );
         }
       });
 
@@ -457,13 +484,34 @@ export function useGridLayout<T extends GridLayoutItem>({
     }
     pendingRef.current = null;
     seenUpdatedAtRef.current = null;
-    applyDocument(defaultLayoutRef.current, defaultPagesRef.current, null, { force: true });
+    const defaults = defaultLayoutRef.current;
+    const defaultPages = defaultPagesRef.current;
+    const defaultWidgets = defaultWidgetsRef.current;
+    try {
+      sessionStorage.removeItem(`tc.cache:grid-layout:${surface}`);
+    } catch {
+      /* ignore */
+    }
+    applyDocument(defaults, defaultPages, defaultWidgets ?? null, { force: true });
     clearLegacyLayout(legacyStorageKey);
+    setCached(layoutCacheKey(surface), {
+      surface,
+      items: null,
+      pages: null,
+      widgets: null,
+      source: "default",
+      updatedAt: null,
+    });
     if (!editableRef.current) return;
     gridLayoutsApi
-      .reset(surface)
-      .then(({ layout: record }) => setCached(layoutCacheKey(surface), record))
-      .catch(() => {});
+      .save(surface, defaults, defaultPages, defaultWidgets ?? undefined)
+      .then(({ layout: record }) => {
+        seenUpdatedAtRef.current = record.updatedAt;
+        setCached(layoutCacheKey(surface), record);
+      })
+      .catch(() => {
+        gridLayoutsApi.reset(surface).catch(() => {});
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surface, legacyStorageKey, applyDocument]);
 

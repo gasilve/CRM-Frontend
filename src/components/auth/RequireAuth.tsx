@@ -1,11 +1,12 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { isMfaRequired } from "@/lib/mfa";
 import FullScreenLoader from "./FullScreenLoader";
 
 /**
  * Gate order for every route under AppShell:
  *   1. Not authenticated              → /login
- *   2. Authenticated, MFA not enrolled → /mfa-setup   (security gate — applies regardless of roles)
+ *   2. Authenticated, MFA not enrolled → /mfa-setup   (when MFA is required)
  *   3. Authenticated + MFA'd, no roles → /awaiting-access
  *   4. Otherwise                       → render the route
  */
@@ -18,7 +19,7 @@ export default function RequireAuth() {
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
   }
-  if (!user?.twoFactorEnabled) {
+  if (isMfaRequired() && !user?.twoFactorEnabled) {
     return <Navigate to="/mfa-setup" replace />;
   }
   if (roles.length === 0) {

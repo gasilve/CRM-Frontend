@@ -39,6 +39,7 @@ export type Permission =
   | "reports.manage"
   | "assistant.use"
   | "video.use"
+  | "intel.curate"
   | "admin.roles"
   | "admin.users"
   | "admin.questionBank";

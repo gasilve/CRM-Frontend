@@ -692,6 +692,7 @@ export interface CaseFile {
 
 export interface CaseSummary {
   byService: { service: CaseService; count: number }[];
+  byRegion: { region: Region | null; count: number }[];
   openCount: number;
   suspendedCount: number;
   closedCount: number;
@@ -1077,6 +1078,13 @@ export const casesApi = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  // ─── Dashboard aggregate widgets ─────────────────────────────────────────
+  urgent: () => request<UrgentCasesSummary>("/cases/urgent"),
+  aging: () => request<CaseAgingSummary>("/cases/aging"),
+  journalRecent: () => request<{ entries: JournalEntry[] }>("/cases/journal/recent"),
+  filesHealth: () => request<FilesHealthSummary>("/cases/files/health"),
+  presurveillanceSummary: () => request<PresurveillanceSummary>("/cases/presurveillance/summary"),
 };
 
 // ─── Time entries — clock-in/out + foreground location pings ──────────────
@@ -1184,6 +1192,59 @@ export const questionBankApi = {
     request<{ rule: QuestionRule }>(`/question-bank/rules/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteRule: (id: string) => request<null>(`/question-bank/rules/${id}`, { method: "DELETE" }),
 };
+
+export interface UrgentCase {
+  id: string;
+  caseNumber: string;
+  subjectName: string;
+  service: CaseService;
+  priority: CasePriority;
+  dueDate: string | null;
+  region: Region | null;
+  client: { company: string } | null;
+  daysOverdue: number | null;
+}
+
+export interface UrgentCasesSummary {
+  cases: UrgentCase[];
+  overdueCount: number;
+}
+
+export interface CaseAgingSummary {
+  avgOpenDays: number;
+  avgClosedDays: number;
+  oldestOpenDays: number;
+  /** Approx p95 days open among current open cases. */
+  p95OpenDays?: number;
+  openCount: number;
+  closedRecentCount: number;
+  buckets?: { d0_7: number; d8_14: number; d15_30: number; d30p: number };
+  byService: { service: CaseService; avgOpenDays: number; count: number }[];
+}
+
+export interface JournalEntry {
+  id: string;
+  type: CaseDayEntryType;
+  body: string | null;
+  question: string | null;
+  createdAt: string;
+  author: CaseParticipant | null;
+  case: { id: string; caseNumber: string; subjectName: string };
+}
+
+export interface FilesHealthSummary {
+  total: number;
+  last24h: number;
+  byStorage: { storage: string; count: number }[];
+  failedCount: number;
+  failed: { id: string; filename: string; error: string | null; storage: string; case: { id: string; caseNumber: string } }[];
+}
+
+export interface PresurveillanceSummary {
+  byStatus: { status: string; count: number }[];
+  stuckCount: number;
+  stuck: { id: string; caseNumber: string; subjectName: string; dateOpened: string; presurveillanceId: string }[];
+}
 
 // ─── Case ingest — pending proposals ────────────────────────────────────────
 // Shapes mirror the ingestor's payload, normalised server-side. Snake_case
@@ -1399,7 +1460,15 @@ export const clientsApi = {
     }),
   deleteContact: (id: string, contactId: string) =>
     request<null>(`/clients/${id}/contacts/${contactId}`, { method: "DELETE" }),
+  summary: () => request<ClientPortfolioSummary>("/clients/summary"),
 };
+
+export interface ClientPortfolioSummary {
+  totalClients: number;
+  activeClients: number;
+  topByOpenCases: { id: string; company: string; location: string | null; openCases: number; contactCount: number }[];
+  contactsByRole: { role: ClientContactRole; count: number }[];
+}
 
 export interface WeatherReading {
   group: "ca" | "tristate" | "texas";
@@ -1444,6 +1513,16 @@ export const geocodeApi = {
 
 // ─── Scheduling ──────────────────────────────────────────────────────────────
 
+export interface ScheduleBlockCaseAddress {
+  id: string;
+  label: string | null;
+  line1: string;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  isPrimary: boolean;
+}
+
 export interface ScheduleBlock {
   id: string;
   caseId: string;
@@ -1464,9 +1543,18 @@ export interface ScheduleBlock {
     status: CaseStatus;
     priority: CasePriority;
     dueDate: string | null;
+    service: CaseService;
+    startTime: string | null;
+    client: { id: string; company: string } | null;
+    addresses: ScheduleBlockCaseAddress[];
   };
   user: { id: string; name: string; email: string; region: Region | null };
   createdBy: { id: string; name: string } | null;
+}
+
+export interface SchedulePriorWork {
+  caseId: string;
+  userId: string;
 }
 
 export interface ScheduleListParams {
@@ -1475,6 +1563,10 @@ export interface ScheduleListParams {
   region?: Region;
   caseId?: string;
   userId?: string;
+  /** When true, response includes priorWork pairs for cases in the result. */
+  includePriorWork?: boolean;
+  /** Comma-separated case UUIDs to include in prior-work lookup. */
+  priorWorkCaseIds?: string;
 }
 
 export interface CreateScheduleBlockPayload {
@@ -1489,7 +1581,7 @@ export interface CreateScheduleBlockPayload {
 
 export const scheduleApi = {
   list: (params: ScheduleListParams = {}) =>
-    request<{ blocks: ScheduleBlock[] }>(`/schedule${toQuery(params)}`),
+    request<{ blocks: ScheduleBlock[]; priorWork?: SchedulePriorWork[] }>(`/schedule${toQuery(params)}`),
   create: (body: CreateScheduleBlockPayload) =>
     request<{ block: ScheduleBlock }>("/schedule", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: Partial<Omit<CreateScheduleBlockPayload, "caseId" | "userId">>) =>
@@ -1546,6 +1638,88 @@ export interface GridLayoutRecord {
   source: "user" | "house" | "default";
   updatedAt: string | null;
 }
+
+export interface ReportActivityDay {
+  date: string;
+  success: number;
+  failed: number;
+}
+
+export interface ReportActivitySummary {
+  todayCount: number;
+  todaySuccess: number;
+  todayFailed: number;
+  successRate7d: number;
+  daily: ReportActivityDay[];
+  recent: {
+    id: string;
+    createdAt: string;
+    status: string;
+    claimNo: string | null;
+    subjectName: string | null;
+    aiModel: string | null;
+    durationMs: number | null;
+    errorMessage: string | null;
+  }[];
+}
+
+export const reportActivityApi = {
+  get: (days = 7) => request<ReportActivitySummary>(`/reports/activity?days=${days}`),
+};
+
+export type IntelCategory = "news" | "case_law" | "regulation" | "statute" | "fraud_trend";
+export type IntelStatus = "pending_review" | "published" | "archived" | "rejected";
+
+export interface IntelItem {
+  id: string;
+  category: IntelCategory;
+  title: string;
+  summary: string | null;
+  url: string | null;
+  jurisdiction: string | null;
+  region: Region | null;
+  tags: string[];
+  publishedAt: string | null;
+  relevanceScore: number | null;
+  status: IntelStatus;
+  pinned: boolean;
+  curatedAt: string | null;
+  createdAt: string;
+  source: { id: string; name: string } | null;
+}
+
+export interface IntelResearchResult {
+  cached: boolean;
+  query: string;
+  answer: string;
+  citations: { title: string; url: string | null; category: string }[];
+  costUsd: number;
+  remainingToday: number;
+}
+
+export const intelApi = {
+  list: (params?: {
+    status?: IntelStatus;
+    category?: IntelCategory;
+    categories?: string;
+    jurisdiction?: string;
+    pinned?: boolean;
+    q?: string;
+    limit?: number;
+  }) =>
+    request<{ items: IntelItem[]; count: number }>(
+      `/intel/items${toQuery({
+        ...params,
+        pinned: params?.pinned === undefined ? undefined : params.pinned ? "true" : "false",
+      })}`,
+    ),
+  get: (id: string) => request<{ item: IntelItem }>(`/intel/items/${id}`),
+  research: (query: string) =>
+    request<IntelResearchResult>("/intel/research", {
+      method: "POST",
+      body: JSON.stringify({ query }),
+    }),
+};
 
 export const gridLayoutsApi = {
   list: () => request<{ layouts: Record<GridSurface, GridLayoutRecord> }>("/grid-layouts"),

@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { clearQueryCache } from "@/lib/query-cache";
+import { isMfaRequired } from "@/lib/mfa";
 import {
   useSession,
   signOut,
@@ -21,7 +22,7 @@ interface AuthUser {
   twoFactorEnabled: boolean;
 }
 
-interface AuthContextValue {
+export interface AuthContextValue {
   isPending: boolean;
   isAuthenticated: boolean;
   user: AuthUser | null;
@@ -43,7 +44,7 @@ interface AuthContextValue {
   refresh: () => void;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+export const AuthContext = createContext<AuthContextValue | null>(null);
 
 const EMPTY_ACCESS: EffectiveAccess = {
   roles: [],
@@ -112,7 +113,7 @@ export function useAuth(): AuthContextValue {
 /** Where a session should land next. `null` means "not authenticated — show /login". */
 export function getPostAuthPath(auth: AuthContextValue): string | null {
   if (!auth.isAuthenticated) return null;
-  if (!auth.user?.twoFactorEnabled) return "/mfa-setup";
+  if (isMfaRequired() && !auth.user?.twoFactorEnabled) return "/mfa-setup";
   if (auth.roles.length === 0) return "/awaiting-access";
   return "/";
 }

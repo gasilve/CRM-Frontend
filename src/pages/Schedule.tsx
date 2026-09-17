@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowUpRight, Briefcase, Cake, CalendarDays, ChevronLeft, ChevronRight,
-  Droplets, Folder, GripVertical, Info, Loader2, MapPin, Search, Trash2, User, Users, Wind, X,
+  Droplets, Folder, GripVertical, Info, Loader2, MapPin, Search, User, Users, Wind, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/contexts/AuthContext";
 import { ViewToggle, ViewToggleGroup } from "@/components/ui/ViewToggle";
 import { CaseOverviewModal } from "@/components/schedule/CaseOverviewModal";
+import { NewCalendarView } from "@/components/schedule/NewCalendarView";
+import { ScheduleAssignmentModal } from "@/components/schedule/ScheduleAssignmentModal";
 import { weatherIcon, weatherColor, conditionLabel } from "@/components/cases/WeatherStrip";
 import {
   casesApi,
@@ -69,10 +71,20 @@ function nextBirthday(dobIso: string): Date {
   return candidate;
 }
 
-type Mode = "investigators" | "cases";
+type Mode = "calendar" | "investigators" | "cases";
 type DragPayload = { kind: "add"; otherId: string } | { kind: "block"; block: ScheduleBlock };
 
 const MODE_LS_KEY = "accenty.crm.schedule.mode";
+
+function readStoredMode(): Mode {
+  try {
+    const v = localStorage.getItem(MODE_LS_KEY);
+    if (v === "calendar" || v === "cases" || v === "investigators") return v;
+  } catch {
+    /* ignore */
+  }
+  return "investigators";
+}
 
 // Investigators = person icon / blue. Cases = folder icon / amber.
 const INVESTIGATOR_BG = "linear-gradient(135deg,#4a7fff,#7aa1ff)";
@@ -105,17 +117,14 @@ export default function Schedule() {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(searchParams.get("case"));
   const [weekWeather, setWeekWeather] = useState<WeeklyWeather[]>([]);
   const [editing, setEditing] = useState<ScheduleBlock | null>(null);
+  const [calendarReloadToken, setCalendarReloadToken] = useState(0);
   const [dayInfo, setDayInfo] = useState<string | null>(null);
   const [monthOpen, setMonthOpen] = useState(false);
 
   const [mode, setMode] = useState<Mode>(() => {
     if (searchParams.get("case")) return "cases";
     if (searchParams.get("user")) return "investigators";
-    try {
-      return localStorage.getItem(MODE_LS_KEY) === "cases" ? "cases" : "investigators";
-    } catch {
-      return "investigators";
-    }
+    return readStoredMode();
   });
 
   const pickMode = (m: Mode) => {
@@ -151,7 +160,7 @@ export default function Schedule() {
 
   const selectedUser = investigators.find((i) => i.id === selectedUserId) ?? null;
   const selectedCase = cases.find((c) => c.id === selectedCaseId) ?? null;
-  const selectedId = mode === "investigators" ? selectedUserId : selectedCaseId;
+  const selectedId = mode === "investigators" ? selectedUserId : mode === "cases" ? selectedCaseId : null;
 
   // Case list (also the investigator-mode tray)
   useEffect(() => {
@@ -179,6 +188,10 @@ export default function Schedule() {
   }, [monday]);
 
   const loadBlocks = useCallback(() => {
+    if (mode === "calendar") {
+      setBlocks([]);
+      return;
+    }
     if (!selectedId) {
       setBlocks([]);
       return;
@@ -250,7 +263,9 @@ export default function Schedule() {
   const weatherRegion: Region | null =
     (mode === "investigators"
       ? selectedUser?.region ?? (blocks ?? []).find((b) => b.case.region)?.case.region ?? null
-      : selectedCase?.region) ?? (region !== "all" ? region : null);
+      : mode === "cases"
+        ? selectedCase?.region
+        : null) ?? (region !== "all" ? region : null);
   const weatherDays = useMemo(() => {
     if (!weatherRegion) return new Map<string, WeatherDay>();
     const group = weekWeather.find((g) => g.group === weatherRegion);
@@ -325,11 +340,13 @@ export default function Schedule() {
   const otherSearchHits =
     mode === "investigators"
       ? { count: filteredCases.length, label: filteredCases.length === 1 ? "case" : "cases", switchTo: "cases" as Mode }
-      : {
-          count: filteredInvestigators.length,
-          label: filteredInvestigators.length === 1 ? "investigator" : "investigators",
-          switchTo: "investigators" as Mode,
-        };
+      : mode === "cases"
+        ? {
+            count: filteredInvestigators.length,
+            label: filteredInvestigators.length === 1 ? "investigator" : "investigators",
+            switchTo: "investigators" as Mode,
+          }
+        : { count: 0, label: "", switchTo: "investigators" as Mode };
 
   const patchBlocks = (fn: (blocks: ScheduleBlock[]) => ScheduleBlock[]) =>
     setBlocks((prev) => (prev ? fn(prev) : prev));
@@ -339,9 +356,11 @@ export default function Schedule() {
     patchBlocks((bs) => bs.filter((x) => x.id !== id));
     try {
       await scheduleApi.remove(id);
+      if (mode === "calendar") setCalendarReloadToken((t) => t + 1);
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : "Could not remove the schedule block.");
       loadBlocks();
+      if (mode === "calendar") setCalendarReloadToken((t) => t + 1);
     }
   };
 
@@ -397,6 +416,18 @@ export default function Schedule() {
             status: kase.status,
             priority: kase.priority,
             dueDate: kase.dueDate,
+            service: kase.service,
+            startTime: kase.startTime,
+            client: kase.client,
+            addresses: kase.addresses.map((a) => ({
+              id: a.id,
+              label: a.label,
+              line1: a.line1,
+              city: a.city,
+              state: a.state,
+              zip: a.zip,
+              isPrimary: a.isPrimary,
+            })),
           },
           user: { id: inv.id, name: inv.name, email: inv.email, region: inv.region },
           createdBy: null,
@@ -408,6 +439,9 @@ export default function Schedule() {
     try {
       const res = await scheduleApi.create({ caseId, userId, date: dateIso });
       patchBlocks((bs) => bs.map((x) => (x.id === tempId ? res.block : x)));
+      if (canManage) {
+        setEditing(res.block);
+      }
     } catch (err) {
       patchBlocks((bs) => bs.filter((x) => x.id !== tempId));
       showToast(err instanceof ApiError ? err.message : "Could not schedule.");
@@ -501,7 +535,20 @@ export default function Schedule() {
 
   const dayInfoMeta = dayInfo ? dayMeta(new Date(`${dayInfo}T00:00:00`)) : null;
   const contextLabel =
-    mode === "investigators" ? selectedUser?.name ?? null : selectedCase ? `${selectedCase.subjectName} · ${selectedCase.caseNumber}` : null;
+    mode === "investigators"
+      ? selectedUser?.name ?? null
+      : mode === "cases"
+        ? selectedCase
+          ? `${selectedCase.subjectName} · ${selectedCase.caseNumber}`
+          : null
+        : null;
+
+  const subtitle =
+    mode === "calendar"
+      ? null
+      : mode === "investigators"
+        ? "Pick an investigator, then drag cases onto their week"
+        : "Pick a case, then drag investigators onto its week";
 
   return (
     <div className="schedule-page flex h-full flex-col gap-4 overflow-hidden">
@@ -509,12 +556,18 @@ export default function Schedule() {
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">Scheduling</h1>
-          <p className="mt-1 font-mono text-[0.6875rem] text-[var(--color-text-mid)]">
-            {mode === "investigators" ? "Pick an investigator, then drag cases onto their week" : "Pick a case, then drag investigators onto its week"}
-          </p>
+          {subtitle && (
+            <p className="mt-1 font-mono text-[0.6875rem] text-[var(--color-text-mid)]">{subtitle}</p>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           <ViewToggleGroup>
+            <ViewToggle
+              active={mode === "calendar"}
+              onClick={() => pickMode("calendar")}
+              icon={<CalendarDays size={13} strokeWidth={1.8} />}
+              label="New Calendar"
+            />
             <ViewToggle
               active={mode === "investigators"}
               onClick={() => pickMode("investigators")}
@@ -528,48 +581,53 @@ export default function Schedule() {
               label="Cases"
             />
           </ViewToggleGroup>
-          <button
-            type="button"
-            onClick={() => setMonday((m) => shiftWeek(m, -1))}
-            aria-label="Previous week"
-            className="ml-1 grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
-          >
-            <ChevronLeft size={14} strokeWidth={1.8} />
-          </button>
-          <span className="min-w-[10.5rem] text-center font-mono text-[0.75rem] text-[var(--color-text-mid)]">
-            {fmtRange(monday)}
-          </span>
-          <button
-            type="button"
-            onClick={() => setMonday((m) => shiftWeek(m, 1))}
-            aria-label="Next week"
-            className="grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
-          >
-            <ChevronRight size={14} strokeWidth={1.8} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setMonthOpen(true)}
-            title="Case overview"
-            aria-label="Case overview"
-            className="ml-1 grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[rgba(74,127,255,0.45)] hover:text-[var(--color-accent-2)]"
-          >
-            <CalendarDays size={14} strokeWidth={1.8} />
-          </button>
-          {monday !== mondayOf(new Date()) && (
-            <button
-              type="button"
-              onClick={() => setMonday(mondayOf(new Date()))}
-              className="ml-1 rounded-full border border-[var(--color-line)] px-2.5 py-1 text-[0.65625rem] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
-            >
-              This week
-            </button>
+          {mode !== "calendar" && (
+            <>
+              <button
+                type="button"
+                onClick={() => setMonday((m) => shiftWeek(m, -1))}
+                aria-label="Previous week"
+                className="ml-1 grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+              >
+                <ChevronLeft size={14} strokeWidth={1.8} />
+              </button>
+              <span className="min-w-[10.5rem] text-center font-mono text-[0.75rem] text-[var(--color-text-mid)]">
+                {fmtRange(monday)}
+              </span>
+              <button
+                type="button"
+                onClick={() => setMonday((m) => shiftWeek(m, 1))}
+                aria-label="Next week"
+                className="grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+              >
+                <ChevronRight size={14} strokeWidth={1.8} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setMonthOpen(true)}
+                title="Case overview"
+                aria-label="Case overview"
+                className="ml-1 grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[rgba(74,127,255,0.45)] hover:text-[var(--color-accent-2)]"
+              >
+                <CalendarDays size={14} strokeWidth={1.8} />
+              </button>
+              {monday !== mondayOf(new Date()) && (
+                <button
+                  type="button"
+                  onClick={() => setMonday(mondayOf(new Date()))}
+                  className="ml-1 rounded-full border border-[var(--color-line)] px-2.5 py-1 text-[0.65625rem] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+                >
+                  This week
+                </button>
+              )}
+            </>
           )}
           {saving && <Loader2 size={14} className="ml-1 animate-spin text-[var(--color-text-lo)]" />}
         </div>
       </div>
 
-      {/* Region filter */}
+      {/* Region filter — week modes only; New Calendar keeps filters under the mini-month */}
+      {mode !== "calendar" && (
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         {REGION_OPTIONS.map((r) => (
           <button
@@ -587,8 +645,29 @@ export default function Schedule() {
           </button>
         ))}
       </div>
+      )}
 
-      {/* Body: rail + board */}
+      {/* Body */}
+      {mode === "calendar" ? (
+        <NewCalendarView
+          region={region}
+          onRegionChange={setRegion}
+          cases={cases}
+          investigators={investigators}
+          weekWeather={weekWeather}
+          canManage={canManage}
+          reloadToken={calendarReloadToken}
+          onToast={showToast}
+          onRemoveBlock={(id) => void removeBlock(id)}
+          onSaveBlockNotes={async (blockId, notes) => {
+            const res = await scheduleApi.update(blockId, { notes });
+            patchBlocks((bs) => bs.map((x) => (x.id === blockId ? res.block : x)));
+            setCalendarReloadToken((t) => t + 1);
+          }}
+          onGoToCase={(caseId) => navigate(`/cases/${caseId}`)}
+          onSyncWeekMonday={setMonday}
+        />
+      ) : (
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
         {/* Rail — investigators or cases, depending on mode */}
         <div className="flex w-[16rem] shrink-0 flex-col gap-2 overflow-hidden">
@@ -925,13 +1004,25 @@ export default function Schedule() {
           </div>
         </div>
       </div>
+      )}
 
       {editing && (
-        <AssignmentModal
-          block={editing}
-          othersThatDay={(blocks ?? []).filter((b) => b.date.slice(0, 10) === editing.date.slice(0, 10) && b.id !== editing.id)}
+        <ScheduleAssignmentModal
+          flow={{
+            kind: "edit-notes",
+            step: "notes",
+            block: editing,
+            othersThatDay: (blocks ?? []).filter(
+              (b) =>
+                b.caseId === editing.caseId &&
+                b.date.slice(0, 10) === editing.date.slice(0, 10) &&
+                b.id !== editing.id,
+            ),
+          }}
           canManage={canManage}
-          onClose={() => setEditing(null)}
+          onClose={() => {
+            setEditing(null);
+          }}
           onSaveNotes={async (notes) => {
             try {
               const res = await scheduleApi.update(editing.id, { notes });
@@ -1318,141 +1409,6 @@ function DayInfoModal({
           {!meta.wx && !meta.birthday && (
             <div className="rounded-[0.75rem] border border-dashed border-[var(--color-line)] py-6 text-center font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
               Nothing on file for this day.
-            </div>
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ─── Assignment modal (replaces the time-based editor) ────────────────────────
-
-function AssignmentModal({
-  block,
-  othersThatDay,
-  canManage,
-  onClose,
-  onSaveNotes,
-  onRemove,
-  onGoToCase,
-}: {
-  block: ScheduleBlock;
-  othersThatDay: ScheduleBlock[];
-  canManage: boolean;
-  onClose: () => void;
-  onSaveNotes: (notes: string | null) => Promise<void>;
-  onRemove: () => void;
-  onGoToCase: () => void;
-}) {
-  const [notes, setNotes] = useState(block.notes ?? "");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  const dateLabel = new Date(`${block.date.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: "long", month: "long", day: "numeric",
-  });
-
-  const save = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await onSaveNotes(notes.trim() || null);
-      onClose();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save the changes.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <>
-      <div className="anim-backdrop fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 w-[min(26rem,92vw)] -translate-x-1/2 -translate-y-1/2">
-        <div className="surface anim-modal flex flex-col gap-4 rounded-[0.875rem] p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="editorial text-[1.25rem] leading-tight text-[var(--color-text-hi)]">{block.case.subjectName}</h2>
-              <p className="mt-0.5 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
-                {block.case.caseNumber} · {dateLabel} · {block.user.name}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={onGoToCase}
-                className="flex items-center gap-1 rounded-full border border-[var(--color-line)] px-2.5 py-1 text-[0.65625rem] text-[var(--color-text-mid)] transition-colors hover:border-[rgba(74,127,255,0.45)] hover:text-[var(--color-accent-2)]"
-              >
-                <ArrowUpRight size={11} strokeWidth={1.8} />
-                Go to case
-              </button>
-              <button type="button" onClick={onClose} className="text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]">
-                <X size={16} />
-              </button>
-            </div>
-          </div>
-
-          {othersThatDay.length > 0 && (
-            <div className="rounded-[0.5rem] border border-[rgba(251,146,60,0.3)] bg-[rgba(251,146,60,0.07)] px-3 py-2 text-[0.6875rem] text-[#fb923c]">
-              Also assigned that day: {othersThatDay.map((b) => `${b.user.name} — ${b.case.subjectName} (${b.case.caseNumber})`).join(", ")}.
-            </div>
-          )}
-
-          {canManage ? (
-            <div>
-              <label className="mb-1 block text-[0.625rem] font-medium uppercase tracking-wider text-[var(--color-text-lo)]">
-                Notes <span className="normal-case tracking-normal">(optional)</span>
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Meet at the Wawa on Route 9, bring the long lens…"
-                className="min-h-[4.5rem] w-full resize-none rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-3 py-2 text-[0.8125rem] text-[var(--color-text-hi)] placeholder:text-[var(--color-text-lo)] focus:outline-none focus:border-[var(--color-accent)]"
-              />
-            </div>
-          ) : block.notes ? (
-            <p className="rounded-[0.5rem] bg-[var(--color-ink-2)] px-3 py-2 text-[0.8125rem] text-[var(--color-text-mid)]">{block.notes}</p>
-          ) : null}
-
-          {error && <div className="text-[0.75rem] text-[var(--color-neg)]">{error}</div>}
-
-          {canManage && (
-            <div className="flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={onRemove}
-                className="flex items-center gap-1.5 rounded-[0.625rem] border border-[rgba(248,113,113,0.3)] px-3 py-2 text-[0.75rem] text-[var(--color-neg)] transition-colors hover:bg-[rgba(248,113,113,0.08)]"
-              >
-                <Trash2 size={12} strokeWidth={1.8} />
-                Remove
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-[0.625rem] border border-[var(--color-line)] px-4 py-2 text-[0.75rem] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={save}
-                  disabled={busy || notes === (block.notes ?? "")}
-                  className="flex items-center gap-2 rounded-[0.625rem] border border-[rgba(74,127,255,0.4)] bg-[var(--color-accent-soft)] px-4 py-2 text-[0.75rem] text-[var(--color-text-hi)] transition-shadow hover:shadow-[0_0_0_0.1875rem_var(--color-accent-soft)] disabled:pointer-events-none disabled:opacity-50"
-                >
-                  {busy && <Loader2 size={13} className="animate-spin" />}
-                  Save
-                </button>
-              </div>
             </div>
           )}
         </div>

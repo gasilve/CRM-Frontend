@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import RequireAuth from "./components/auth/RequireAuth";
 import RequirePermission from "./components/auth/RequirePermission";
+import RequirePatternLab from "./components/auth/RequirePatternLab";
 import FullScreenLoader from "./components/auth/FullScreenLoader";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
@@ -20,6 +21,7 @@ const CaseDetail = lazy(() => import("./pages/CaseDetail"));
 const CaseWorkMode = lazy(() => import("./pages/CaseWorkMode"));
 const PendingCases = lazy(() => import("./pages/PendingCases"));
 const PendingCaseDetail = lazy(() => import("./pages/PendingCaseDetail"));
+const Playground = lazy(() => import("./pages/Playground"));
 const Schedule = lazy(() => import("./pages/Schedule"));
 const Investigators = lazy(() => import("./pages/Investigators"));
 const InvestigatorNew = lazy(() => import("./pages/InvestigatorNew"));
@@ -120,6 +122,17 @@ export default function App() {
               }
             />
           </Route>
+          <Route
+            path="/playground"
+            element={
+              <LazyRoute>
+                <RequirePatternLab>
+                  <Playground />
+                </RequirePatternLab>
+              </LazyRoute>
+            }
+          />
+          <Route path="/pattern-lab" element={<Navigate to="/playground" replace />} />
           <Route element={<RequirePermission anyOf={["schedule.view"]} />}>
             <Route
               path="/schedule"
