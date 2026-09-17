@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useWidgetNavigate } from "@/lib/widget-bridge";
-import { Activity, Camera, Car, MessageSquare, ScanFace, StickyNote } from "lucide-react";
+import { Activity, Briefcase, Camera, Car, Home, MessageSquare, ScanFace, StickyNote } from "lucide-react";
 import { casesApi, type CaseDayEntryType } from "@/lib/crm-api";
 import { useQuery } from "@/lib/query-cache";
 import { useWidgetLayout } from "@/lib/widget-layout";
@@ -13,7 +13,9 @@ const ENTRY_ICON: Record<CaseDayEntryType, typeof StickyNote> = {
   qa: MessageSquare,
   photo_person: Camera,
   photo_vehicle: Car,
+  photo_home: Home,
   face_match: ScanFace,
+  manager_note: Briefcase,
 };
 
 const ENTRY_LABEL: Record<CaseDayEntryType, string> = {
@@ -21,7 +23,9 @@ const ENTRY_LABEL: Record<CaseDayEntryType, string> = {
   qa: "answered a question",
   photo_person: "added a subject photo",
   photo_vehicle: "added a vehicle photo",
+  photo_home: "added a home photo",
   face_match: "ran a face match",
+  manager_note: "left an office note",
 };
 
 export function RecentCaseActivity() {
