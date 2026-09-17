@@ -395,7 +395,22 @@ export const BACKGROUNDS: BackgroundMeta[] = [
 ];
 
 export const BACKGROUND_LS_KEY = "accenty.crm.background.v3";
-const DEFAULT_BACKGROUND: BackgroundId = "static";
+/** Video URL or still image URL — used by boot / full-screen loaders. */
+export const BACKGROUND_SRC_LS_KEY = "accenty.crm.background-src.v1";
+const DEFAULT_BACKGROUND: BackgroundId = "aerial-ranges";
+
+function sceneSrcFor(meta: BackgroundMeta): string {
+  if (meta.videoSrc) return meta.videoSrc;
+  return meta.thumb || stillThumb;
+}
+
+function persistBackgroundSrc(meta: BackgroundMeta) {
+  try {
+    localStorage.setItem(BACKGROUND_SRC_LS_KEY, sceneSrcFor(meta));
+  } catch {
+    /* ignore */
+  }
+}
 
 type BackgroundCtx = {
   backgroundId: BackgroundId;
@@ -433,6 +448,9 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
   const [backgroundId, setBackgroundId] =
     useState<BackgroundId>(readStoredBackground);
 
+  const backgroundMeta =
+    BACKGROUNDS.find((b) => b.id === backgroundId) ?? BACKGROUNDS[0];
+
   useLayoutEffect(() => {
     document.documentElement.setAttribute("data-bg", backgroundId);
     try {
@@ -440,10 +458,8 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-  }, [backgroundId]);
-
-  const backgroundMeta =
-    BACKGROUNDS.find((b) => b.id === backgroundId) ?? BACKGROUNDS[0];
+    persistBackgroundSrc(backgroundMeta);
+  }, [backgroundId, backgroundMeta]);
 
   return (
     <BackgroundContext.Provider

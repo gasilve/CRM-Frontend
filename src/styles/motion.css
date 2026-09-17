@@ -178,6 +178,21 @@
   animation: motion-fade var(--motion-base) var(--motion-ease) backwards;
 }
 
+.anim-assign-phase {
+  animation: motion-assign-phase 0.28s var(--motion-ease) backwards;
+}
+
+@keyframes motion-assign-phase {
+  from {
+    opacity: 0;
+    transform: translateX(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .anim-rise {
   animation: motion-rise var(--motion-base) var(--motion-ease) backwards;
 }
@@ -340,6 +355,7 @@
 @media (prefers-reduced-motion: reduce) {
   .anim-page,
   .anim-fade,
+  .anim-assign-phase,
   .anim-rise,
   .anim-pop,
   .anim-panel,

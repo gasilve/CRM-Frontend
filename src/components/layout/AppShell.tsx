@@ -1,18 +1,42 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Menu } from "lucide-react";
+import { cn } from "@/lib/cn";
 import Sidebar from "./Sidebar";
 import { LiveBackground } from "./LiveBackground";
 
 const FULL_BLEED_ROUTES = ["/assistant", "/video"];
-/** No saved scroll room needed — these pages size their own content to fit. */
-const NO_SCROLL_ROUTES = ["/cases/"];
+/**
+ * Pages that own the viewport with `h-full` flex layouts (tables, grids,
+ * calendars). They must NOT sit under a `min-h-full`-only wrapper — percentage
+ * height only resolves when the parent has an explicit height.
+ * Dashboard (`/`) uses fill-height so the fixed board does not create page scroll.
+ */
+const FILL_HEIGHT_PREFIXES = [
+  "/",
+  "/cases",
+  "/my-day",
+  "/pending-cases",
+  "/schedule",
+  "/investigators",
+  "/clients",
+  "/profile",
+  "/administration",
+  "/documents",
+];
 const SIDEBAR_COLLAPSED_LS_KEY = "accenty.crm.sidebar.collapsed";
+
+function pathMatchesPrefix(pathname: string, prefix: string) {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
 
 export default function AppShell() {
   const { pathname } = useLocation();
   const fullBleed = FULL_BLEED_ROUTES.some((r) => pathname.startsWith(r));
-  const noScroll = fullBleed || NO_SCROLL_ROUTES.some((r) => pathname.startsWith(r));
+  const fillHeight = FILL_HEIGHT_PREFIXES.some((r) => pathMatchesPrefix(pathname, r));
+  const noScroll = fullBleed || fillHeight;
+  /** Pending case detail only — not the list. Full-screen caution wash. */
+  const pendingCaseDetail = /^\/pending-cases\/[^/]+/.test(pathname);
   const [navOpen, setNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -104,6 +128,7 @@ export default function AppShell() {
       <div className="atmo atmo-scanlines" aria-hidden />
       <div className="atmo atmo-sweep" aria-hidden />
       <div className="atmo atmo-vignette" aria-hidden />
+      {pendingCaseDetail ? <div className="pending-case-hazard-bg" aria-hidden /> : null}
 
       {navOpen ? (
         <button
@@ -133,17 +158,22 @@ export default function AppShell() {
 
       <div className="app-shell-main relative z-10 flex h-full flex-1 flex-col overflow-hidden">
         <main
-          className={
+          className={cn(
+            "app-main flex-1",
             fullBleed
-              ? "app-main flex-1 overflow-hidden"
+              ? "flex flex-col overflow-hidden"
               : noScroll
-                ? "app-main flex-1 overflow-hidden px-7 py-6"
-                : "app-main flex-1 overflow-y-auto px-7 py-6"
-          }
+                ? "flex flex-col overflow-hidden px-7 py-6"
+                : "overflow-y-auto px-7 py-6",
+          )}
         >
-          {/* Fade only — no transform. A transformed ancestor breaks GridStack's
-              top/left positioning and makes widgets overlap after reload. */}
-          <div key={pathname} className="anim-fade h-full">
+          {/* Fill pages: h-full so nested flex/percentage layouts get a real height.
+              Dashboard: min-h-full so a tall GridStack can grow and the main scrolls.
+              Fade only — no transform (transformed ancestors break GridStack). */}
+          <div
+            key={pathname}
+            className={cn("anim-fade", fillHeight || fullBleed ? "flex h-full min-h-0 flex-col" : "min-h-full")}
+          >
             <Outlet />
           </div>
         </main>

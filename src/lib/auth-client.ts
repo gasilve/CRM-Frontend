@@ -24,6 +24,8 @@ export type Permission =
   | "cases.assign"
   | "cases.journal.write"
   | "cases.journal.moderate"
+  | "cases.work"
+  | "cases.todos.manage"
   | "intake.view"
   | "intake.manage"
   | "schedule.view"
@@ -38,7 +40,8 @@ export type Permission =
   | "assistant.use"
   | "video.use"
   | "admin.roles"
-  | "admin.users";
+  | "admin.users"
+  | "admin.questionBank";
 
 export type CaseScope = "all" | "assigned" | "none";
 export type PeopleScope = "all" | "self";

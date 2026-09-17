@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { RefreshCw, X } from "lucide-react";
+import { Loader2, RefreshCw, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { EvidencePhoto } from "@/lib/mock-data";
-
-const MATCH_THRESHOLD = 80;
+import { casesApi, ApiError, type VisualComparisonResult } from "@/lib/crm-api";
+import { useCasePhoto } from "@/hooks/useCasePhoto";
 
 type Props = {
   open: boolean;
@@ -15,22 +15,10 @@ type Props = {
   subjectOnFileId?: string;
   subjectName: string;
   caseReference: string;
+  /** The case these photos belong to — runs the comparison through the real backend adapter (CFR, mocked for now). */
+  caseId: string;
   onClose: () => void;
 };
-
-/** Deterministic mock “AWS Rekognition” similarity 0–100 from two ids. */
-function mockRekognitionScore(a: string, b: string): number {
-  if (!a || !b) return 0;
-  if (a === b) return 97;
-  let h = 0;
-  const s = `${a}::${b}`;
-  for (let i = 0; i < s.length; i++) h = (h * 33 + s.charCodeAt(i)) >>> 0;
-  // Spread across low/high so demos show both MATCH and NO MATCH
-  const raw = h % 100;
-  if (raw < 35) return 2 + (raw % 12); // clear miss
-  if (raw < 55) return 40 + (raw % 25); // mid
-  return 82 + (raw % 17); // match band
-}
 
 export function ImageComparisonModal({
   open,
@@ -39,6 +27,7 @@ export function ImageComparisonModal({
   subjectOnFileId,
   subjectName,
   caseReference,
+  caseId,
   onClose,
 }: Props) {
   const subjectDefault = subjectOnFileId ?? photos[0]?.id ?? "";
@@ -76,13 +65,46 @@ export function ImageComparisonModal({
     [photos, probeId],
   );
 
-  const confidence = useMemo(
-    () => mockRekognitionScore(`${subjectPhoto?.id}:${runKey}`, uploadedPhoto?.id ?? ""),
-    [subjectPhoto?.id, uploadedPhoto?.id, runKey],
-  );
-  const isMatch = confidence >= MATCH_THRESHOLD;
-  const verdict = isMatch ? "MATCH" : "NO MATCH";
-  const accent = isMatch ? "var(--color-pos)" : "var(--color-neg)";
+  // Runs through the real crm-api adapter — mocked deterministically server-side
+  // until CFR (github.com/Accenty-AI/CFR) integration access lands. Each run
+  // logs a face_match day-journal entry, so re-running is a deliberate action
+  // (new probe pick or the "New analysis" button), not an incidental effect.
+  const [result, setResult] = useState<VisualComparisonResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !subjectPhoto || !uploadedPhoto) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    casesApi
+      .runVisualComparison(caseId, {
+        subjectPhotoUrl: subjectPhoto.url,
+        probePhotoUrl: uploadedPhoto.url,
+        subjectLabel: subjectPhoto.label,
+        probeLabel: uploadedPhoto.label,
+      })
+      .then((res) => {
+        if (!cancelled) setResult(res.result);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof ApiError ? err.message : "Could not run the comparison.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, caseId, subjectPhoto?.id, uploadedPhoto?.id, runKey]);
+
+  const confidence = result?.score ?? 0;
+  const threshold = result?.threshold ?? 80;
+  const isMatch = result?.verdict === "MATCH";
+  const verdict = result?.verdict ?? "…";
+  const accent = !result ? "var(--color-text-lo)" : isMatch ? "var(--color-pos)" : "var(--color-neg)";
 
   if (!open || !subjectPhoto || !uploadedPhoto) return null;
 
@@ -145,9 +167,10 @@ export function ImageComparisonModal({
                 <button
                   type="button"
                   onClick={() => setRunKey((k) => k + 1)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-line-2)] px-3 py-1.5 text-[0.6875rem] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-3)] hover:text-[var(--color-text-hi)]"
+                  disabled={loading}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-line-2)] px-3 py-1.5 text-[0.6875rem] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-3)] hover:text-[var(--color-text-hi)] disabled:opacity-50"
                 >
-                  <RefreshCw size={12} strokeWidth={1.8} />
+                  {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} strokeWidth={1.8} />}
                   New analysis
                 </button>
               </div>
@@ -158,16 +181,20 @@ export function ImageComparisonModal({
               className="text-[2.625rem] font-bold leading-none tracking-tight sm:text-[3rem]"
               style={{ color: accent }}
             >
-              {verdict}
+              {loading ? "Comparing…" : verdict}
             </h2>
             <p className="mt-2 text-[0.875rem] text-[var(--color-text-mid)]">
-              {isMatch ? (
+              {error ? (
+                <span className="text-[var(--color-neg)]">{error}</span>
+              ) : loading ? (
+                "Running the visual comparison…"
+              ) : isMatch ? (
                 <>
-                  Confidence {confidence}% meets threshold {MATCH_THRESHOLD}%.
+                  Confidence {confidence}% meets threshold {threshold}%.
                 </>
               ) : (
                 <>
-                  Confidence {confidence}% is below threshold {MATCH_THRESHOLD}%.
+                  Confidence {confidence}% is below threshold {threshold}%.
                 </>
               )}
             </p>
@@ -175,6 +202,7 @@ export function ImageComparisonModal({
             {/* Side-by-side faces */}
             <div className="mt-8 grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-5">
               <FaceFrame
+                caseId={caseId}
                 label="Uploaded images"
                 src={uploadedPhoto.url}
                 alt={uploadedPhoto.label}
@@ -194,11 +222,12 @@ export function ImageComparisonModal({
                   {confidence}%
                 </div>
                 <div className="font-mono text-[0.5rem] uppercase tracking-[0.2em] text-[var(--color-text-lo)]">
-                  Via AWS Rekognition
+                  {result?.source === "cfr" ? "Via CFR / AWS Rekognition" : "Mock analysis — pending CFR"}
                 </div>
               </div>
 
               <FaceFrame
+                caseId={caseId}
                 label="Subject on file"
                 src={subjectPhoto.url}
                 alt={subjectName}
@@ -217,8 +246,8 @@ export function ImageComparisonModal({
                 />
                 <div
                   className="absolute top-1/2 z-10 h-4 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--color-warn)] shadow-[0_0_0_0.125rem_rgba(0,0,0,0.35)]"
-                  style={{ left: `${MATCH_THRESHOLD}%` }}
-                  title={`Threshold ${MATCH_THRESHOLD}%`}
+                  style={{ left: `${threshold}%` }}
+                  title={`Threshold ${threshold}%`}
                 />
               </div>
               <div className="mt-1.5 flex justify-between font-mono text-[0.625rem] text-[var(--color-text-lo)]">
@@ -240,7 +269,7 @@ export function ImageComparisonModal({
             </DetailRow>
             <DetailRow label="Confidence score">
               <span className="font-mono text-[0.8125rem] text-[var(--color-text-hi)]">
-                {confidence}% (threshold {MATCH_THRESHOLD}%)
+                {confidence}% (threshold {threshold}%)
               </span>
             </DetailRow>
             <DetailRow label="Subject on file">
@@ -251,9 +280,9 @@ export function ImageComparisonModal({
                 {caseReference}
               </span>
             </DetailRow>
-            <DetailRow label="Images analysed">
+            <DetailRow label="Comparison source">
               <span className="font-mono text-[0.8125rem] text-[var(--color-text-hi)]">
-                1 uploaded
+                {result?.source === "cfr" ? "CFR (AWS Rekognition)" : "Mock analysis — CFR integration pending"}
               </span>
             </DetailRow>
           </dl>
@@ -265,21 +294,26 @@ export function ImageComparisonModal({
 }
 
 function FaceFrame({
+  caseId,
   label,
   src,
   alt,
 }: {
+  caseId: string;
   label: string;
   src: string;
   alt: string;
 }) {
+  // Field captures live behind the authenticated case-file route, so the raw
+  // reference has to be resolved before an <img> can show it.
+  const resolved = useCasePhoto(caseId, src);
   return (
     <div className="min-w-0">
       <div className="mb-2 text-center font-mono text-[0.5625rem] uppercase tracking-[0.18em] text-[var(--color-text-lo)]">
         {label}
       </div>
       <div className="aspect-square overflow-hidden rounded-[0.875rem] border border-[var(--color-line-2)] bg-[var(--color-ink-0)]">
-        <img src={src} alt={alt} className="h-full w-full object-cover" />
+        {resolved && <img src={resolved} alt={alt} className="h-full w-full object-cover" />}
       </div>
     </div>
   );

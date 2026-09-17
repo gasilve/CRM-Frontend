@@ -14,8 +14,10 @@ import ResetPassword from "./pages/auth/ResetPassword";
 
 const AppShell = lazy(() => import("./components/layout/AppShell"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const MyDay = lazy(() => import("./pages/MyDay"));
 const Cases = lazy(() => import("./pages/Cases"));
 const CaseDetail = lazy(() => import("./pages/CaseDetail"));
+const CaseWorkMode = lazy(() => import("./pages/CaseWorkMode"));
 const PendingCases = lazy(() => import("./pages/PendingCases"));
 const PendingCaseDetail = lazy(() => import("./pages/PendingCaseDetail"));
 const Schedule = lazy(() => import("./pages/Schedule"));
@@ -66,6 +68,14 @@ export default function App() {
           />
           <Route element={<RequirePermission anyOf={["cases.view"]} />}>
             <Route
+              path="/my-day"
+              element={
+                <LazyRoute>
+                  <MyDay />
+                </LazyRoute>
+              }
+            />
+            <Route
               path="/cases"
               element={
                 <LazyRoute>
@@ -78,6 +88,16 @@ export default function App() {
               element={
                 <LazyRoute>
                   <CaseDetail />
+                </LazyRoute>
+              }
+            />
+          </Route>
+          <Route element={<RequirePermission anyOf={["cases.work", "cases.edit"]} />}>
+            <Route
+              path="/cases/:id/work"
+              element={
+                <LazyRoute>
+                  <CaseWorkMode />
                 </LazyRoute>
               }
             />

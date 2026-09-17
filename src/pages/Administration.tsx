@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Mail, Plus, ShieldAlert, ShieldCheck, Shield, UserPlus, Users2 } from "lucide-react";
+import { HelpCircle, Loader2, Mail, Plus, ShieldAlert, ShieldCheck, Shield, UserPlus, Users2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getInitials, roleChipStyle, roleColor } from "@/lib/format";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,7 @@ import { PanelLoader } from "@/components/ui/LoadingState";
 import { PendingInvitations } from "@/components/team/PendingInvitations";
 import { ErrorBanner } from "@/components/admin/primitives";
 import { RoleEditor } from "@/components/admin/RoleEditor";
+import { QuestionBankTab } from "@/components/admin/QuestionBankTab";
 import {
   ApiError,
   rolesApi,
@@ -18,20 +19,22 @@ import {
   type RolePayload,
 } from "@/lib/crm-api";
 
-type Tab = "roles" | "people" | "invitations";
+type Tab = "roles" | "people" | "invitations" | "questions";
 
 export default function Administration() {
   const { can } = useAuth();
   const canEditRoles = can("admin.roles");
   const canAssignRoles = can("admin.users");
+  const canManageQuestions = can("admin.questionBank");
 
   const tabs = useMemo(() => {
     const out: { id: Tab; label: string; icon: typeof Shield }[] = [];
     if (canEditRoles || canAssignRoles) out.push({ id: "roles", label: "Roles & permissions", icon: Shield });
     if (canAssignRoles) out.push({ id: "people", label: "People", icon: Users2 });
     if (can("team.invite")) out.push({ id: "invitations", label: "Invitations", icon: Mail });
+    if (canManageQuestions) out.push({ id: "questions", label: "Question bank", icon: HelpCircle });
     return out;
-  }, [canEditRoles, canAssignRoles, can]);
+  }, [canEditRoles, canAssignRoles, canManageQuestions, can]);
 
   const [tab, setTab] = useState<Tab>(tabs[0]?.id ?? "roles");
 
@@ -95,6 +98,8 @@ export default function Administration() {
       {tab === "people" && <PeopleTab roles={roles ?? []} onRolesChanged={(next) => setRoles(next)} />}
 
       {tab === "invitations" && <InvitationsTab />}
+
+      {tab === "questions" && <QuestionBankTab />}
     </div>
   );
 }

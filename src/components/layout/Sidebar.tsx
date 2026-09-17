@@ -5,8 +5,8 @@ import {
   Check,
   CircleUserRound,
   Plus,
-  Image,
   LayoutDashboard,
+  Sun,
   Users2,
   Building2,
   FolderOpen,
@@ -48,19 +48,19 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/cn";
-import { BackgroundPicker } from "./BackgroundPicker";
 import { ThemePicker } from "./ThemePicker";
 import { ConfirmModal } from "@/components/dashboard/ConfirmModal";
-import { invCases, investigators } from "@/lib/mock-data";
+import { invCases } from "@/lib/mock-data";
+import { investigatorsApi } from "@/lib/crm-api";
+import { useQuery } from "@/lib/query-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePendingIntake } from "@/contexts/PendingIntakeContext";
 import type { Permission } from "@/lib/auth-client";
 import { getInitials, formatRoleList } from "@/lib/format";
 import accentyLogo from "@/assets/branding/accenty-logo.png";
 
-// Live badge counts — swap with API data later
+// Cases badge still on mock data — swap with API later.
 const openCases = invCases.filter((c) => c.status === "open").length;
-const clockedIn = investigators.filter((i) => i.status !== "off_duty").length;
 
 type Item = {
   to: string;
@@ -91,10 +91,11 @@ const DEFAULT_GROUPS: Group[] = [
     label: "Operations",
     items: [
       { to: "/",              label: "Dashboard",    icon: LayoutDashboard },
+      { to: "/my-day",        label: "My Day",       icon: Sun,          permissions: ["cases.view"] },
       { to: "/cases",         label: "Cases",        icon: FolderOpen,   badge: openCases, permissions: ["cases.view"] },
       { to: "/pending-cases", label: "Pending cases", icon: Inbox, permissions: ["intake.view"] },
       { to: "/schedule",      label: "Scheduling",   icon: CalendarClock, permissions: ["schedule.view"] },
-      { to: "/investigators", label: "Investigators",icon: Users2,        badge: clockedIn > 0 ? `${clockedIn} live` : undefined, permissions: ["team.view"] },
+      { to: "/investigators", label: "Investigators",icon: Users2,        permissions: ["team.view"] },
       { to: "/clients",       label: "Clients",      icon: Building2,     permissions: ["clients.view"] },
     ],
   },
@@ -550,9 +551,7 @@ export default function Sidebar({
   const [sidebarState, setSidebarState] = useState<SidebarState>(readSidebarState);
   const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<string | null>(null);
   const [themeOpen, setThemeOpen] = useState(false);
-  const [bgOpen, setBgOpen] = useState(false);
   const themeButtonRef = useRef<HTMLButtonElement>(null);
-  const bgButtonRef = useRef<HTMLButtonElement>(null);
   const { user, roles, canAny, logout } = useAuth();
 
   const sensors = useSensors(
@@ -561,7 +560,13 @@ export default function Sidebar({
   );
 
   const canSeeIntake = canAny("intake.view");
+  const canSeeTeam = canAny("team.view");
   const { pendingReview: pendingCases } = usePendingIntake();
+  const investigatorsQuery = useQuery(
+    canSeeTeam ? "investigators:list" : null,
+    () => investigatorsApi.list(),
+  );
+  const investigatorCount = investigatorsQuery.data?.investigators.length;
 
   const groups = useMemo(() => {
     return sidebarState.folders.map((folder) => ({
@@ -575,11 +580,14 @@ export default function Sidebar({
           if (item.to === "/pending-cases" && canSeeIntake && pendingCases && pendingCases > 0) {
             return { ...item, badge: pendingCases };
           }
+          if (item.to === "/investigators" && investigatorCount != null && investigatorCount > 0) {
+            return { ...item, badge: investigatorCount };
+          }
           return item;
         }),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sidebarState, canAny, canSeeIntake, pendingCases]);
+  }, [sidebarState, canAny, canSeeIntake, pendingCases, investigatorCount]);
 
   const updateState = (next: SidebarState) => {
     setSidebarState(next);
@@ -857,29 +865,12 @@ export default function Sidebar({
               ref={themeButtonRef}
               type="button"
               aria-label="Choose theme"
-              title="Theme"
+              title="Theme & background"
               aria-expanded={themeOpen}
-              onClick={() => {
-                setThemeOpen((v) => !v);
-                setBgOpen(false);
-              }}
+              onClick={() => setThemeOpen((v) => !v)}
               className="grid h-7 w-7 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)] aria-expanded:border-[var(--color-line-3)] aria-expanded:text-[var(--color-text-hi)]"
             >
               <Palette size={13} strokeWidth={1.6} />
-            </button>
-            <button
-              ref={bgButtonRef}
-              type="button"
-              aria-label="Choose background"
-              title="Background"
-              aria-expanded={bgOpen}
-              onClick={() => {
-                setBgOpen((v) => !v);
-                setThemeOpen(false);
-              }}
-              className="grid h-7 w-7 place-items-center rounded-[0.5rem] border border-[var(--color-line)] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)] aria-expanded:border-[var(--color-line-3)] aria-expanded:text-[var(--color-text-hi)]"
-            >
-              <Image size={13} strokeWidth={1.6} />
             </button>
             <button
               type="button"
@@ -897,12 +888,6 @@ export default function Sidebar({
           open={themeOpen}
           onClose={() => setThemeOpen(false)}
           triggerRef={themeButtonRef}
-          align="top-start"
-        />
-        <BackgroundPicker
-          open={bgOpen}
-          onClose={() => setBgOpen(false)}
-          triggerRef={bgButtonRef}
           align="top-start"
         />
       </div>
