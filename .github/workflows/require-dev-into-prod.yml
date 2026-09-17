@@ -1,0 +1,22 @@
+name: Require merge from dev
+
+# Prod may only receive code via PRs whose head branch is `dev`.
+# Paired with the "Prod protection" repository ruleset (required status check).
+on:
+  pull_request:
+    branches: [prod]
+
+jobs:
+  require-dev:
+    name: Require merge from dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assert head branch is dev
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" != "dev" ]; then
+            echo "::error::PRs into prod must come from the 'dev' branch (got '$HEAD_REF'). Merge your work into dev first, then open a PR from dev → prod."
+            exit 1
+          fi
+          echo "OK: head branch is dev."
