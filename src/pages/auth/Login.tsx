@@ -52,7 +52,7 @@ export default function Login() {
         void refreshHealth();
         return;
       }
-      if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) {
+      if (isMfaRequired() && data && "twoFactorRedirect" in data && data.twoFactorRedirect) {
         navigate("/mfa-verify");
         return;
       }
