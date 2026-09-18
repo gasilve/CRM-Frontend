@@ -4,6 +4,7 @@ import { Loader2, ShieldCheck } from "lucide-react";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { errorBannerClass, inputClass, labelClass, primaryButtonClass, secondaryButtonClass } from "@/components/auth/form";
 import { authClient } from "@/lib/auth-client";
+import { isMfaRequired } from "@/lib/mfa";
 import { useAuth, getPostAuthPath } from "@/contexts/AuthContext";
 
 export default function MfaVerify() {
@@ -15,6 +16,10 @@ export default function MfaVerify() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isMfaRequired()) {
+      navigate("/login", { replace: true });
+      return;
+    }
     if (auth.isPending) return;
     const target = getPostAuthPath(auth);
     if (target && target !== "/mfa-setup") navigate(target, { replace: true });
