@@ -1746,3 +1746,76 @@ export const gridLayoutsApi = {
   reset: (surface: GridSurface) =>
     request<{ layout: GridLayoutRecord }>(`/grid-layouts/${surface}`, { method: "DELETE" }),
 };
+
+export type VoiceIntakeStatus =
+  | "preparing"
+  | "active"
+  | "processing"
+  | "needs_review"
+  | "approved"
+  | "discarded"
+  | "failed"
+  | "abandoned";
+
+export interface VoiceDraft {
+  reportLocation: string | null;
+  narrativeNote: string | null;
+  injuryMobilityObservation: string | null;
+  videoCaptured: "yes" | "no" | "unknown" | null;
+  videoApproxDuration: string | null;
+  videoActivities: string[];
+  otherRelevantFacts: string[];
+  discrepancies: string[];
+}
+
+export interface TranscriptTurn {
+  speaker: "Alejandro" | "Investigator";
+  text: string;
+  secondsFromStart: number | null;
+}
+
+export interface VoiceIntakeSession {
+  id: string;
+  caseId: string;
+  status: VoiceIntakeStatus;
+  workDate: string;
+  draft: VoiceDraft | null;
+  transcript: TranscriptTurn[] | null;
+  draftVersion: number;
+  failureCode: string | null;
+  noteEntryId: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  approvedAt: string | null;
+}
+
+export interface VoiceIntakeJoin {
+  callId: string;
+  webCallUrl: string;
+}
+
+export const voiceIntakeApi = {
+  list: (caseId: string) =>
+    request<{ sessions: Array<VoiceIntakeSession & { join: VoiceIntakeJoin | null }> }>(`/cases/${caseId}/voice-intakes`),
+  start: (caseId: string, workDate: string) =>
+    request<{ session: VoiceIntakeSession; join: VoiceIntakeJoin | null }>(`/cases/${caseId}/voice-intakes`, {
+      method: "POST",
+      body: JSON.stringify({ workDate }),
+    }),
+  get: (caseId: string, sessionId: string) =>
+    request<{ session: VoiceIntakeSession; join: VoiceIntakeJoin | null }>(`/cases/${caseId}/voice-intakes/${sessionId}`),
+  saveDraft: (caseId: string, sessionId: string, draftVersion: number, narrativeNote: string) =>
+    request<{ session: VoiceIntakeSession }>(`/cases/${caseId}/voice-intakes/${sessionId}/draft`, {
+      method: "PATCH",
+      body: JSON.stringify({ draftVersion, narrativeNote }),
+    }),
+  approve: (caseId: string, sessionId: string, draftVersion: number, narrativeNote: string) =>
+    request<{ session: VoiceIntakeSession; days: CaseDay[] }>(`/cases/${caseId}/voice-intakes/${sessionId}/approve-note`, {
+      method: "POST",
+      body: JSON.stringify({ draftVersion, narrativeNote }),
+    }),
+  discard: (caseId: string, sessionId: string) =>
+    request<{ session: VoiceIntakeSession }>(`/cases/${caseId}/voice-intakes/${sessionId}/discard`, { method: "POST" }),
+  hangup: (caseId: string, sessionId: string) =>
+    request<{ session: VoiceIntakeSession }>(`/cases/${caseId}/voice-intakes/${sessionId}/hangup`, { method: "POST" }),
+};

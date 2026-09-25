@@ -37,9 +37,11 @@ import { PeopleModal } from "@/components/case/PeopleModal";
 import { VehiclesModal } from "@/components/case/VehiclesModal";
 import { HomeModal } from "@/components/case/HomeModal";
 import { CasePhoto, EntityModal } from "@/components/case/EntityModal";
+import { VoiceIntakePanel } from "@/components/case/VoiceIntakePanel";
 import {
   casesApi,
   timeEntriesApi,
+  voiceIntakeApi,
   ApiError,
   noteVersionsOf,
   type CaseDay,
@@ -171,6 +173,8 @@ export default function CaseWorkMode() {
   const [entity, setEntity] = useState<EntityKey | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [checklist, setChecklist] = useState<{ open: boolean; intent: "view" | "clockout" }>({ open: false, intent: "view" });
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voicePending, setVoicePending] = useState(false);
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -183,6 +187,20 @@ export default function CaseWorkMode() {
     setToast(text);
     window.setTimeout(() => setToast((t) => (t === text ? null : t)), 4500);
   }, []);
+
+  const refreshVoicePending = useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await voiceIntakeApi.list(id);
+      setVoicePending(res.sessions.some((row) => row.status === "needs_review"));
+    } catch {
+      /* non-blocking */
+    }
+  }, [id]);
+
+  useEffect(() => {
+    void refreshVoicePending();
+  }, [refreshVoicePending]);
 
   const [locationNote, setLocationNote] = useState<string | null>(null);
   const [startBusy, setStartBusy] = useState(false);
@@ -284,8 +302,8 @@ export default function CaseWorkMode() {
   const [noteDraft, setNoteDraft] = useState("");
   const [noteBusy, setNoteBusy] = useState(false);
   const [questions, setQuestions] = useState<PendingQuestion[]>([]);
-  // Lifted so saving a note can force the journal onto Today (notes always land on today).
-  const [journalDayFocus, setJournalDayFocus] = useState<string | "all">(() => today);
+  // Defaults to all days; saving a note focuses Today so the new entry is visible.
+  const [journalDayFocus, setJournalDayFocus] = useState<string | "all">("all");
 
   const dayKey = (iso: string | Date | null | undefined): string => {
     if (!iso) return "";
@@ -328,6 +346,14 @@ export default function CaseWorkMode() {
       );
       const seen = new Set<string>();
       const bank = [...standard, ...dynamic].filter((q) => (seen.has(q.text) ? false : (seen.add(q.text), true)));
+      const voiceNoteToday = (todaysDay?.entries ?? []).some((e) => e.type === "note" && e.meta?.source === "voice_intake");
+      if (voiceNoteToday) {
+        bank.unshift({
+          kind: "standard",
+          standardQuestionId: "",
+          text: "Review today's voice note and correct it in the journal if it needs a fix.",
+        });
+      }
       setQuestions((prev) => {
         // Preserve any answers already attached (optimistic / from journal overlay)
         const prevByText = new Map(prev.map((q) => [q.text, q]));
@@ -339,7 +365,7 @@ export default function CaseWorkMode() {
     } catch {
       /* non-blocking */
     }
-  }, [id, today, todaysNoteText]);
+  }, [id, today, todaysNoteText, todaysDay?.entries]);
 
   useEffect(() => {
     void loadQuestionBank();
@@ -423,7 +449,7 @@ export default function CaseWorkMode() {
           question: q.text,
           body: answer,
           questionSource: q.kind,
-          ...(q.kind === "dynamic" ? { ruleId: q.ruleId } : { standardQuestionId: q.standardQuestionId }),
+          ...(q.kind === "dynamic" ? { ruleId: q.ruleId } : q.standardQuestionId ? { standardQuestionId: q.standardQuestionId } : {}),
         });
         if (caseData && kase) mutateCase({ ...caseData, case: { ...kase, days } });
       }
@@ -527,12 +553,12 @@ export default function CaseWorkMode() {
 
           <button
             type="button"
-            onClick={() => showToast("Voice agent is next — Vapi wiring comes after this core UI is solid.")}
+            onClick={() => setVoiceOpen(true)}
             className="flex h-11 shrink-0 items-center gap-2 rounded-[0.75rem] border border-[var(--color-accent)] bg-[var(--color-accent-soft)] px-3.5 text-[0.875rem] font-medium text-[var(--color-text-hi)] transition-shadow hover:shadow-[0_0_0.75rem_rgba(74,127,255,0.3)]"
             title="Talk to the case voice agent"
           >
             <Phone size={15} strokeWidth={1.9} className="text-[var(--color-accent-2)]" />
-            <span className="hidden sm:inline">Call agent</span>
+            <span className="hidden sm:inline">{voicePending ? "Review voice note" : "Call agent"}</span>
             <Mic size={12} className="text-[var(--color-accent-2)] opacity-70" />
           </button>
 
@@ -589,6 +615,16 @@ export default function CaseWorkMode() {
           </div>
         </div>
       </div>
+
+      {voicePending && !voiceOpen && (
+        <button
+          type="button"
+          onClick={() => setVoiceOpen(true)}
+          className="shrink-0 rounded-[0.625rem] border border-[rgba(74,127,255,0.35)] bg-[var(--color-accent-soft)] px-3 py-2 text-left text-[0.8125rem] text-[var(--color-text-hi)]"
+        >
+          A voice note is waiting for review. Approve it before the checklist treats it as today's update.
+        </button>
+      )}
 
       {active && !isActiveHere && (
         <div className="shrink-0 rounded-[0.625rem] border border-[rgba(251,146,60,0.3)] bg-[rgba(251,146,60,0.07)] px-3 py-2 text-[0.75rem] text-[#fb923c]">
@@ -739,6 +775,7 @@ export default function CaseWorkMode() {
           questions={checklistQuestions}
           answered={(todaysDay?.entries ?? []).filter((e) => e.type === "qa")}
           todaysEntries={todaysDay?.entries ?? []}
+          hasVoiceNote={(todaysDay?.entries ?? []).some((e) => e.type === "note" && e.meta?.source === "voice_intake")}
           canWrite={canWriteText}
           onAnswer={answerQuestion}
           onDismiss={(q) => void answerQuestion(q, "Not applicable today")}
@@ -753,12 +790,50 @@ export default function CaseWorkMode() {
           onClockOut={
             checklist.intent === "clockout"
               ? async () => {
+                  const entries = todaysDay?.entries ?? [];
+                  const already = entries.some((e) => e.type === "note" && e.meta?.source === "day_close");
+                  if (id && !already) {
+                    const match = entries.find((e) => e.type === "face_match");
+                    const body = match
+                      ? `Visual comparison was performed today. Result: ${match.body ?? "logged"}.`
+                      : "Visual comparison was not performed today.";
+                    try {
+                      const { days } = await casesApi.addDayEntry(id, {
+                        date: today,
+                        type: "note",
+                        body,
+                        meta: { source: "day_close", kind: "visual_comparison" },
+                      });
+                      if (caseData && kase) mutateCase({ ...caseData, case: { ...kase, days } });
+                    } catch {
+                      showToast("Could not save the visual comparison note.");
+                    }
+                  }
                   await stopWorking();
                   setChecklist({ open: false, intent: "view" });
                 }
               : undefined
           }
           clockOutBusy={startBusy}
+        />
+      )}
+
+      {voiceOpen && kase && (
+        <VoiceIntakePanel
+          caseId={kase.id}
+          caseNumber={kase.caseNumber}
+          subjectName={kase.subjectName}
+          workDate={today}
+          onClose={() => {
+            setVoiceOpen(false);
+            void refreshVoicePending();
+            void refreshCase();
+          }}
+          onApproved={(days) => {
+            if (caseData) mutateCase({ ...caseData, case: { ...kase, days } });
+            setVoicePending(false);
+            showToast("Voice note saved");
+          }}
         />
       )}
 
@@ -1210,6 +1285,7 @@ function ChecklistModal({
   daySummary,
   entryCounts,
   todaysEntries,
+  hasVoiceNote,
   onSaveSummary,
   onClose,
   onClockOut,
@@ -1229,6 +1305,7 @@ function ChecklistModal({
   daySummary: string | null;
   entryCounts: { notes: number; photos: number; qa: number };
   todaysEntries: CaseDayEntry[];
+  hasVoiceNote: boolean;
   onSaveSummary: (summary: string) => Promise<void>;
   onClose: () => void;
   onClockOut?: () => Promise<void>;
@@ -1356,6 +1433,11 @@ function ChecklistModal({
             <div className="truncate text-[1.1875rem] font-semibold leading-tight text-[var(--color-text-hi)]">
               {intent === "clockout" ? "Before you clock out" : "Today's checklist"}
             </div>
+            {hasVoiceNote && (
+              <p className="truncate text-[0.75rem] text-[var(--color-text-mid)]">
+                Follow-ups come from today's notes only. Review the voice note in the journal if one was saved.
+              </p>
+            )}
           </div>
           <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-[var(--color-line-2)] bg-[var(--color-ink-1)]/60 px-3 py-1 font-mono text-[0.75rem] text-[var(--color-text-mid)] sm:flex">
             Step {idx + 1}/{steps.length}
