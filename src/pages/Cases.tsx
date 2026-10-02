@@ -1,18 +1,26 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CircleCheck,
+  CirclePause,
   Columns3,
+  FolderOpen,
   GripVertical,
+  LayoutGrid,
   Loader2,
+  Minus,
   Plus,
   RotateCcw,
   Search,
-  SlidersHorizontal,
+  Table2,
   X,
+  Zap,
 } from "lucide-react";
 import {
   DndContext,
@@ -31,7 +39,6 @@ import {
   ApiError,
   casesApi,
   gridLayoutsApi,
-  REGION_LABELS,
   type CaseListItem,
   type CasePriority,
   type CaseService,
@@ -40,24 +47,28 @@ import {
   type Region,
 } from "@/lib/crm-api";
 import { WeatherStrip } from "@/components/cases/WeatherStrip";
+import { CaseGlanceCard, glanceFromListItem } from "@/components/cases/CaseGlanceCard";
 import { TableSkeleton } from "@/components/ui/LoadingState";
 import { useQuery } from "@/lib/query-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   CASE_COLUMNS,
+  CaseRowPhoto,
   MAX_COLUMN_WIDTH,
   MIN_COLUMN_WIDTH,
+  PHASE_META,
   columnsFromLayout,
   defaultColumnSettings,
   getColumnDef,
   layoutFromColumns,
+  phaseOf,
   widthOf,
   type CaseColumnDef,
   type CaseColumnId,
   type CaseColumnSetting,
 } from "@/components/cases/case-table-columns";
 
-const PER_PAGE = 8;
+const LIST_PAGE = 100;
 
 const ROW_BASE = "grid items-center gap-x-2 px-5";
 
@@ -72,10 +83,17 @@ type Filters = {
   dueTo: string;
 };
 
-const EMPTY_FILTERS: Filters = { status: "", priority: "", service: "", region: "", dueFrom: "", dueTo: "" };
+const EMPTY_FILTERS: Filters = {
+  status: "",
+  priority: "",
+  service: "",
+  region: "",
+  dueFrom: "",
+  dueTo: "",
+};
 
 const countActiveFilters = (f: Filters): number =>
-  [f.status, f.priority, f.service, f.region, f.dueFrom || f.dueTo ? "due" : ""].filter(Boolean).length;
+  [f.status, f.priority, f.service, f.region, f.dueFrom, f.dueTo].filter(Boolean).length;
 
 /** A configured column resolved against the catalog (renamed headers, resolved width applied). */
 type ResolvedColumn = { def: CaseColumnDef; label: string; width: number };
@@ -89,7 +107,7 @@ const resolveColumns = (settings: CaseColumnSetting[]): ResolvedColumn[] =>
     .filter((c): c is ResolvedColumn => c !== null);
 
 const trackStyle = (columns: { width: number }[]): CSSProperties => ({
-  gridTemplateColumns: columns.map((c) => `minmax(2.75rem, ${c.width}fr)`).join(" "),
+  gridTemplateColumns: ["3.625rem", ...columns.map((c) => `minmax(2.75rem, ${c.width}fr)`)].join(" "),
 });
 
 /** Outside-click / Escape dismissal for lightweight popovers. */
@@ -121,8 +139,10 @@ export default function Cases() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<SortState>(null);
   const [page, setPage] = useState(1);
+  const [view, setView] = useState<"table" | "cards">("table");
+  const perPage = LIST_PAGE;
 
-  useEffect(() => setPage(1), [search, filters, sort]);
+  useEffect(() => setPage(1), [search, filters, sort, view]);
 
   // Shared column configuration (house layout, SuperAdmin-editable in place — no modal).
   const layoutQuery = useQuery("cases-table:columns", async () => (await gridLayoutsApi.get("cases-table")).layout, {
@@ -174,6 +194,7 @@ export default function Cases() {
     filters.dueFrom,
     filters.dueTo,
     sort ? `${sort.key}.${sort.dir}` : "",
+    view,
     page,
   ].join(":");
   const query = useQuery(queryKey, () =>
@@ -188,7 +209,7 @@ export default function Cases() {
       sortBy: sort?.key,
       sortDir: sort?.dir,
       page,
-      pageSize: PER_PAGE,
+      pageSize: perPage,
     }),
   );
 
@@ -197,7 +218,7 @@ export default function Cases() {
   const loading = query.loading;
   const error = query.error;
 
-  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
 
   const toggleSort = (key: CaseSortField) =>
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
@@ -228,20 +249,69 @@ export default function Cases() {
           error={columnsError}
         />
       ) : (
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <div className="relative w-64">
-            <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-lo)]" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search subjects, claim #…"
-              className="w-full rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] py-1.5 pl-8 pr-3 text-[0.75rem] text-[var(--color-text-hi)] placeholder:text-[var(--color-text-lo)] focus:outline-none focus:border-[var(--color-accent)]"
-            />
-          </div>
-
+        <InlineFilters
+          filters={filters}
+          onChange={setFilters}
+          leading={
+            <div className="relative w-56 shrink-0">
+              <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-lo)]" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search subjects, claim #…"
+                className="h-8 w-full rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] py-1.5 pl-8 pr-3 text-[0.75rem] text-[var(--color-text-hi)] placeholder:text-[var(--color-text-lo)] focus:outline-none focus:border-[var(--color-accent)]"
+              />
+            </div>
+          }
+          trailing={
           <div className="ml-auto flex items-center gap-2">
-            <FiltersButton filters={filters} onChange={setFilters} />
-            {isSuperadmin && (
+            <label className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-ink-2)] px-2.5 text-[0.6875rem] text-[var(--color-text-mid)]">
+              From
+              <input
+                type="date"
+                value={filters.dueFrom}
+                onChange={(e) => setFilters({ ...filters, dueFrom: e.target.value })}
+                aria-label="Due from"
+                className="bg-[var(--color-ink-2)] font-mono text-[0.6875rem] text-[var(--color-text-hi)] [color-scheme:dark] focus:outline-none"
+              />
+            </label>
+            <label className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-ink-2)] px-2.5 text-[0.6875rem] text-[var(--color-text-mid)]">
+              To
+              <input
+                type="date"
+                value={filters.dueTo}
+                onChange={(e) => setFilters({ ...filters, dueTo: e.target.value })}
+                aria-label="Due to"
+                className="bg-[var(--color-ink-2)] font-mono text-[0.6875rem] text-[var(--color-text-hi)] [color-scheme:dark] focus:outline-none"
+              />
+            </label>
+            <div className="flex items-center rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] p-0.5">
+              <button
+                type="button"
+                onClick={() => setView("table")}
+                aria-pressed={view === "table"}
+                title="Table"
+                className={cn(
+                  "grid h-7 w-7 place-items-center rounded-[0.375rem] transition-colors",
+                  view === "table" ? "bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]" : "text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]",
+                )}
+              >
+                <Table2 size={13} strokeWidth={1.8} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("cards")}
+                aria-pressed={view === "cards"}
+                title="Cards"
+                className={cn(
+                  "grid h-7 w-7 place-items-center rounded-[0.375rem] transition-colors",
+                  view === "cards" ? "bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]" : "text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]",
+                )}
+              >
+                <LayoutGrid size={13} strokeWidth={1.8} />
+              </button>
+            </div>
+            {isSuperadmin && view === "table" && (
               <button
                 type="button"
                 onClick={startEditingColumns}
@@ -253,7 +323,8 @@ export default function Cases() {
               </button>
             )}
           </div>
-        </div>
+          }
+        />
       )}
 
       {error && (
@@ -263,9 +334,19 @@ export default function Cases() {
       )}
 
       <div className="flex min-h-0 flex-1 flex-col gap-3">
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div className={cn("min-h-0 flex-1", view === "cards" ? "overflow-y-auto pr-1" : "overflow-hidden")}>
           {loading ? (
-            <TableSkeleton colClass={ROW_BASE} colStyle={rowStyle} headers={columns.map((c) => c.label)} />
+            view === "cards" ? (
+              <div className="grid items-start gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <div key={i} className="surface h-[6.25rem] animate-pulse rounded-[1rem] border border-[var(--color-line)]" />
+                ))}
+              </div>
+            ) : (
+              <TableSkeleton colClass={ROW_BASE} colStyle={rowStyle} headers={columns.map((c) => c.label)} />
+            )
+          ) : view === "cards" ? (
+            <CaseCardBoard items={items ?? []} onOpen={(id) => navigate(`/cases/${id}/skyview`)} />
           ) : (
             <CasesTable
               key={`cases-${page}`}
@@ -274,7 +355,7 @@ export default function Cases() {
               rowStyle={rowStyle}
               sort={sort}
               onSort={toggleSort}
-              onRowClick={(id) => navigate(`/cases/${id}`)}
+              onRowClick={(id) => navigate(`/cases/${id}/skyview`)}
               editing={editingColumns}
               draft={draft}
               onDraftChange={setDraft}
@@ -285,7 +366,7 @@ export default function Cases() {
         {totalPages > 1 && (
           <div className="flex shrink-0 items-center justify-between pb-0.5">
             <span className="font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
-              {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, total)} of {total} cases
+              {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} of {total} cases
             </span>
             <div className="flex items-center gap-1">
               <PageBtn onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} aria-label="Previous page">
@@ -424,101 +505,265 @@ function AddColumnMenu({ draft, onAdd }: { draft: CaseColumnSetting[]; onAdd: (i
   );
 }
 
-// ─── Filters popover ─────────────────────────────────────────────────────────
+// ─── Inline filters (same row as search and the view toggle) ────────────────
 
-const filterSelectClass =
-  "w-full min-w-0 rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2.5 py-1.5 text-[0.75rem] text-[var(--color-text-hi)] focus:outline-none focus:border-[var(--color-accent)]";
-const filterLabelClass = "mb-1 block text-[0.5625rem] font-medium uppercase tracking-wider text-[var(--color-text-lo)]";
+const REGION_CHIPS: { id: Region; mark: string; label: string }[] = [
+  { id: "ca", mark: "CA", label: "California" },
+  { id: "tristate", mark: "TRI", label: "Tri-State" },
+  { id: "texas", mark: "TX", label: "Texas" },
+];
 
-function FiltersButton({ filters, onChange }: { filters: Filters; onChange: (f: Filters) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useDismiss<HTMLDivElement>(open, () => setOpen(false));
+const STATUS_CHIPS: { id: CaseStatus; label: string; color: string; icon: typeof FolderOpen }[] = [
+  { id: "open", label: "Open", color: "#4ade80", icon: FolderOpen },
+  { id: "suspended", label: "Suspended", color: "#fb923c", icon: CirclePause },
+  { id: "closed", label: "Closed", color: "#94a3b8", icon: CircleCheck },
+];
 
-  const active = countActiveFilters(filters);
+const PRIORITY_CHIPS: { id: CasePriority; label: string; color: string; icon: typeof Zap }[] = [
+  { id: "rush", label: "Rush", color: "#f87171", icon: Zap },
+  { id: "standard", label: "Standard", color: "#94a3b8", icon: Minus },
+];
+
+const groupCases = (items: CaseListItem[]) =>
+  PHASE_META.map((meta) => ({ ...meta, items: items.filter((c) => phaseOf(c) === meta.id) })).filter((g) => g.items.length > 0);
+
+function FilterChip({
+  pressed,
+  onClick,
+  title,
+  children,
+  accent,
+  icon,
+}: {
+  pressed: boolean;
+  onClick: () => void;
+  title: string;
+  children: ReactNode;
+  accent?: string;
+  icon?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      aria-label={title}
+      title={title}
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-8 items-center justify-center gap-1 rounded-full border font-mono text-[0.625rem] font-semibold tracking-wide transition-colors",
+        icon ? "w-8 px-0" : "px-2",
+        pressed
+          ? "border-transparent text-[var(--color-text-hi)] shadow-[inset_0_0_0_1px_var(--color-line-2)]"
+          : "border-[var(--color-line)] bg-[var(--color-ink-2)] text-[var(--color-text-mid)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]",
+      )}
+      style={pressed ? { background: accent ?? "var(--color-accent-soft)" } : undefined}
+    >
+      {children}
+    </button>
+  );
+}
+
+function InlineFilters({
+  filters,
+  onChange,
+  leading,
+  trailing,
+}: {
+  filters: Filters;
+  onChange: (f: Filters) => void;
+  leading: ReactNode;
+  trailing: ReactNode;
+}) {
+  const [typeOpen, setTypeOpen] = useState(false);
+  const typeBtnRef = useRef<HTMLButtonElement>(null);
+  const typeMenuRef = useRef<HTMLDivElement>(null);
+  const [typeBox, setTypeBox] = useState<{ left: number; bottom: number; width: number; maxHeight: number } | null>(null);
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) => onChange({ ...filters, [key]: value });
+  const active = countActiveFilters(filters);
+  const pick = <T extends string>(key: "region" | "status" | "priority" | "service", value: T) =>
+    set(key, (filters[key] === value ? "" : value) as Filters[typeof key]);
+  const typeLabel = filters.service ? `Type: ${SERVICE_LABELS[filters.service]}` : "Type";
+
+  useEffect(() => {
+    if (!typeOpen || !typeBtnRef.current) return;
+    const place = () => {
+      const r = typeBtnRef.current!.getBoundingClientRect();
+      const width = Math.min(440, window.innerWidth - 16);
+      const left = Math.min(Math.max(8, r.right - width), window.innerWidth - width - 8);
+      const maxHeight = Math.min(320, Math.max(0, r.top - 8));
+      setTypeBox({ left, bottom: window.innerHeight - r.top + 6, width, maxHeight });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [typeOpen]);
+
+  useEffect(() => {
+    if (!typeOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (typeBtnRef.current?.contains(t) || typeMenuRef.current?.contains(t)) return;
+      setTypeOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setTypeOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [typeOpen]);
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "inline-flex h-8 items-center gap-1.5 rounded-[0.5rem] border px-3 text-[0.75rem] transition-colors",
-          active > 0 || open
-            ? "border-[var(--color-accent-soft)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
-            : "border-[var(--color-line-2)] bg-[var(--color-ink-3)] text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]",
-        )}
-      >
-        <SlidersHorizontal size={12} strokeWidth={1.8} />
-        Filters
-        {active > 0 && (
-          <span className="grid h-4 min-w-[1rem] place-items-center rounded-full bg-[var(--color-accent-soft)] px-1 font-mono text-[0.5625rem] font-semibold text-[var(--color-text-hi)]">
-            {active}
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <div className="surface anim-modal absolute right-0 top-full z-30 mt-2 w-72 overflow-hidden rounded-[0.75rem] border border-[var(--color-line-2)] p-4 shadow-[0_1rem_2.5rem_rgba(0,0,0,0.45)]">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={filterLabelClass}>Region</label>
-              <select className={filterSelectClass} value={filters.region} onChange={(e) => set("region", e.target.value as Region | "")}>
-                <option value="">All</option>
-                {(Object.entries(REGION_LABELS) as [Region, string][]).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={filterLabelClass}>Status</label>
-              <select className={filterSelectClass} value={filters.status} onChange={(e) => set("status", e.target.value as CaseStatus | "")}>
-                <option value="">All</option>
-                <option value="open">Open</option>
-                <option value="suspended">Suspended</option>
-                <option value="closed">Closed</option>
-              </select>
-            </div>
-            <div>
-              <label className={filterLabelClass}>Priority</label>
-              <select className={filterSelectClass} value={filters.priority} onChange={(e) => set("priority", e.target.value as CasePriority | "")}>
-                <option value="">All</option>
-                <option value="rush">Rush</option>
-                <option value="asap">ASAP</option>
-                <option value="standard">Standard</option>
-              </select>
-            </div>
-            <div>
-              <label className={filterLabelClass}>Type</label>
-              <select className={filterSelectClass} value={filters.service} onChange={(e) => set("service", e.target.value as CaseService | "")}>
-                <option value="">All</option>
-                {(Object.entries(SERVICE_LABELS) as [CaseService, string][]).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={filterLabelClass}>Due from</label>
-              <input type="date" value={filters.dueFrom} onChange={(e) => set("dueFrom", e.target.value)} aria-label="Due from" className={filterSelectClass} />
-            </div>
-            <div>
-              <label className={filterLabelClass}>Due to</label>
-              <input type="date" value={filters.dueTo} onChange={(e) => set("dueTo", e.target.value)} aria-label="Due to" className={filterSelectClass} />
-            </div>
-          </div>
-
-          {active > 0 && (
-            <button
-              type="button"
-              onClick={() => onChange(EMPTY_FILTERS)}
-              className="mt-3 inline-flex items-center gap-1 text-[0.6875rem] text-[var(--color-text-lo)] transition-colors hover:text-[var(--color-text-hi)]"
+    <div className="flex flex-wrap items-center gap-2">
+      {leading}
+      <div className="flex items-center gap-1" role="group" aria-label="Region">
+        {REGION_CHIPS.map((chip) => (
+          <FilterChip
+            key={chip.id}
+            pressed={filters.region === chip.id}
+            title={chip.label}
+            onClick={() => pick("region", chip.id)}
+          >
+            {chip.mark}
+          </FilterChip>
+        ))}
+      </div>
+      <span className="h-4 w-px bg-[var(--color-line)]" />
+      <div className="flex items-center gap-1" role="group" aria-label="Status">
+        {STATUS_CHIPS.map((chip) => {
+          const Icon = chip.icon;
+          return (
+            <FilterChip
+              key={chip.id}
+              pressed={filters.status === chip.id}
+              title={chip.label}
+              accent={`${chip.color}33`}
+              icon
+              onClick={() => pick("status", chip.id)}
             >
-              <X size={11} strokeWidth={1.8} />
-              Clear all filters
+              <Icon size={15} strokeWidth={2} style={{ color: chip.color }} />
+            </FilterChip>
+          );
+        })}
+      </div>
+      <span className="h-4 w-px bg-[var(--color-line)]" />
+      <div className="flex items-center gap-1" role="group" aria-label="Priority">
+        {PRIORITY_CHIPS.map((chip) => {
+          const Icon = chip.icon;
+          return (
+            <FilterChip
+              key={chip.id}
+              pressed={filters.priority === chip.id}
+              title={chip.label}
+              accent={`${chip.color}33`}
+              icon
+              onClick={() => pick("priority", chip.id)}
+            >
+              <Icon size={15} strokeWidth={2.2} style={{ color: chip.color }} />
+            </FilterChip>
+          );
+        })}
+      </div>
+      <span className="h-4 w-px bg-[var(--color-line)]" />
+      <button
+        ref={typeBtnRef}
+        type="button"
+        aria-expanded={typeOpen}
+        onClick={() => setTypeOpen((v) => !v)}
+        className={cn(
+          "inline-flex h-8 items-center gap-1 rounded-full border px-2.5 font-mono text-[0.625rem] font-semibold tracking-wide",
+          filters.service || typeOpen
+            ? "border-transparent text-[var(--color-text-hi)]"
+            : "border-[var(--color-line)] bg-[var(--color-ink-2)] text-[var(--color-text-mid)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]",
+        )}
+        style={filters.service || typeOpen ? { background: "var(--color-accent-soft)" } : undefined}
+      >
+        {typeLabel}
+        <ChevronDown size={11} className={cn("transition-transform", typeOpen && "rotate-180")} />
+      </button>
+      {typeOpen && typeBox && createPortal(
+        <div
+          ref={typeMenuRef}
+          className="fixed z-[80] grid grid-cols-5 gap-0.5 overflow-y-auto rounded-lg border border-[var(--color-line-2)] p-1 shadow-xl"
+          style={{ left: typeBox.left, bottom: typeBox.bottom, width: typeBox.width, maxHeight: typeBox.maxHeight, background: "var(--color-ink-1)" }}
+        >
+          {(Object.entries(SERVICE_LABELS) as [CaseService, string][]).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => {
+                pick("service", value);
+                setTypeOpen(false);
+              }}
+              className={cn(
+                "rounded-md px-2 py-1.5 text-left text-[0.6875rem] leading-tight",
+                filters.service === value
+                  ? "bg-[var(--color-accent)] text-white"
+                  : "text-[var(--color-text-mid)] hover:bg-[var(--color-ink-2)] hover:text-[var(--color-text-hi)]",
+              )}
+            >
+              {label}
             </button>
-          )}
-        </div>
+          ))}
+        </div>,
+        document.body,
       )}
+      {active > 0 && (
+        <button
+          type="button"
+          onClick={() => onChange(EMPTY_FILTERS)}
+          className="inline-flex h-8 items-center gap-1 rounded-full px-2 text-[0.6875rem] text-[var(--color-text-lo)] transition-colors hover:text-[var(--color-text-hi)]"
+        >
+          <X size={11} strokeWidth={1.8} />
+          Clear
+        </button>
+      )}
+      {trailing}
+    </div>
+  );
+}
+
+function CaseCardBoard({ items, onOpen }: { items: CaseListItem[]; onOpen: (id: string) => void }) {
+  const groups = groupCases(items);
+  if (groups.length === 0) {
+    return (
+      <div className="surface grid h-full min-h-[12rem] place-items-center rounded-[1rem] px-6 py-12 font-mono text-[0.71875rem] text-[var(--color-text-lo)]">
+        No cases match the current filter.
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-5 pb-2">
+      {groups.map((group) => (
+        <section key={group.id} className="flex flex-col gap-2">
+          <PhaseHeading title={group.title} hint={group.hint} dot={group.dot} count={group.items.length} />
+          <div className="grid items-start gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            {group.items.map((c) => (
+              <CaseGlanceCard key={c.id} glance={glanceFromListItem(c)} muted={c.status === "closed"} onOpen={() => onOpen(c.id)} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function PhaseHeading({ title, hint, dot, count }: { title: string; hint: string; dot: string; count: number }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <h2 className="flex items-center gap-1.5 font-mono text-[0.75rem] uppercase tracking-[0.18em] text-[var(--color-text-lo)]">
+        <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot }} />
+        {title}
+        <span className="text-[var(--color-text-mid)]">({count})</span>
+      </h2>
+      <span className="hidden text-[0.75rem] text-[var(--color-text-lo)] sm:inline">{hint}</span>
     </div>
   );
 }
@@ -546,7 +791,7 @@ function CasesTable({
   draft: CaseColumnSetting[];
   onDraftChange: (next: CaseColumnSetting[]) => void;
 }) {
-  const slots = Array.from({ length: PER_PAGE }, (_, i) => items[i] ?? null);
+  const groups = groupCases(items);
 
   return (
     <div className="surface flex h-full min-h-0 flex-col overflow-hidden p-0">
@@ -554,6 +799,7 @@ function CasesTable({
         <EditableHeaderRow draft={draft} onDraftChange={onDraftChange} rowStyle={rowStyle} />
       ) : (
         <div className={cn(ROW_BASE, "shrink-0 border-b border-[var(--color-line)] py-2.5")} style={rowStyle}>
+          <span aria-hidden />
           {columns.map(({ def, label }) =>
             def.sortKey ? (
               <button
@@ -562,8 +808,8 @@ function CasesTable({
                 onClick={() => onSort(def.sortKey!)}
                 title={`Sort by ${label}`}
                 className={cn(
-                  "eyebrow flex items-center gap-1 text-left transition-colors hover:text-[var(--color-text-hi)]",
-                  def.center && "justify-center",
+                  "eyebrow flex items-center gap-1 transition-colors hover:text-[var(--color-text-hi)]",
+                  def.end ? "justify-end text-right" : "justify-center text-center",
                   sort?.key === def.sortKey && "text-[var(--color-text-hi)]",
                 )}
               >
@@ -576,7 +822,7 @@ function CasesTable({
                   ))}
               </button>
             ) : (
-              <span key={def.id} className={cn("eyebrow truncate", def.center && "text-center")}>
+              <span key={def.id} className={cn("eyebrow truncate", def.end ? "text-right" : "text-center")}>
                 {label}
               </span>
             ),
@@ -584,29 +830,22 @@ function CasesTable({
         </div>
       )}
 
-      {items.length === 0 ? (
+      {groups.length === 0 ? (
         <div className="grid flex-1 place-items-center px-6 py-12 font-mono text-[0.71875rem] text-[var(--color-text-lo)]">
           No cases match the current filter.
         </div>
       ) : (
-        <div
-          className="anim-stagger anim-stagger-tight grid min-h-0 flex-1 overflow-hidden"
-          style={{ gridTemplateRows: `repeat(${PER_PAGE}, minmax(0, 1fr))` }}
-        >
-          {slots.map((c, i) =>
-            c ? (
-              <TableRow
-                key={c.id}
-                c={c}
-                columns={columns}
-                rowStyle={rowStyle}
-                onClick={() => onRowClick(c.id)}
-                showDivider={i < PER_PAGE - 1}
-              />
-            ) : (
-              <div key={`pad-${i}`} aria-hidden className={cn(i < PER_PAGE - 1 && "border-b border-[var(--color-line)]")} />
-            ),
-          )}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {groups.flatMap((group) => group.items).map((c, i, all) => (
+            <TableRow
+              key={c.id}
+              c={c}
+              columns={columns}
+              rowStyle={rowStyle}
+              onClick={() => onRowClick(c.id)}
+              showDivider={i < all.length - 1}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -690,6 +929,7 @@ function EditableHeaderRow({
       className={cn(ROW_BASE, "shrink-0 border-b border-[var(--color-accent-soft)] bg-[rgba(74,127,255,0.04)] py-2")}
       style={rowStyle}
     >
+      <span aria-hidden />
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={draft.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
           {draft.map((col, index) => {
@@ -813,13 +1053,14 @@ function TableRow({
       }}
       className={cn(
         ROW_BASE,
-        "h-full min-h-0 cursor-pointer overflow-hidden transition-colors hover:bg-white/[0.022]",
+        "cursor-pointer py-2 transition-colors hover:bg-white/[0.022]",
         showDivider && "border-b border-[var(--color-line)]",
       )}
       style={rowStyle}
     >
+      <CaseRowPhoto c={c} />
       {columns.map(({ def }) => (
-        <div key={def.id} className="min-w-0">
+        <div key={def.id} className={cn("min-w-0", def.end ? "flex justify-end" : "text-center")}>
           {def.render(c)}
         </div>
       ))}

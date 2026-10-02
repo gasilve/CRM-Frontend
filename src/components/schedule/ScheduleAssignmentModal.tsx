@@ -3,6 +3,8 @@ import {
   ArrowLeft,
   ArrowUpRight,
   CalendarClock,
+  ChevronLeft,
+  ChevronRight,
   Folder,
   History,
   Loader2,
@@ -80,6 +82,9 @@ type Props = {
   onGoToCase: () => void;
   /** Same-case peers for the draft notes warning (optional). */
   othersThatDay?: ScheduleBlock[];
+  /** When set, the investigator step also asks which day. */
+  dateValue?: string;
+  onDateChange?: (iso: string) => void;
 };
 
 const DAY_MS = 86_400_000;
@@ -144,6 +149,8 @@ export function ScheduleAssignmentModal({
   onRemove,
   onGoToCase,
   othersThatDay = [],
+  dateValue,
+  onDateChange,
 }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -162,7 +169,9 @@ export function ScheduleAssignmentModal({
       : phase === "pick"
         ? flow.kind === "assign-case"
           ? "Assign case"
-          : "Assign investigator"
+          : onDateChange
+            ? "Schedule a day"
+            : "Assign investigator"
         : "Assignment notes";
 
   const subtitle = (() => {
@@ -237,6 +246,8 @@ export function ScheduleAssignmentModal({
               <PickInvestigatorStep
                 flow={flow}
                 busy={busy}
+                dateValue={dateValue}
+                onDateChange={onDateChange}
                 onPick={(id) => onDraftInvestigator?.(id)}
               />
             )}
@@ -383,13 +394,81 @@ function PickCaseStep({
   );
 }
 
+function isoDate(year: number, month: number, day: number): string {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function MonthCalendar({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
+  const selected = new Date(`${value}T12:00:00`);
+  const [cursor, setCursor] = useState(() => new Date(selected.getFullYear(), selected.getMonth(), 1));
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const lead = new Date(year, month, 1).getDay();
+  const count = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = [...Array(lead).fill(null), ...Array.from({ length: count }, (_, i) => i + 1)];
+
+  return (
+    <div className="shrink-0 rounded-[1rem] border border-[var(--color-line)] px-3 py-3">
+      <div className="mb-2 flex items-center justify-between">
+        <button
+          type="button"
+          aria-label="Previous month"
+          onClick={() => setCursor(new Date(year, month - 1, 1))}
+          className="grid h-7 w-7 place-items-center rounded-full text-[var(--color-text-mid)] hover:bg-[var(--color-ink-3)] hover:text-[var(--color-text-hi)]"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <span className="text-[0.9rem] font-medium text-[var(--color-text-hi)]">
+          {cursor.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+        </span>
+        <button
+          type="button"
+          aria-label="Next month"
+          onClick={() => setCursor(new Date(year, month + 1, 1))}
+          className="grid h-7 w-7 place-items-center rounded-full text-[var(--color-text-mid)] hover:bg-[var(--color-ink-3)] hover:text-[var(--color-text-hi)]"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center text-[0.72rem]">
+        {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((label) => (
+          <div key={label} className="py-1 text-[var(--color-text-lo)]">
+            {label}
+          </div>
+        ))}
+        {cells.map((day, index) =>
+          day == null ? (
+            <div key={`empty-${index}`} />
+          ) : (
+            <button
+              key={day}
+              type="button"
+              onClick={() => onChange(isoDate(year, month, day))}
+              className={cn(
+                "rounded-full py-1.5 text-[var(--color-text-mid)] hover:bg-[var(--color-ink-3)] hover:text-[var(--color-text-hi)]",
+                isoDate(year, month, day) === value && "bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent)] hover:text-white",
+              )}
+            >
+              {day}
+            </button>
+          ),
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PickInvestigatorStep({
   flow,
   busy,
+  dateValue,
+  onDateChange,
   onPick,
 }: {
   flow: AssignInvestigatorFlow;
   busy?: boolean;
+  dateValue?: string;
+  onDateChange?: (iso: string) => void;
   onPick: (userId: string) => void;
 }) {
   const [q, setQ] = useState("");
@@ -412,6 +491,7 @@ function PickInvestigatorStep({
 
   return (
     <>
+      {dateValue && onDateChange && <MonthCalendar value={dateValue} onChange={onDateChange} />}
       <SearchField value={q} onChange={setQ} placeholder="Search investigators…" />
       <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-0.5">
         {busy && <BusyRow />}

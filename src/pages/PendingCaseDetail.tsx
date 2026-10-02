@@ -42,7 +42,7 @@ import { CaseDetailPageNav } from "./CaseDetailPageNav";
 import { CasePageArrows } from "@/components/case/CasePageArrows";
 
 const SERVICES: CaseService[] = ["SURV", "WC", "FMLA", "BG", "DOM", "SOC", "DIS", "LOC", "PS", "LIA"];
-const PRIORITIES: CasePriority[] = ["standard", "asap", "rush"];
+const PRIORITIES: CasePriority[] = ["standard", "rush"];
 const REGIONS: Region[] = ["ca", "tristate", "texas"];
 
 const STATUS_PILL: Record<string, { label: string; bg: string; text: string; dot: string }> = {

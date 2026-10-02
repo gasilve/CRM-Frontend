@@ -3,8 +3,12 @@ import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
+  Briefcase,
   Car,
   CheckCircle2,
+  Image,
+  Layers,
+  ShieldQuestion,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -16,6 +20,8 @@ import {
   Mic,
   Phone,
   Play,
+  NotebookPen,
+  Route,
   ScanFace,
   Sparkles,
   Square,
@@ -30,7 +36,7 @@ import { cn } from "@/lib/cn";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@/lib/query-cache";
 import { placeholderPhotoFor, SERVICE_LABELS } from "@/lib/mock-data";
-import { ENTRY_META, fmtDate, fmtDayLabel, fmtTime, READABLE_DATE_CLASS } from "@/lib/journal";
+import { ENTRY_META, fmtDate, fmtTime, READABLE_DATE_CLASS } from "@/lib/journal";
 import { PanelLoader } from "@/components/ui/LoadingState";
 import { SubjectOverviewModal } from "@/components/case/SubjectOverviewModal";
 import { PeopleModal } from "@/components/case/PeopleModal";
@@ -38,18 +44,23 @@ import { VehiclesModal } from "@/components/case/VehiclesModal";
 import { HomeModal } from "@/components/case/HomeModal";
 import { CasePhoto, EntityModal } from "@/components/case/EntityModal";
 import { VoiceIntakePanel } from "@/components/case/VoiceIntakePanel";
+import { CasePatternsModal } from "@/components/cases/CasePatternsModal";
+import { SubjectAwarenessControl } from "@/components/cases/SubjectAwareness";
+import { SubjectMobilityControl } from "@/components/cases/SubjectMobility";
 import {
   casesApi,
   timeEntriesApi,
   voiceIntakeApi,
   ApiError,
   noteVersionsOf,
+  REGION_LABELS,
   type CaseDay,
   type CaseDayEntry,
   type CaseDayEntryType,
   type CaseDetail,
   type CaseParticipant,
-  type MatchedQuestionRule,
+  type SubjectAwareness,
+  type SubjectTransport,
 } from "@/lib/crm-api";
 
 const isoOf = (d: Date): string =>
@@ -66,12 +77,12 @@ const fmtDuration = (ms: number): string => {
 
 type JournalFilter = "all" | "notes" | "photos" | "answers" | "office";
 
-const FILTERS: { key: JournalFilter; label: string }[] = [
-  { key: "all", label: "Everything" },
-  { key: "notes", label: "Field notes" },
-  { key: "photos", label: "Photos" },
-  { key: "answers", label: "Q&A + comparisons" },
-  { key: "office", label: "Office" },
+const FILTERS: { key: JournalFilter; label: string; icon: typeof StickyNote; color: string }[] = [
+  { key: "all", label: "Everything", icon: Layers, color: "#7aa1ff" },
+  { key: "notes", label: "Field notes", icon: StickyNote, color: "#e2e8f0" },
+  { key: "photos", label: "Photos", icon: Image, color: "#34d399" },
+  { key: "answers", label: "Q&A", icon: ShieldQuestion, color: "#60a5fa" },
+  { key: "office", label: "Office", icon: Briefcase, color: "#fbbf24" },
 ];
 
 const inFilter = (type: CaseDayEntryType, filter: JournalFilter): boolean => {
@@ -132,7 +143,16 @@ const PING_FLUSH_MS = 60_000;
 
 type PendingQuestion =
   | { kind: "dynamic"; ruleId: string; label: string; text: string; matchedOn: string; entryId?: string; answer?: string }
-  | { kind: "standard"; standardQuestionId: string; text: string; entryId?: string; answer?: string };
+  | { kind: "standard"; standardQuestionId: string; text: string; entryId?: string; answer?: string; awareness?: boolean };
+
+/** Short daily set derived from the field gates. The full question bank comes back later. */
+const DAILY_GATES: { text: string; awareness?: boolean }[] = [
+  { text: "Were you noticed by the subject today?", awareness: true },
+  { text: "Did you observe the subject today?" },
+  { text: "Did you record the subject? If not, why not?" },
+  { text: "Did the subject appear injured? If yes, what did you actually see — gait, a brace, guarding, or help walking?" },
+  { text: "Did surveillance leave the residence? If yes, where and when?" },
+];
 
 export default function CaseWorkMode() {
   const { id } = useParams<{ id: string }>();
@@ -175,6 +195,7 @@ export default function CaseWorkMode() {
   const [checklist, setChecklist] = useState<{ open: boolean; intent: "view" | "clockout" }>({ open: false, intent: "view" });
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [voicePending, setVoicePending] = useState(false);
+  const [patternsOpen, setPatternsOpen] = useState(false);
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -312,14 +333,6 @@ export default function CaseWorkMode() {
   };
 
   const todaysDay = kase?.days.find((d) => dayKey(d.date) === today);
-  const todaysNoteText = useMemo(
-    () =>
-      (todaysDay?.entries ?? [])
-        .filter((e) => e.type === "note")
-        .map((e) => e.body ?? "")
-        .join("\n"),
-    [todaysDay],
-  );
 
   /**
    * Load the question bank once (and whenever notes change, so dynamic follow-ups
@@ -328,44 +341,28 @@ export default function CaseWorkMode() {
    */
   const loadQuestionBank = useCallback(async () => {
     if (!id) return;
-    try {
-      const res = await casesApi.suggestQuestions(id, { date: today, text: todaysNoteText });
-      const standard: PendingQuestion[] = res.standardQuestions.map((q) => ({
-        kind: "standard" as const,
-        standardQuestionId: q.standardQuestionId,
-        text: q.text,
-      }));
-      const dynamic: PendingQuestion[] = res.dynamicMatches.flatMap((m: MatchedQuestionRule) =>
-        m.followUpQuestions.map((q) => ({
-          kind: "dynamic" as const,
-          ruleId: m.ruleId,
-          label: m.label,
-          text: q,
-          matchedOn: m.matchedOn,
-        })),
-      );
-      const seen = new Set<string>();
-      const bank = [...standard, ...dynamic].filter((q) => (seen.has(q.text) ? false : (seen.add(q.text), true)));
-      const voiceNoteToday = (todaysDay?.entries ?? []).some((e) => e.type === "note" && e.meta?.source === "voice_intake");
-      if (voiceNoteToday) {
-        bank.unshift({
-          kind: "standard",
-          standardQuestionId: "",
-          text: "Review today's voice note and correct it in the journal if it needs a fix.",
-        });
-      }
-      setQuestions((prev) => {
-        // Preserve any answers already attached (optimistic / from journal overlay)
-        const prevByText = new Map(prev.map((q) => [q.text, q]));
-        return bank.map((q) => {
-          const old = prevByText.get(q.text);
-          return old?.entryId ? { ...q, entryId: old.entryId, answer: old.answer } : q;
-        });
+    const bank: PendingQuestion[] = DAILY_GATES.map((q) => ({
+      kind: "standard" as const,
+      standardQuestionId: "",
+      text: q.text,
+      ...(q.awareness ? { awareness: true } : {}),
+    }));
+    const voiceNoteToday = (todaysDay?.entries ?? []).some((e) => e.type === "note" && e.meta?.source === "voice_intake");
+    if (voiceNoteToday) {
+      bank.unshift({
+        kind: "standard",
+        standardQuestionId: "",
+        text: "Review today's voice note and correct it in the journal if it needs a fix.",
       });
-    } catch {
-      /* non-blocking */
     }
-  }, [id, today, todaysNoteText, todaysDay?.entries]);
+    setQuestions((prev) => {
+      const prevByText = new Map(prev.map((q) => [q.text, q]));
+      return bank.map((q) => {
+        const old = prevByText.get(q.text);
+        return old?.entryId ? { ...q, entryId: old.entryId, answer: old.answer } : q;
+      });
+    });
+  }, [id, todaysDay?.entries]);
 
   useEffect(() => {
     void loadQuestionBank();
@@ -453,6 +450,15 @@ export default function CaseWorkMode() {
         });
         if (caseData && kase) mutateCase({ ...caseData, case: { ...kase, days } });
       }
+      if (q.kind === "standard" && q.awareness) {
+        const lower = answer.trim().toLowerCase();
+        const awareness: SubjectAwareness | null = /^(yes|aware|noticed)\b/.test(lower)
+          ? "aware"
+          : /^(no|unnoticed|not)\b/.test(lower)
+            ? "unnoticed"
+            : null;
+        if (awareness) await casesApi.setAwareness(id, today, awareness);
+      }
       void refreshCase();
     } catch (err) {
       // Roll back optimistic mark on failure
@@ -516,28 +522,61 @@ export default function CaseWorkMode() {
   const hasComparisonToday = (todaysDay?.entries ?? []).some((e) => e.type === "face_match");
   const checklistPendingCount = unansweredCount + (hasComparisonToday ? 0 : 1);
 
+  const setSubjectTransport = async (transport: SubjectTransport | null) => {
+    if (!id || !caseData) return;
+    try {
+      const res = await casesApi.setTransport(id, transport);
+      mutateCase({ ...caseData, case: { ...kase, subjectTransport: res.case.subjectTransport } });
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : "Could not save how they get around.");
+    }
+  };
+
+  const setDayAwareness = async (awareness: SubjectAwareness) => {
+    if (!id) return;
+    try {
+      await casesApi.setAwareness(id, today, awareness);
+      await refreshCase();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : "Could not save subject awareness.");
+    }
+  };
+
+  const awarenessKey = journalDayFocus === "all" ? today : journalDayFocus;
+  const awarenessValue = kase.days.find((d) => d.date.slice(0, 10) === awarenessKey)?.awareness ?? null;
+
   return (
     <div className="investigator-surface flex h-full flex-col gap-4 overflow-hidden">
       {/* Page header — same shape as every other page: title left, actions right, nav button leftmost of the actions */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center">
             <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">{kase.subjectName}</h1>
-            <span
-              className="rounded-full px-2 py-0.5 text-[0.5625rem] font-semibold uppercase tracking-wider"
-              style={{
-                background:
-                  kase.priority === "rush" ? "rgba(248,113,113,0.18)" : kase.priority === "asap" ? "rgba(251,146,60,0.18)" : "var(--color-ink-3)",
-                color: kase.priority === "rush" ? "#f87171" : kase.priority === "asap" ? "#fb923c" : "var(--color-text-mid)",
-              }}
-            >
-              {kase.priority}
-            </span>
+            {canCapture && (
+              <div className="ml-8">
+                <SubjectMobilityControl value={kase.subjectTransport} onChange={(next) => void setSubjectTransport(next)} />
+              </div>
+            )}
+            <div className="ml-8 border-l border-[var(--color-line-2)] pl-8">
+              <SubjectAwarenessControl
+                value={awarenessValue}
+                disabled={!canCapture || awarenessKey !== today}
+                onChange={(next) => void setDayAwareness(next)}
+              />
+            </div>
           </div>
-          <p className="mt-1 font-mono text-[0.75rem] text-[var(--color-text-lo)]">
-            {kase.caseNumber}
-            {kase.claimNumber ? ` · ${kase.claimNumber}` : ""} · {SERVICE_LABELS[kase.service]}
-            {primaryAddress ? ` · ${[primaryAddress.line1, primaryAddress.city, primaryAddress.state].filter(Boolean).join(", ")}` : ""}
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[0.75rem]">
+            {kase.claimNumber && <span className="text-[#fbbf24]">Claim {kase.claimNumber}</span>}
+            <span className="text-[var(--color-text-hi)]">{SERVICE_LABELS[kase.service]}</span>
+            {primaryAddress && (
+              <span className="text-[var(--color-text-mid)]">
+                {[primaryAddress.line1, primaryAddress.city].filter(Boolean).join(", ")}
+              </span>
+            )}
+            {(kase.state || primaryAddress?.state) && (
+              <span className="font-semibold text-white">{kase.state || primaryAddress?.state}</span>
+            )}
+            {kase.region && <span className="text-[var(--color-accent-2)]">{REGION_LABELS[kase.region]}</span>}
           </p>
         </div>
 
@@ -554,12 +593,23 @@ export default function CaseWorkMode() {
           <button
             type="button"
             onClick={() => setVoiceOpen(true)}
-            className="flex h-11 shrink-0 items-center gap-2 rounded-[0.75rem] border border-[var(--color-accent)] bg-[var(--color-accent-soft)] px-3.5 text-[0.875rem] font-medium text-[var(--color-text-hi)] transition-shadow hover:shadow-[0_0_0.75rem_rgba(74,127,255,0.3)]"
+            className="group/agent relative flex h-11 shrink-0 items-center gap-2.5 overflow-hidden rounded-[0.875rem] border border-[rgba(74,127,255,0.55)] bg-[linear-gradient(135deg,rgba(74,127,255,0.32),rgba(192,132,252,0.16))] px-3 pr-3.5 text-left shadow-[0_0_1.25rem_rgba(74,127,255,0.22)] transition-shadow hover:shadow-[0_0_1.5rem_rgba(74,127,255,0.4)]"
             title="Talk to the case voice agent"
           >
-            <Phone size={15} strokeWidth={1.9} className="text-[var(--color-accent-2)]" />
-            <span className="hidden sm:inline">{voicePending ? "Review voice note" : "Call agent"}</span>
-            <Mic size={12} className="text-[var(--color-accent-2)] opacity-70" />
+            <span className="relative grid h-7 w-7 place-items-center rounded-full bg-[var(--color-accent)] text-white">
+              <Phone size={13} strokeWidth={2} />
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[#4ade80] ring-2 ring-[#1a2744]" />
+            </span>
+            <span className="hidden sm:block">
+              <span className="block text-[0.8125rem] font-semibold leading-none text-[var(--color-text-hi)]">
+                {voicePending ? "Review note" : "Voice agent"}
+              </span>
+              <span className="mt-1 flex items-center gap-1 font-mono text-[0.5625rem] uppercase tracking-[0.14em] text-[var(--color-accent-2)]">
+                <Mic size={9} />
+                {voicePending ? "Waiting" : "Talk the case"}
+              </span>
+            </span>
+            <Sparkles size={12} className="hidden text-[var(--color-accent-2)] opacity-80 sm:block" />
           </button>
 
           {/* Checklist — icon button with an overlapping notification-style badge, sits left of the clock */}
@@ -664,6 +714,26 @@ export default function CaseWorkMode() {
               );
             })}
           </div>
+
+          {isTodaysCase && (
+            <button
+              type="button"
+              onClick={() => setPatternsOpen(true)}
+              title="Patterns — routines from the notes"
+              className="group flex flex-col items-center gap-1 rounded-[0.875rem] border-2 px-2 py-2.5 text-center transition-all hover:-translate-y-0.5 hover:shadow-lg lg:flex-row lg:gap-2.5 lg:px-2.5 lg:text-left"
+              style={{ background: "rgba(74,127,255,0.14)", borderColor: "rgba(74,127,255,0.5)" }}
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--color-accent)] text-white shadow-sm">
+                <Route size={17} strokeWidth={2} />
+              </span>
+              <span className="min-w-0 lg:flex-1">
+                <span className="block truncate text-[0.8125rem] font-semibold text-[var(--color-text-hi)]">Patterns</span>
+                <span className="hidden truncate font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)] lg:block">
+                  Routines
+                </span>
+              </span>
+            </button>
+          )}
 
           <div className="hidden h-px bg-[var(--color-line)] lg:block" />
 
@@ -818,10 +888,14 @@ export default function CaseWorkMode() {
         />
       )}
 
+      {patternsOpen && kase && (
+        <CasePatternsModal caseId={kase.id} subjectName={kase.subjectName} onClose={() => setPatternsOpen(false)} />
+      )}
+
       {voiceOpen && kase && (
         <VoiceIntakePanel
           caseId={kase.id}
-          caseNumber={kase.caseNumber}
+          caseNumber={kase.claimNumber ?? ""}
           subjectName={kase.subjectName}
           workDate={today}
           onClose={() => {
@@ -936,89 +1010,97 @@ function JournalTab({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Composer */}
-      <div className="shrink-0 border-b border-[var(--color-line)] p-3.5">
-        <div className="flex items-end gap-2">
+      <div className="flex shrink-0 items-end gap-2 border-b border-[var(--color-line)] px-4 py-3">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1.5 flex items-center gap-2">
+            <Sparkles size={13} className="text-[var(--color-accent-2)]" />
+            <span className="text-[0.8125rem] font-medium text-[var(--color-text-hi)]">Field note</span>
+            <span className="font-mono text-[0.625rem] text-[var(--color-text-lo)]">
+              {totals.notes} notes · {totals.photos} photos
+            </span>
+          </div>
           <textarea
             value={noteDraft}
             onChange={(e) => setNoteDraft(e.target.value)}
             rows={2}
             disabled={!canWrite}
-            placeholder={canWrite ? "What are you seeing right now? e.g. Subject left the house at 2:10 carrying a black backpack…" : "This case isn't on your schedule today…"}
-            className="min-w-0 flex-1 resize-none rounded-[0.875rem] border-2 border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-3.5 py-2.5 text-[0.9375rem] leading-relaxed text-[var(--color-text-hi)] placeholder:text-[var(--color-text-lo)] focus:border-[var(--color-accent)] focus:outline-none disabled:opacity-50"
+            placeholder={canWrite ? "What are you seeing right now? Subject left the house at 2:10 with a black backpack…" : "This case isn't on your schedule today…"}
+            className="w-full resize-none rounded-[0.75rem] border border-[var(--color-line-2)] bg-[var(--color-ink-1)] px-3 py-2 text-[0.9375rem] leading-relaxed text-[var(--color-text-hi)] placeholder:text-[var(--color-text-lo)] focus:border-[var(--color-accent)] focus:outline-none disabled:opacity-50"
           />
-          <button
-            type="button"
-            onClick={() => void saveNote()}
-            disabled={!canWrite || noteBusy || !noteDraft.trim()}
-            className="flex h-[4.25rem] w-[5.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-[0.875rem] bg-[var(--color-accent)] text-[0.75rem] font-semibold text-white shadow-[0_0_0.75rem_rgba(74,127,255,0.3)] disabled:opacity-40 disabled:shadow-none"
-          >
-            {noteBusy ? <Loader2 size={17} className="animate-spin" /> : <StickyNote size={17} strokeWidth={1.9} />}
-            Save note
-          </button>
         </div>
+        <button
+          type="button"
+          onClick={() => void saveNote()}
+          disabled={!canWrite || noteBusy || !noteDraft.trim()}
+          className="flex h-[4.6rem] w-[4.6rem] shrink-0 flex-col items-center justify-center gap-1 rounded-[0.75rem] bg-[var(--color-accent)] text-[0.75rem] font-semibold text-white disabled:opacity-40"
+        >
+          {noteBusy ? <Loader2 size={17} className="animate-spin" /> : <StickyNote size={17} strokeWidth={1.9} />}
+          Save
+        </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-[var(--color-line)] px-3.5 py-2">
-        {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            onClick={() => setFilter(f.key)}
-            className={cn(
-              "rounded-full border px-2.5 py-1 text-[0.75rem] transition-colors",
-              filter === f.key
-                ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
-                : "border-[var(--color-line)] text-[var(--color-text-lo)] hover:text-[var(--color-text-mid)]",
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
-        <span className="ml-auto font-mono text-[0.625rem] text-[var(--color-text-lo)]">
-          {totals.entries} entries · {totals.notes} notes · {totals.photos} photos · {totals.office} office
-        </span>
-      </div>
-
-      {/* Day filter — pick one day (or all). Exclusive selection, not sticky scroll shortcuts. */}
-      {days.length > 1 && (
-        <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-[var(--color-line)] px-3.5 py-2">
+      <div className="flex min-h-0 flex-1 bg-[var(--color-ink-1)]/40">
+        <aside className="flex w-[12.5rem] shrink-0 flex-col gap-1 overflow-y-auto border-r border-[var(--color-line)] p-2" aria-label="Day filter">
+          <span className="px-2 pb-1 pt-1 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-[var(--color-text-lo)]">Days</span>
           <button
             type="button"
             onClick={() => setDayFocus("all")}
             className={cn(
-              "shrink-0 rounded-full border px-2.5 py-1 font-mono text-[0.6875rem] transition-colors",
-              dayFocus === "all"
-                ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
-                : "border-[var(--color-line)] text-[var(--color-text-lo)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-mid)]",
+              "flex items-center gap-2 rounded-[0.75rem] px-2 py-1.5 text-left transition-colors",
+              dayFocus === "all" ? "bg-[var(--color-accent-soft)]" : "hover:bg-[var(--color-ink-3)]",
             )}
           >
-            All days
+            <span
+              className={cn(
+                "grid h-9 w-9 shrink-0 place-items-center rounded-full text-[0.6875rem] font-semibold",
+                dayFocus === "all" ? "bg-[var(--color-accent)] text-white" : "bg-[var(--color-ink-3)] text-[var(--color-text-mid)]",
+              )}
+            >
+              All
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[0.8125rem] font-medium text-[var(--color-text-hi)]">All days</span>
+              <span className="block font-mono text-[0.625rem] text-[var(--color-text-lo)]">{days.length}</span>
+            </span>
           </button>
           {days.map((day) => {
             const key = dayKey(day.date);
+            const on = dayFocus === key;
+            const when = new Date(`${key}T12:00:00`);
+            const label = when.toLocaleDateString(undefined, { weekday: "long" });
             return (
               <button
                 key={day.id}
                 type="button"
                 onClick={() => setDayFocus(key)}
                 className={cn(
-                  "shrink-0 rounded-full border px-2.5 py-1 font-mono text-[0.6875rem] transition-colors",
-                  dayFocus === key
-                    ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
-                    : "border-[var(--color-line)] text-[var(--color-text-lo)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-mid)]",
+                  "flex items-center gap-2 rounded-[0.75rem] px-2 py-1.5 text-left transition-colors",
+                  on ? "bg-[var(--color-accent-soft)]" : "hover:bg-[var(--color-ink-3)]",
                 )}
               >
-                {key === today ? "Today" : new Date(`${key}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric" })}
+                <span
+                  className={cn(
+                    "grid h-9 w-9 shrink-0 place-items-center rounded-full text-[0.8125rem] font-semibold tabular-nums",
+                    on ? "bg-[var(--color-accent)] text-white" : "bg-[var(--color-ink-3)] text-[var(--color-text-mid)]",
+                  )}
+                >
+                  {when.getDate()}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{label}</span>
+                  <span className="block font-mono text-[0.625rem] text-[var(--color-text-lo)]">
+                    {key === today ? "Today" : when.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  </span>
+                </span>
               </button>
             );
           })}
-        </div>
-      )}
+        </aside>
 
-      {/* Feed — newest day first, one section per day */}
-      <div ref={feedRef} className="min-h-0 flex-1 overflow-y-auto p-3.5">
+        {/* Feed — newest day first, one section per day */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
+        <span className="px-2 pb-1 pt-1 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-[var(--color-text-lo)]">Notes</span>
+        <div ref={feedRef} className="min-h-0 flex-1 overflow-y-auto">
         {days.length === 0 && (
           <p className="text-[0.8125rem] text-[var(--color-text-lo)]">
             Nothing in the journal yet. Write the first note above, or use the buttons on the right to log a photo.
@@ -1056,17 +1138,16 @@ function JournalTab({
             if (entries.length === 0 && filter !== "all") return null;
 
             return (
-              <section key={day.id} id={`journal-day-${day.id}`} className="rounded-[1rem] border border-[var(--color-line)] bg-[var(--color-ink-2)]">
+              <section key={day.id} id={`journal-day-${day.id}`} className="rounded-[0.875rem] bg-[var(--color-ink-1)] px-2 py-1">
                 <button
                   type="button"
                   onClick={() => toggleDay(key)}
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+                  className="flex w-full items-center gap-2 px-1 py-1.5 text-left"
                 >
-                  {isCollapsed ? <ChevronRight size={14} className="text-[var(--color-text-lo)]" /> : <ChevronDown size={14} className="text-[var(--color-text-lo)]" />}
+                  {isCollapsed ? <ChevronRight size={14} className="text-[var(--color-text-mid)]" /> : <ChevronDown size={14} className="text-[var(--color-text-mid)]" />}
                   <span className="text-[0.9375rem] font-medium text-[var(--color-text-hi)]">
-                    {fmtDayLabel(day.date, today)}
+                    {new Date(`${key}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
                   </span>
-                  <span className="font-mono text-[0.625rem] text-[var(--color-text-lo)]">{fmtDate(day.date)}</span>
 
                   {crew.length > 0 && (
                     <span className="ml-1 hidden min-w-0 items-center gap-1 font-mono text-[0.625rem] text-[var(--color-text-lo)] sm:flex">
@@ -1084,18 +1165,13 @@ function JournalTab({
                     {counts.office > 0 && <span style={{ color: "#fbbf24" }}>{counts.office} office</span>}
                   </span>
                 </button>
-
                 {!isCollapsed && (
                   <div className="px-3 pb-3">
-                    {day.summary && (
-                      <p className="mb-2.5 rounded-[0.625rem] border-l-2 border-[var(--color-accent)] bg-[var(--color-ink-3)] px-3 py-2 text-[0.8125rem] italic text-[var(--color-text-mid)]">
-                        {day.summary}
-                      </p>
-                    )}
-                    {entries.length === 0 ? (
+                    {entries.length === 0 && !day.summary ? (
                       <p className="text-[0.75rem] text-[var(--color-text-lo)]">Nothing logged on this day yet.</p>
                     ) : (
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-3">
+                        {day.summary && <DaySummaryNote body={day.summary} />}
                         {entries.map((e) => (
                           <EntryRow
                             key={e.id}
@@ -1117,6 +1193,62 @@ function JournalTab({
             );
           })}
         </div>
+        </div>
+        </div>
+
+        <aside className="flex w-[11.75rem] shrink-0 flex-col gap-1 overflow-y-auto border-l border-[var(--color-line)] p-2" aria-label="Note filter">
+          <span className="px-2 pb-1 pt-1 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-[var(--color-text-lo)]">Show</span>
+          {FILTERS.map((f) => {
+            const Icon = f.icon;
+            const on = filter === f.key;
+            return (
+              <button
+                key={f.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setFilter(f.key)}
+                className={cn(
+                  "flex items-center gap-2 rounded-[0.75rem] px-2 py-1.5 text-left transition-colors",
+                  on ? "bg-[var(--color-ink-3)]" : "hover:bg-[var(--color-ink-3)]",
+                )}
+              >
+                <span
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white"
+                  style={{ background: on ? f.color : "var(--color-ink-3)", color: on ? "#0c1220" : f.color }}
+                >
+                  <Icon size={16} strokeWidth={2} />
+                </span>
+                <span className={cn("text-[0.8125rem] font-medium", on ? "text-[var(--color-text-hi)]" : "text-[var(--color-text-mid)]")}>
+                  {f.label}
+                </span>
+              </button>
+            );
+          })}
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+const DAY_SUMMARY_COLOR = "#c084fc";
+
+function DaySummaryNote({ body }: { body: string }) {
+  return (
+    <div
+      className="flex gap-2.5 rounded-[0.75rem] border border-[var(--color-line)] bg-[var(--color-accent-soft)] p-2.5"
+      style={{ borderLeftWidth: 3, borderLeftColor: DAY_SUMMARY_COLOR }}
+    >
+      <div
+        className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full"
+        style={{ background: "var(--color-ink-3)", color: DAY_SUMMARY_COLOR }}
+      >
+        <NotebookPen size={14} strokeWidth={1.9} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="font-mono text-[0.6875rem] uppercase tracking-wider" style={{ color: DAY_SUMMARY_COLOR }}>
+          Day summary
+        </div>
+        <p className="mt-1 text-[0.8125rem] leading-relaxed text-[var(--color-text-hi)]">{body}</p>
       </div>
     </div>
   );
@@ -1135,7 +1267,6 @@ function EntryRow({
 }) {
   const meta = ENTRY_META[entry.type] ?? ENTRY_META.note;
   const Icon = meta.icon;
-  const isOffice = entry.type === "manager_note";
   const canEditBody = entry.type === "note" || entry.type === "manager_note";
   const priorVersions = noteVersionsOf(entry);
   const [editing, setEditing] = useState(false);
@@ -1163,16 +1294,14 @@ function EntryRow({
 
   return (
     <div
-      className={cn(
-        "group flex gap-2.5 rounded-[0.75rem] border p-2.5",
-        isOffice ? "border-[rgba(251,191,36,0.3)] bg-[rgba(251,191,36,0.06)]" : "border-[var(--color-line)] bg-[var(--color-ink-3)]",
-      )}
+      className="group flex gap-2.5 rounded-[0.75rem] border border-[var(--color-line)] bg-[var(--color-accent-soft)] p-2.5"
+      style={{ borderLeftWidth: 3, borderLeftColor: meta.color }}
     >
       <div
-        className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-[0.5rem]"
-        style={{ background: "var(--color-ink-2)", color: meta.color }}
+        className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full"
+        style={{ background: "var(--color-ink-3)", color: meta.color }}
       >
-        <Icon size={13} strokeWidth={1.9} />
+        <Icon size={14} strokeWidth={1.9} />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2">
@@ -1709,6 +1838,31 @@ function StepQuestion({
       )}
 
       <p className="text-[1.375rem] font-medium leading-snug text-[var(--color-text-hi)]">{q.text}</p>
+
+      {q.kind === "standard" && q.awareness && canWrite && (
+        <div className="flex gap-2">
+          {(["Yes", "No"] as const).map((choice) => (
+            <button
+              key={choice}
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setAnswer(choice);
+                setBusy(true);
+                void onAnswer(q, choice).finally(() => setBusy(false));
+              }}
+              className={cn(
+                "rounded-[0.625rem] border px-4 py-2 text-[0.875rem]",
+                answer === choice
+                  ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
+                  : "border-[var(--color-line-2)] text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]",
+              )}
+            >
+              {choice === "Yes" ? "Aware" : "Unnoticed"}
+            </button>
+          ))}
+        </div>
+      )}
 
       <textarea
         value={answer}

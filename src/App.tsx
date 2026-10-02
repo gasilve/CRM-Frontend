@@ -18,6 +18,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const MyDay = lazy(() => import("./pages/MyDay"));
 const Cases = lazy(() => import("./pages/Cases"));
 const CaseDetail = lazy(() => import("./pages/CaseDetail"));
+const SkyView = lazy(() => import("./components/cases/SkyViewModal"));
 const CaseWorkMode = lazy(() => import("./pages/CaseWorkMode"));
 const PendingCases = lazy(() => import("./pages/PendingCases"));
 const PendingCaseDetail = lazy(() => import("./pages/PendingCaseDetail"));
@@ -82,6 +83,14 @@ export default function App() {
               element={
                 <LazyRoute>
                   <Cases />
+                </LazyRoute>
+              }
+            />
+            <Route
+              path="/cases/:id/skyview"
+              element={
+                <LazyRoute>
+                  <SkyView />
                 </LazyRoute>
               }
             />
