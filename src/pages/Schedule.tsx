@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowUpRight, Briefcase, Cake, CalendarDays, ChevronLeft, ChevronRight,
-  Droplets, Folder, GripVertical, Info, Loader2, MapPin, Search, User, Users, Wind, X,
+  Columns3, Droplets, Folder, GripVertical, Info, Loader2, MapPin, Search, User, Users, Wind, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/contexts/AuthContext";
 import { ViewToggle, ViewToggleGroup } from "@/components/ui/ViewToggle";
 import { CaseOverviewModal } from "@/components/schedule/CaseOverviewModal";
-import { NewCalendarView } from "@/components/schedule/NewCalendarView";
+import { NewCalendarView, type CalendarAxis } from "@/components/schedule/NewCalendarView";
 import { ScheduleAssignmentModal } from "@/components/schedule/ScheduleAssignmentModal";
 import { weatherIcon, weatherColor, conditionLabel } from "@/components/cases/WeatherStrip";
 import {
@@ -74,16 +74,41 @@ function nextBirthday(dobIso: string): Date {
 type Mode = "calendar" | "investigators" | "cases";
 type DragPayload = { kind: "add"; otherId: string } | { kind: "block"; block: ScheduleBlock };
 
-const MODE_LS_KEY = "accenty.crm.schedule.mode";
+const BOARD_LS_KEY = "accenty.crm.schedule.calendar.orient";
 
-function readStoredMode(): Mode {
+type VerticalByAxis = Record<CalendarAxis, boolean>;
+
+const FLAT_BOARD: VerticalByAxis = { investigators: false, cases: false };
+
+function readBoard(): { axis: CalendarAxis; vertical: VerticalByAxis } {
   try {
-    const v = localStorage.getItem(MODE_LS_KEY);
-    if (v === "calendar" || v === "cases" || v === "investigators") return v;
+    const v = localStorage.getItem(BOARD_LS_KEY);
+    if (v === "cases") return { axis: "cases", vertical: FLAT_BOARD };
+    if (v === "cases-vertical") return { axis: "cases", vertical: { investigators: false, cases: true } };
+    if (v === "investigators-vertical") return { axis: "investigators", vertical: { investigators: true, cases: false } };
+    if (v?.startsWith("{")) {
+      const parsed = JSON.parse(v) as { axis?: string; vertical?: Partial<VerticalByAxis> };
+      const axis: CalendarAxis = parsed.axis === "cases" ? "cases" : "investigators";
+      return {
+        axis,
+        vertical: {
+          investigators: !!parsed.vertical?.investigators,
+          cases: !!parsed.vertical?.cases,
+        },
+      };
+    }
   } catch {
     /* ignore */
   }
-  return "investigators";
+  return { axis: "investigators", vertical: FLAT_BOARD };
+}
+
+function storeBoard(axis: CalendarAxis, vertical: VerticalByAxis) {
+  try {
+    localStorage.setItem(BOARD_LS_KEY, JSON.stringify({ axis, vertical }));
+  } catch {
+    /* ignore */
+  }
 }
 
 // Investigators = person icon / blue. Cases = folder icon / amber.
@@ -121,19 +146,25 @@ export default function Schedule() {
   const [dayInfo, setDayInfo] = useState<string | null>(null);
   const [monthOpen, setMonthOpen] = useState(false);
 
-  const [mode, setMode] = useState<Mode>(() => {
-    if (searchParams.get("case")) return "cases";
-    if (searchParams.get("user")) return "investigators";
-    return readStoredMode();
-  });
+  const [mode] = useState<Mode>("calendar");
+  const pickMode = (_next: Mode) => {
+    /* The week board is no longer selectable. The header toggle is investigators, cases, and vertical. */
+  };
+  const [axis, setAxis] = useState<CalendarAxis>(() => readBoard().axis);
+  const [verticalByAxis, setVerticalByAxis] = useState<VerticalByAxis>(() => readBoard().vertical);
+  const vertical = verticalByAxis[axis];
 
-  const pickMode = (m: Mode) => {
-    setMode(m);
-    try {
-      localStorage.setItem(MODE_LS_KEY, m);
-    } catch {
-      /* ignore */
-    }
+  const pickAxis = (next: CalendarAxis) => {
+    setAxis(next);
+    storeBoard(next, verticalByAxis);
+  };
+
+  const pickVertical = () => {
+    setVerticalByAxis((current) => {
+      const next = { ...current, [axis]: !current[axis] };
+      storeBoard(axis, next);
+      return next;
+    });
   };
 
   const [drag, setDrag] = useState<DragPayload | null>(null);
@@ -418,6 +449,7 @@ export default function Schedule() {
             dueDate: kase.dueDate,
             service: kase.service,
             startTime: kase.startTime,
+            earliestActiveAt: kase.earliestActiveAt,
             client: kase.client,
             addresses: kase.addresses.map((a) => ({
               id: a.id,
@@ -563,24 +595,45 @@ export default function Schedule() {
         <div className="flex items-center gap-1.5">
           <ViewToggleGroup>
             <ViewToggle
-              active={mode === "calendar"}
-              onClick={() => pickMode("calendar")}
-              icon={<CalendarDays size={13} strokeWidth={1.8} />}
-              label="New Calendar"
-            />
-            <ViewToggle
-              active={mode === "investigators"}
-              onClick={() => pickMode("investigators")}
+              active={axis === "investigators"}
+              onClick={() => pickAxis("investigators")}
               icon={<Users size={13} strokeWidth={1.8} />}
               label="Investigators"
             />
             <ViewToggle
-              active={mode === "cases"}
-              onClick={() => pickMode("cases")}
+              active={axis === "cases"}
+              onClick={() => pickAxis("cases")}
               icon={<Briefcase size={13} strokeWidth={1.8} />}
               label="Cases"
             />
           </ViewToggleGroup>
+          <button
+            type="button"
+            onClick={pickVertical}
+            aria-pressed={vertical}
+            className={cn(
+              "inline-flex h-8 items-center gap-2 rounded-full border px-2.5 text-[0.71875rem] transition-colors",
+              vertical
+                ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
+                : "border-dashed border-[var(--color-line-2)] text-[var(--color-text-mid)] hover:border-[var(--color-line)] hover:text-[var(--color-text-hi)]",
+            )}
+          >
+            <Columns3 size={13} strokeWidth={1.8} />
+            Vertical
+            <span
+              className={cn(
+                "relative h-3.5 w-6 shrink-0 rounded-full transition-colors",
+                vertical ? "bg-[var(--color-accent)]" : "bg-[var(--color-ink-3)]",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-0.5 h-2.5 w-2.5 rounded-full bg-white shadow-sm transition-[left]",
+                  vertical ? "left-3" : "left-0.5",
+                )}
+              />
+            </span>
+          </button>
           {mode !== "calendar" && (
             <>
               <button
@@ -656,6 +709,8 @@ export default function Schedule() {
           investigators={investigators}
           weekWeather={weekWeather}
           canManage={canManage}
+          axis={axis}
+          vertical={vertical}
           reloadToken={calendarReloadToken}
           onToast={showToast}
           onRemoveBlock={(id) => void removeBlock(id)}

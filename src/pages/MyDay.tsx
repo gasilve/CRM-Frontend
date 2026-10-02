@@ -3,14 +3,21 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   CalendarClock,
+  Bike,
+  Bus,
   Car,
   Clock,
+  Footprints,
+  Loader2,
   MapPin,
+  Play,
   Square,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { placeholderPhotoFor, SERVICE_LABELS } from "@/lib/mock-data";
+import { CaseGlanceCard, formatEarliestActive, glanceFromMyDay } from "@/components/cases/CaseGlanceCard";
+import { transportLabel } from "@/components/cases/SubjectMobility";
 import { useQuery, invalidateQueries } from "@/lib/query-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCasePhoto } from "@/hooks/useCasePhoto";
@@ -21,16 +28,9 @@ import {
   ApiError,
   type CaseDayEntry,
   type CaseDetail,
-  type CasePriority,
   type MyCaseloadBucket,
   type MyCaseloadItem,
 } from "@/lib/crm-api";
-
-const PRIORITY_CONFIG: Record<CasePriority, { label: string; bg: string; text: string }> = {
-  rush: { label: "RUSH", bg: "rgba(248,113,113,0.18)", text: "#f87171" },
-  asap: { label: "ASAP", bg: "rgba(251,146,60,0.18)", text: "#fb923c" },
-  standard: { label: "STD", bg: "var(--color-ink-3)", text: "var(--color-text-lo)" },
-};
 
 const BUCKET_META: Record<Exclude<MyCaseloadBucket, "today">, { title: string; hint: string; dot: string }> = {
   current: { title: "Coming up", hint: "Assigned, scheduled ahead", dot: "#60a5fa" },
@@ -45,9 +45,6 @@ const fmtDuration = (ms: number): string => {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 };
 
-const fmtShortDate = (iso: string | null): string =>
-  iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
-
 const fmtToday = (): string => new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 
 /** Due-date chip color: red once overdue, amber inside 3 days, muted otherwise. */
@@ -55,7 +52,7 @@ const dueTone = (iso: string | null): { label: string; color: string } | null =>
   if (!iso) return null;
   const due = new Date(iso);
   const days = Math.ceil((due.getTime() - Date.now()) / 86_400_000);
-  const label = `Due ${due.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  const label = `Due ${due.toLocaleDateString(undefined, { month: "short", day: "numeric" })} (${due.toLocaleDateString(undefined, { weekday: "short" })})`;
   if (days < 0) return { label: `${label} · overdue`, color: "#f87171" };
   if (days <= 3) return { label, color: "#fb923c" };
   return { label, color: "var(--color-text-mid)" };
@@ -67,6 +64,7 @@ export default function MyDay() {
   const canWork = can("cases.work");
   const [now, setNow] = useState(() => Date.now());
   const [toast, setToast] = useState<string | null>(null);
+  const [clockBusy, setClockBusy] = useState(false);
 
   useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 15_000);
@@ -106,15 +104,36 @@ export default function MyDay() {
       .filter((g) => g.items.length > 0);
   }, [restItems]);
 
+  const flash = (text: string) => {
+    setToast(text);
+    window.setTimeout(() => setToast(null), 4000);
+  };
+
+  const startWorking = async () => {
+    if (!todayItem) return;
+    setClockBusy(true);
+    try {
+      await timeEntriesApi.start(todayItem.caseId);
+      invalidateQueries("time-entries:active");
+      await refreshActive();
+    } catch (err) {
+      flash(err instanceof ApiError ? err.message : "Could not start the clock.");
+    } finally {
+      setClockBusy(false);
+    }
+  };
+
   const stopWorking = async () => {
     if (!active) return;
+    setClockBusy(true);
     try {
       await timeEntriesApi.stop(active.id);
       invalidateQueries("time-entries:active");
       await refreshActive();
     } catch (err) {
-      setToast(err instanceof ApiError ? err.message : "Could not clock out.");
-      window.setTimeout(() => setToast(null), 4000);
+      flash(err instanceof ApiError ? err.message : "Could not clock out.");
+    } finally {
+      setClockBusy(false);
     }
   };
 
@@ -133,7 +152,7 @@ export default function MyDay() {
         {canWork && (
           <div
             className={cn(
-              "flex h-11 w-[9rem] shrink-0 items-center gap-2 rounded-[0.75rem] border px-3",
+              "flex h-11 w-[9.5rem] shrink-0 items-center gap-2 rounded-[0.75rem] border px-3",
               active ? "border-[rgba(74,222,128,0.45)] bg-[rgba(74,222,128,0.1)]" : "border-[var(--color-line-2)] bg-[var(--color-ink-2)]",
             )}
           >
@@ -145,10 +164,21 @@ export default function MyDay() {
               <button
                 type="button"
                 onClick={() => void stopWorking()}
+                disabled={clockBusy}
                 title="Clock out"
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-[0.5rem] bg-[var(--color-neg)] text-white transition-opacity hover:opacity-85"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-[0.5rem] bg-[var(--color-neg)] text-white transition-opacity hover:opacity-85 disabled:opacity-50"
               >
-                <Square size={12} strokeWidth={0} fill="currentColor" />
+                {clockBusy ? <Loader2 size={13} className="animate-spin" /> : <Square size={13} strokeWidth={0} fill="currentColor" />}
+              </button>
+            ) : todayItem ? (
+              <button
+                type="button"
+                onClick={() => void startWorking()}
+                disabled={clockBusy}
+                title="Start the clock on this case"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-[0.5rem] bg-[var(--color-accent)] text-white transition-opacity hover:opacity-85 disabled:opacity-50"
+              >
+                {clockBusy ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} strokeWidth={0} fill="currentColor" />}
               </button>
             ) : (
               <span className="h-8 w-8 shrink-0" aria-hidden />
@@ -165,7 +195,7 @@ export default function MyDay() {
           <p className="mt-2 text-[0.875rem] text-[var(--color-text-mid)]">When you're assigned a case, it will show up here.</p>
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-4 xl:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto xl:flex-row xl:overflow-hidden">
           {todayItem && (
             <TodayHero
               item={todayItem}
@@ -175,8 +205,9 @@ export default function MyDay() {
             />
           )}
 
-          {/* The rest of the caseload — the only scrolling region on the page */}
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+          {/* The rest of the caseload. On a wide screen this column scrolls on its own;
+              otherwise the whole page scrolls so these cards stay reachable. */}
+          <div className="flex shrink-0 flex-col gap-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
             {grouped.map(({ bucket, items: groupItems }) => (
               <section key={bucket} className="flex flex-col gap-2">
                 <div className="flex items-baseline justify-between gap-2">
@@ -187,11 +218,12 @@ export default function MyDay() {
                   </h2>
                   <span className="hidden text-[0.75rem] text-[var(--color-text-lo)] sm:inline">{BUCKET_META[bucket].hint}</span>
                 </div>
-                <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                <div className="grid items-start gap-2.5 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                   {groupItems.map((item) => (
-                    <CaseCard
+                    <CaseGlanceCard
                       key={item.caseId}
-                      item={item}
+                      glance={glanceFromMyDay(item)}
+                      muted={item.bucket === "closed"}
                       isActiveClock={!!active && active.caseId === item.caseId}
                       onOpen={() => navigate(`/cases/${item.caseId}/work`)}
                     />
@@ -258,8 +290,8 @@ function HeroNotesFeed({ entries }: { entries: CaseDayEntry[] }) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex flex-1 flex-col divide-y divide-[var(--color-line)] overflow-hidden">
+    <div className="flex flex-col">
+      <div className="flex flex-col divide-y divide-[var(--color-line)]">
         {shown.map((e) => {
           const meta = ENTRY_META[e.type] ?? ENTRY_META.note;
           const Icon = meta.icon;
@@ -298,6 +330,7 @@ function TodayHero({
   const entries = useMemo(() => detail?.days.flatMap((d) => d.entries) ?? [], [detail]);
   const address = k.addresses?.find((a) => a.isPrimary) ?? k.addresses?.[0] ?? null;
   const due = dueTone(k.dueDate);
+  const earliest = formatEarliestActive(k.earliestActiveAt);
 
   /** Gallery is specifically extra subject stills + every vehicle on the case — the two things worth a glance before walking in. */
   const gallery = useMemo(() => {
@@ -323,40 +356,37 @@ function TodayHero({
   }, [detail?.vehicles, entries]);
 
   return (
-    <button
-      type="button"
+    <div
+      role="link"
+      tabIndex={0}
       onClick={onOpen}
-      className="surface anim-rise group flex min-h-0 flex-col overflow-hidden rounded-[1.25rem] border border-[var(--color-line-2)] p-5 text-left transition-shadow hover:border-[rgba(74,127,255,0.35)] hover:shadow-[0_0_0_0.125rem_rgba(74,127,255,0.12)] xl:w-[38rem]"
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onOpen();
+      }}
+      className="surface anim-rise group flex shrink-0 cursor-pointer flex-col rounded-[1.25rem] border border-[var(--color-line-2)] p-5 text-left transition-shadow hover:border-[rgba(74,127,255,0.35)] hover:shadow-[0_0_0_0.125rem_rgba(74,127,255,0.12)] xl:max-h-full xl:w-[38rem] xl:overflow-y-auto"
     >
       <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2">
-        <span className="rounded-full bg-[var(--color-accent)] px-2.5 py-0.5 font-mono text-[0.6875rem] font-semibold uppercase tracking-wider text-white">
-          Today's case
-        </span>
-        {isActiveClock && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(74,222,128,0.18)] px-2.5 py-0.5 font-mono text-[0.6875rem] text-[#4ade80]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#4ade80]" />
-            Clocked in
+          <span className="rounded-full bg-[var(--color-accent)] px-2.5 py-0.5 font-mono text-[0.6875rem] font-semibold uppercase tracking-wider text-white">
+            Today's case
           </span>
-        )}
-        <span
-          className="rounded-full px-2.5 py-0.5 text-[0.6875rem] font-semibold"
-          style={{ background: PRIORITY_CONFIG[k.priority].bg, color: PRIORITY_CONFIG[k.priority].text }}
-        >
-          {PRIORITY_CONFIG[k.priority].label}
-        </span>
-        {due && (
-          <span className="font-mono text-[0.6875rem] font-semibold" style={{ color: due.color }}>
-            {due.label}
+          {isActiveClock && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(74,222,128,0.18)] px-2.5 py-0.5 font-mono text-[0.6875rem] text-[#4ade80]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#4ade80]" />
+              Clocked in
+            </span>
+          )}
+          {due && (
+            <span className="font-mono text-[0.6875rem] font-semibold" style={{ color: due.color }}>
+              {due.label}
+            </span>
+          )}
+          <span className={cn("inline-flex items-center gap-1 text-[0.6875rem]", READABLE_DATE_CLASS)}>
+            <CalendarClock size={11} />
+            Case day {Math.max(1, k._count?.days ?? 1)}
           </span>
-        )}
-        <span className={cn("ml-auto inline-flex items-center gap-1 text-[0.6875rem]", READABLE_DATE_CLASS)}>
-          <CalendarClock size={11} />
-          Case day {Math.max(1, k._count?.days ?? 1)}
-        </span>
       </div>
 
       <div className="flex shrink-0 gap-5">
-        {/* Landscape-framed so the portrait reads as a photo, not a stretched sliver */}
         <div className="aspect-[4/3] w-[11rem] shrink-0 overflow-hidden rounded-[0.875rem] border border-[var(--color-line-2)] sm:w-[13.5rem]">
           <img src={subjectSrc} alt={k.subjectName} className="h-full w-full object-cover" />
         </div>
@@ -364,15 +394,9 @@ function TodayHero({
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <h2 className="editorial text-[1.75rem] leading-none text-[var(--color-text-hi)]">{k.subjectName}</h2>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[0.75rem] text-[var(--color-text-mid)]">
-            <span>{k.caseNumber}</span>
-            <span>·</span>
+            {k.claimNumber && <span className="text-[#fbbf24]">{k.claimNumber}</span>}
+            {k.claimNumber && <span>·</span>}
             <span>{SERVICE_LABELS[k.service]}</span>
-            {k.claimNumber && (
-              <>
-                <span>·</span>
-                <span>{k.claimNumber}</span>
-              </>
-            )}
           </div>
 
           {address && (
@@ -382,7 +406,14 @@ function TodayHero({
             </div>
           )}
 
-          <HeroFact icon={Users} label="Household" value={`${k._count?.people ?? 0} people · ${k._count?.vehicles ?? 0} vehicles`} />
+          {k.subjectTransport && (
+            <HeroFact
+              icon={k.subjectTransport === "foot" ? Footprints : k.subjectTransport === "transit" ? Bus : k.subjectTransport === "other" ? Bike : Car}
+              label="Gets around"
+              value={transportLabel(k.subjectTransport)}
+            />
+          )}
+          <HeroFact icon={Clock} label="Earliest active" value={earliest ? `${earliest.time} · ${earliest.date}` : "No investigator note yet"} />
 
           {k.subjectWorkStatus && (
             <p className="line-clamp-2 text-[0.8125rem] leading-relaxed text-[var(--color-text-mid)]">
@@ -415,13 +446,13 @@ function TodayHero({
       )}
 
       {/* Recent journal — enough to catch up without opening the case, no inner scroll */}
-      <div className="mt-5 flex min-h-0 flex-1 flex-col border-t border-[var(--color-line)] pt-4">
+      <div className="mt-5 flex flex-col border-t border-[var(--color-line)] pt-4">
         <div className="mb-2 shrink-0 font-mono text-[0.625rem] uppercase tracking-[0.18em] text-[var(--color-text-lo)]">
           Recent journal
         </div>
         <HeroNotesFeed entries={entries} />
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -437,105 +468,3 @@ function HeroFact({ icon: Icon, label, value }: { icon: typeof Car; label: strin
   );
 }
 
-function CaseCard({
-  item,
-  isActiveClock,
-  onOpen,
-}: {
-  item: MyCaseloadItem;
-  isActiveClock: boolean;
-  onOpen: () => void;
-}) {
-  const k = item.case;
-  const isClosed = item.bucket === "closed";
-  const when =
-    item.bucket === "current" && item.nextScheduledDate
-      ? `Next ${fmtShortDate(item.nextScheduledDate)}`
-      : item.lastScheduledDate
-        ? `Last ${fmtShortDate(item.lastScheduledDate)}`
-        : "Not scheduled";
-  const due = dueTone(k.dueDate);
-
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className={cn(
-        "group surface relative flex h-[6.25rem] w-full items-stretch overflow-hidden rounded-[1rem] border border-[var(--color-line)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--color-line-2)] hover:shadow-lg",
-      )}
-    >
-      {/* Full-height, landscape-cropped so every card reads the same size and the face isn't stretched into a tall sliver */}
-      <img
-        src={k.subjectPhotoUrl || placeholderPhotoFor(k.id)}
-        alt={k.subjectName}
-        className={cn(
-          "aspect-[4/3] h-full shrink-0 object-cover transition-[filter] duration-200",
-          isClosed && "grayscale-[0.9] contrast-[0.85] brightness-[0.75] group-hover:grayscale-0 group-hover:brightness-100",
-        )}
-      />
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-3 py-2">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {isActiveClock && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(74,222,128,0.15)] px-1.5 py-0.5 font-mono text-[0.5625rem] text-[#4ade80]">
-              <span className="h-1 w-1 rounded-full bg-[#4ade80]" />
-              Clocked in
-            </span>
-          )}
-          <span
-            className="rounded-full px-1.5 py-0.5 text-[0.5625rem] font-semibold"
-            style={{
-              background: isClosed ? "var(--color-ink-3)" : PRIORITY_CONFIG[k.priority].bg,
-              color: isClosed ? "var(--color-text-lo)" : PRIORITY_CONFIG[k.priority].text,
-            }}
-          >
-            {PRIORITY_CONFIG[k.priority].label}
-          </span>
-          <span className={cn("text-[0.625rem] uppercase tracking-wider", READABLE_DATE_CLASS, isClosed && "!text-[var(--color-text-lo)]")}>
-            {when}
-          </span>
-          {due && !isClosed && (
-            <span className="font-mono text-[0.625rem] font-semibold" style={{ color: due.color }}>
-              {due.label}
-            </span>
-          )}
-        </div>
-
-        <div
-          className={cn(
-            "truncate text-[1.0625rem] font-medium leading-tight",
-            isClosed ? "text-[var(--color-text-mid)]" : "text-[var(--color-text-hi)] group-hover:text-[var(--color-accent-2)]",
-          )}
-        >
-          {k.subjectName}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-2 font-mono text-[0.6875rem] text-[var(--color-text-mid)]">
-          <span>{k.caseNumber}</span>
-          <span>·</span>
-          <span>{SERVICE_LABELS[k.service]}</span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-2.5 font-mono text-[0.625rem] text-[var(--color-text-lo)]">
-          <span className="inline-flex items-center gap-1">
-            <Users size={9} />
-            {k._count?.people ?? 0}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Car size={9} />
-            {k._count?.vehicles ?? 0}
-          </span>
-          <span>{item.daysWorked} days worked</span>
-          {k.region && (
-            <span className="inline-flex items-center gap-1">
-              <MapPin size={9} />
-              {k.region}
-            </span>
-          )}
-        </div>
-      </div>
-      <span className="flex shrink-0 items-center pr-3 font-mono text-[0.6875rem] uppercase tracking-wider text-[var(--color-text-lo)] opacity-0 transition-opacity group-hover:opacity-100">
-        Open →
-      </span>
-    </button>
-  );
-}

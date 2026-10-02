@@ -325,7 +325,11 @@ export const investigatorsApi = {
 // ─── Cases (Phase 2) ────────────────────────────────────────────────────────
 
 export type CaseStatus = "open" | "suspended" | "closed";
-export type CasePriority = "rush" | "asap" | "standard";
+export type CasePriority = "rush" | "standard";
+export type SubjectTransport = "vehicle" | "foot" | "transit" | "other";
+/** How built-up the area around the address is. `dense` is densely populated. */
+export type SubjectSetting = "suburban" | "rural" | "dense";
+export type SubjectAwareness = "unnoticed" | "suspicious" | "aware";
 export type CaseService = "SURV" | "WC" | "FMLA" | "BG" | "DOM" | "SOC" | "DIS" | "LOC" | "PS" | "LIA";
 export type CaseDayEntryType =
   | "note"
@@ -541,6 +545,13 @@ export interface CaseParticipant {
   email: string;
 }
 
+export interface CaseRecentNote {
+  id: string;
+  body: string;
+  createdAt: string;
+  authorName: string | null;
+}
+
 export interface CaseAssignment {
   id: string;
   userId: string;
@@ -607,11 +618,34 @@ export interface CaseTodo {
   createdAt: string;
 }
 
+export interface CasePattern {
+  id: string;
+  caseId: string;
+  title: string;
+  place: string | null;
+  whenLabel: string;
+  detail: string | null;
+  travel: string | null;
+  source: "manual" | "generated";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CasePatternInput {
+  title?: string;
+  place?: string | null;
+  whenLabel: string;
+  detail?: string | null;
+  travel?: string | null;
+}
+
 export interface CaseDay {
   id: string;
   date: string;
   /** End-of-day wrap-up, when written. */
   summary: string | null;
+  /** How aware the subject was of the investigator. Null until answered. */
+  awareness: SubjectAwareness | null;
   entries: CaseDayEntry[];
 }
 
@@ -632,6 +666,11 @@ export interface CaseListItem {
   reopened: boolean;
   region: Region | null;
   state: string | null;
+  /** First investigator field note. Null until that note exists. */
+  earliestActiveAt: string | null;
+  situationSummary: string | null;
+  subjectWorkStatus: string | null;
+  _count?: { people: number; vehicles: number; days: number };
   dateOpened: string;
   dateClosed: string | null;
   dateOfInjury: string | null;
@@ -644,8 +683,12 @@ export interface CaseListItem {
   subjectAliases: string[];
   subjectDob: string | null;
   subjectPhotoUrl: string | null;
+  subjectTransport: SubjectTransport | null;
+  subjectSetting: SubjectSetting | null;
   addresses: CaseAddress[];
   assignments: CaseAssignment[];
+  /** Newest four field notes, for the glance-card hover. */
+  recentNotes?: CaseRecentNote[];
 }
 
 export interface CaseDetail extends CaseListItem {
@@ -711,13 +754,16 @@ export type CaseSortField =
   | "state"
   | "status"
   | "priority"
-  | "service";
+  | "service"
+  | "earliestActiveAt";
 
 export interface CasesListParams {
   status?: CaseStatus;
   priority?: CasePriority;
   service?: CaseService;
   region?: Region;
+  state?: string;
+  activity?: "started" | "not_started";
   tag?: string;
   clientId?: string;
   assignedTo?: string;
@@ -835,6 +881,7 @@ export interface MyAssignment {
     claimNumber: string | null;
     subjectName: string;
     subjectPhotoUrl: string | null;
+    subjectTransport: SubjectTransport | null;
     service: CaseService;
     status: CaseStatus;
     priority: CasePriority;
@@ -846,9 +893,11 @@ export interface MyAssignment {
     situationSummary: string | null;
     description: string | null;
     subjectWorkStatus: string | null;
+    earliestActiveAt: string | null;
     client: { id: string; company: string } | null;
     addresses: { label: string | null; line1: string; city: string | null; state: string | null; zip: string | null; isPrimary: boolean }[];
     _count: { people: number; vehicles: number; days: number };
+    assignments?: { user: { id: string; name: string } }[];
   };
 }
 
@@ -864,6 +913,7 @@ export interface MyCaseloadItem {
   /** How many days you've already been in the field on this case. */
   daysWorked: number;
   todayNotes: string | null;
+  recentNotes?: CaseRecentNote[];
   case: MyAssignment["case"];
 }
 
@@ -1042,10 +1092,27 @@ export const casesApi = {
       method: "PATCH",
       body: JSON.stringify({ situationSummary }),
     }),
+  generateSituationSummary: (id: string) =>
+    request<{ id: string; situationSummary: string | null }>(`/cases/${id}/summary/generate`, { method: "POST" }),
   setDaySummary: (id: string, date: string, summary: string | null) =>
     request<{ day: { id: string; date: string; summary: string | null } }>(`/cases/${id}/days/summary`, {
       method: "PUT",
       body: JSON.stringify({ date, summary }),
+    }),
+  setTransport: (id: string, transport: SubjectTransport | null) =>
+    request<{ case: { id: string; subjectTransport: SubjectTransport | null } }>(`/cases/${id}/transport`, {
+      method: "PATCH",
+      body: JSON.stringify({ transport }),
+    }),
+  setSubjectSetting: (id: string, setting: SubjectSetting | null) =>
+    request<{ case: { id: string; subjectSetting: SubjectSetting | null } }>(`/cases/${id}/setting`, {
+      method: "PATCH",
+      body: JSON.stringify({ setting }),
+    }),
+  setAwareness: (id: string, date: string, awareness: SubjectAwareness | null) =>
+    request<{ day: { id: string; date: string; awareness: SubjectAwareness | null } }>(`/cases/${id}/days/awareness`, {
+      method: "PUT",
+      body: JSON.stringify({ date, awareness }),
     }),
 
   // ─── Todos ────────────────────────────────────────────────────────────────
@@ -1055,6 +1122,19 @@ export const casesApi = {
   updateTodo: (id: string, todoId: string, body: CaseTodoUpdateInput) =>
     request<{ todo: CaseTodo }>(`/cases/${id}/todos/${todoId}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteTodo: (id: string, todoId: string) => request<null>(`/cases/${id}/todos/${todoId}`, { method: "DELETE" }),
+
+  listPatterns: (id: string) => request<{ patterns: CasePattern[] }>(`/cases/${id}/patterns`),
+  addPattern: (id: string, body: CasePatternInput) =>
+    request<{ pattern: CasePattern }>(`/cases/${id}/patterns`, { method: "POST", body: JSON.stringify(body) }),
+  updatePattern: (id: string, patternId: string, body: Partial<CasePatternInput>) =>
+    request<{ pattern: CasePattern }>(`/cases/${id}/patterns/${patternId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deletePattern: (id: string, patternId: string) =>
+    request<null>(`/cases/${id}/patterns/${patternId}`, { method: "DELETE" }),
+  generatePatterns: (id: string) =>
+    request<{ patterns: CasePattern[]; scannedNotes: number }>(`/cases/${id}/patterns/generate`, { method: "POST" }),
 
   // ─── Vehicle seat-occupancy events ─────────────────────────────────────────
   addVehicleEvent: (id: string, vehicleId: string, body: VehicleEventInput) =>
@@ -1545,6 +1625,7 @@ export interface ScheduleBlock {
     dueDate: string | null;
     service: CaseService;
     startTime: string | null;
+    earliestActiveAt: string | null;
     client: { id: string; company: string } | null;
     addresses: ScheduleBlockCaseAddress[];
   };

@@ -12,7 +12,7 @@ export const ENTRY_META: Record<CaseDayEntryType, { icon: typeof StickyNote; lab
   photo_person: { icon: User, label: "Person photo", color: "#f87171" },
   photo_vehicle: { icon: Car, label: "Vehicle photo", color: "#34d399" },
   photo_home: { icon: Home, label: "Residence photo", color: "#60a5fa" },
-  face_match: { icon: ScanFace, label: "Comparison", color: "#c084fc" },
+  face_match: { icon: ScanFace, label: "Comparison", color: "#22d3ee" },
   manager_note: { icon: Briefcase, label: "Office note", color: "#fbbf24" },
 };
 

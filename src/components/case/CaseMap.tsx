@@ -28,16 +28,18 @@ function FlyToFocus({ lat, lng }: { lat: number; lng: number }) {
 export function CaseMap({
   addresses,
   focusAddressId,
+  frameClassName,
 }: {
   addresses: CaseAddress[];
   /** When set, the map flies to this geocoded address. */
   focusAddressId?: string | null;
+  frameClassName?: string;
 }) {
   const pinned = addresses.filter((a): a is CaseAddress & { lat: number; lng: number } => a.lat != null && a.lng != null);
 
   if (pinned.length === 0) {
     return (
-      <div className="grid h-full min-h-[9rem] place-items-center rounded-[0.625rem] border border-dashed border-[var(--color-line-2)] bg-[var(--color-ink-3)]">
+      <div className={`grid h-full min-h-[9rem] place-items-center rounded-[0.625rem] border border-dashed border-[var(--color-line-2)] bg-[var(--color-ink-3)] ${frameClassName ?? ""}`}>
         <span className="font-mono text-[0.65625rem] text-[var(--color-text-lo)]">No geocoded address yet</span>
       </div>
     );
@@ -47,7 +49,7 @@ export function CaseMap({
   const focus = focusAddressId ? pinned.find((a) => a.id === focusAddressId) : null;
 
   return (
-    <div className="h-full min-h-[9rem] overflow-hidden rounded-[0.625rem] border border-[var(--color-line-2)]">
+    <div className={`h-full min-h-[9rem] overflow-hidden rounded-[0.625rem] border border-[var(--color-line-2)] ${frameClassName ?? ""}`}>
       <MapContainer
         center={[primary.lat, primary.lng]}
         zoom={13}

@@ -137,7 +137,7 @@ export function SubjectOverviewModal({
         soft={SOFT}
         eyebrow="Subject overview"
         title={kase.subjectName}
-        subtitle={`${kase.caseNumber} · ${SERVICE_LABELS[kase.service]}${kase.subjectWorkStatus ? ` · ${kase.subjectWorkStatus}` : ""}`}
+        subtitle={`${kase.claimNumber ? `${kase.claimNumber} · ` : ""}${SERVICE_LABELS[kase.service]}${kase.subjectWorkStatus ? ` · ${kase.subjectWorkStatus}` : ""}`}
         hero={
           <CasePhoto
             caseId={caseId}
@@ -199,6 +199,10 @@ export function SubjectOverviewModal({
                 {showAliases && <DetailField label="Aliases" value={kase.subjectAliases.join(" · ")} />}
                 {showDob && <DetailField label="Date of birth" value={fmtDate(kase.subjectDob)} />}
                 <DetailField label="Work status" value={kase.subjectWorkStatus} />
+                <DetailField
+                  label="Gets around"
+                  value={kase.subjectTransport === "vehicle" ? "Vehicle" : kase.subjectTransport === "foot" ? "On foot" : kase.subjectTransport === "transit" ? "Transit" : kase.subjectTransport === "other" ? "Other" : "—"}
+                />
                 {showEmployment && (
                   <>
                     <DetailField label="Employer" value={kase.subjectEmployer} />

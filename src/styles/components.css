@@ -141,3 +141,27 @@ html[data-theme^="light"] .auth-input {
   background: var(--color-ink-3);
   border-color: var(--color-line-3);
 }
+
+/* Skyview sits closer to the reference: larger corners than the default card radius.
+   Glass mode forces .surface radius with !important, so these stay unlayered. */
+.skyview .surface {
+  border-radius: 1.75rem;
+}
+.skyview .sky-inset.surface {
+  border-radius: 1.25rem;
+}
+html[data-glass="true"] .skyview .surface,
+html[data-glass="tinted"] .skyview .surface,
+html[data-glass="dark"] .skyview .surface {
+  border-radius: 1.75rem !important;
+}
+html[data-glass="true"] .skyview .sky-inset.surface,
+html[data-glass="tinted"] .skyview .sky-inset.surface,
+html[data-glass="dark"] .skyview .sky-inset.surface {
+  border-radius: 1.25rem !important;
+}
+html[data-glass="true"] .skyview .sky-add,
+html[data-glass="tinted"] .skyview .sky-add,
+html[data-glass="dark"] .skyview .sky-add {
+  border-style: dashed !important;
+}

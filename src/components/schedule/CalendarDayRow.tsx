@@ -1,6 +1,7 @@
 import type { DragEvent, ReactNode } from "react";
 import { Folder, MapPin, Plus, User } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { formatEarliestActive } from "@/components/cases/CaseGlanceCard";
 import { SERVICE_LABELS } from "@/lib/mock-data";
 import { type Region, type ScheduleBlock } from "@/lib/crm-api";
 
@@ -154,6 +155,7 @@ export function CaseAssignmentBand({
   draggable,
   onDragStart,
   onDragEnd,
+  stacked,
 }: {
   block: ScheduleBlock;
   onClick?: () => void;
@@ -161,6 +163,8 @@ export function CaseAssignmentBand({
   draggable?: boolean;
   onDragStart?: (e: DragEvent) => void;
   onDragEnd?: () => void;
+  /** Narrow column: one truncated line per fact, sized to the column. */
+  stacked?: boolean;
 }) {
   const service = block.case.service;
   const typeLabel = service ? SERVICE_LABELS[service] ?? service : null;
@@ -178,6 +182,7 @@ export function CaseAssignmentBand({
         : dueLeft != null && dueLeft <= 7
           ? "text-[#fb923c]"
           : undefined;
+  const eac = formatEarliestActive(block.case.earliestActiveAt);
 
   return (
     <button
@@ -192,9 +197,44 @@ export function CaseAssignmentBand({
         onContextUnassign();
       }}
       title={onContextUnassign ? "Right-click to unassign" : undefined}
-      className="calendar-assign-band flex min-h-[4.25rem] w-full flex-col justify-center gap-1.5 rounded-[0.5rem] border px-3 py-3 text-left transition-colors hover:brightness-110"
+      className={cn(
+        "calendar-assign-band flex w-full flex-col rounded-[0.5rem] border text-left transition-colors hover:brightness-110",
+        stacked
+          ? "min-h-0 flex-1 justify-between gap-1 overflow-hidden px-2.5 py-2.5"
+          : "min-h-[4.25rem] justify-center gap-1.5 px-3 py-3",
+      )}
       style={{ ["--band-accent" as string]: "#f7a813" }}
     >
+      {stacked ? (
+        <>
+          <div className="flex min-w-0 items-baseline gap-2">
+            {typeLabel && (
+              <span className="calendar-band-text truncate font-mono text-[0.5625rem] font-semibold uppercase leading-none tracking-wider text-[var(--color-text-hi)]">
+                {typeLabel}
+              </span>
+            )}
+            <span className="calendar-band-text ml-auto shrink-0 font-mono text-[0.5625rem] leading-none text-[rgba(255,248,230,0.88)]">
+              {block.case.caseNumber}
+            </span>
+          </div>
+          <span className="calendar-band-text truncate text-[0.8125rem] font-medium leading-tight text-[var(--color-text-hi)]">
+            {block.case.subjectName}
+          </span>
+          <StackedFact label="EAC" value={eac ? `${eac.time} · ${eac.date}` : "—"} />
+          <StackedFact label="Addr" value={address ?? "—"} />
+          <StackedFact label="Client" value={client ?? "—"} />
+          <StackedFact
+            label="Due"
+            value={
+              dueIso
+                ? `${new Date(dueIso).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${dueReminder(dueIso, block.case.status)}`
+                : "—"
+            }
+            valueClassName={dueTone}
+          />
+        </>
+      ) : (
+        <>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
         {typeLabel && (
           <span className="calendar-band-text font-mono text-[0.625rem] font-semibold uppercase leading-none tracking-wider text-[var(--color-text-hi)]">
@@ -212,6 +252,7 @@ export function CaseAssignmentBand({
         {address && <MetaChip label="Addr" value={address} />}
         {street && street !== address && <MetaChip label="Street" value={street} />}
         {start && <MetaChip label="Start" value={start} />}
+        <MetaChip label="EAC" value={eac ? `${eac.time} · ${eac.date}` : "—"} />
         {client && <MetaChip label="Client" value={client} />}
         {dueIso && (
           <MetaChip
@@ -222,7 +263,36 @@ export function CaseAssignmentBand({
         )}
         {block.notes && <MetaChip label="Notes" value={block.notes} />}
       </div>
+        </>
+      )}
     </button>
+  );
+}
+
+function StackedFact({
+  label,
+  value,
+  valueClassName,
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-baseline gap-1.5">
+      <span className="calendar-band-text w-[2.35rem] shrink-0 font-mono text-[0.5rem] uppercase leading-none tracking-wider text-[rgba(255,248,230,0.8)]">
+        {label}
+      </span>
+      <span
+        className={cn(
+          "calendar-band-text min-w-0 flex-1 truncate text-[0.6875rem] leading-none text-[var(--color-text-hi)]",
+          valueClassName,
+        )}
+        title={value}
+      >
+        {value}
+      </span>
+    </div>
   );
 }
 
@@ -313,7 +383,7 @@ export function CaseBoardColumn({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       className={cn(
-        "flex h-[12rem] w-[15rem] flex-col overflow-hidden rounded-[0.625rem] border border-[var(--color-line)] bg-[var(--color-ink-2)]/35 transition-colors",
+        "flex h-[18rem] w-[20rem] flex-col overflow-hidden rounded-[0.625rem] border border-[var(--color-line)] bg-[var(--color-ink-2)]/35 transition-colors",
         dropHighlight && "border-[rgba(74,127,255,0.55)] bg-[rgba(74,127,255,0.08)]",
       )}
     >
@@ -339,7 +409,7 @@ export function CaseBoardColumn({
         )}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 p-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2">
         {blocks.map((block) => (
           <InvestigatorAssignmentBand
             key={block.id}
@@ -363,11 +433,101 @@ export function CaseBoardColumn({
             dense
             label={assigned ? "Add investigator" : "Assign investigator"}
             onClick={onAssign}
-            className={assigned ? "opacity-70" : undefined}
+            className={assigned ? "shrink-0 opacity-70" : "h-full"}
           />
         ) : blocks.length === 0 ? (
           <EmptyAssignSlot dense label="Unassigned" disabled />
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** Vertical investigator column: name on top, the assigned case (with EAC) underneath. */
+export function InvestigatorBoardColumn({
+  name,
+  region,
+  block,
+  canManage,
+  dropHighlight,
+  onAssign,
+  onOpenNotes,
+  onUnassign,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onBandDragStart,
+  onBandDragEnd,
+}: {
+  name: string;
+  region: Region | null;
+  block: ScheduleBlock | undefined;
+  canManage: boolean;
+  dropHighlight?: boolean;
+  onAssign: () => void;
+  onOpenNotes: (block: ScheduleBlock) => void;
+  onUnassign: (blockId: string) => void;
+  onDragOver?: (e: DragEvent) => void;
+  onDragLeave?: (e: DragEvent) => void;
+  onDrop?: (e: DragEvent) => void;
+  onBandDragStart?: (block: ScheduleBlock, e: DragEvent) => void;
+  onBandDragEnd?: () => void;
+}) {
+  return (
+    <div
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className={cn(
+        "flex h-[18rem] w-[20rem] flex-col overflow-hidden rounded-[0.625rem] border border-[var(--color-line)] bg-[var(--color-ink-2)]/35 transition-colors",
+        dropHighlight && "border-[rgba(74,127,255,0.55)] bg-[rgba(74,127,255,0.08)]",
+      )}
+    >
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-line)] px-3 py-2.5">
+        <span
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-white"
+          style={{ background: INVESTIGATOR_BG }}
+        >
+          <User size={13} strokeWidth={1.8} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <span className="block truncate text-[0.8125rem] font-medium leading-none text-[var(--color-text-hi)]" title={name}>
+            {name}
+          </span>
+          {region && (
+            <span className="mt-1 inline-flex items-center gap-0.5 font-mono text-[0.53125rem] uppercase tracking-wider text-[var(--color-text-mid)]">
+              <MapPin size={9} strokeWidth={1.8} />
+              {REGION_SHORT[region]}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col p-2">
+        {block ? (
+          <CaseAssignmentBand
+            block={block}
+            stacked
+            draggable={canManage && !!onBandDragStart}
+            onDragStart={onBandDragStart ? (e) => onBandDragStart(block, e) : undefined}
+            onDragEnd={onBandDragEnd}
+            onClick={() => onOpenNotes(block)}
+            onContextUnassign={
+              canManage
+                ? () => {
+                    onUnassign(block.id);
+                  }
+                : undefined
+            }
+          />
+        ) : (
+          <EmptyAssignSlot
+            dense
+            label={canManage ? "Assign case" : "Unassigned"}
+            disabled={!canManage}
+            onClick={canManage ? onAssign : undefined}
+            className="h-full"
+          />
+        )}
       </div>
     </div>
   );

@@ -12,7 +12,6 @@ const ALL_TAGS: InvTag[] = [
 ];
 const PRIORITIES: { value: CasePriority; label: string }[] = [
   { value: "standard", label: "Standard" },
-  { value: "asap", label: "ASAP" },
   { value: "rush", label: "Rush" },
 ];
 

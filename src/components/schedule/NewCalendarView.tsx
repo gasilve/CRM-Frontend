@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
-import { Briefcase, ChevronLeft, ChevronRight, Loader2, MapPin, Rows3, Users } from "lucide-react";
-import { ViewToggle, ViewToggleGroup } from "@/components/ui/ViewToggle";
+import { ChevronLeft, ChevronRight, Loader2, MapPin } from "lucide-react";
 import { weatherIcon, weatherColor, conditionLabel } from "@/components/cases/WeatherStrip";
 import { cn } from "@/lib/cn";
 import {
@@ -23,6 +22,7 @@ import {
   CaseRowLabel,
   EmptyAssignSlot,
   InvestigatorAssignmentBand,
+  InvestigatorBoardColumn,
   InvestigatorRowLabel,
 } from "./CalendarDayRow";
 import { priorKey } from "./AssignEntityModal";
@@ -31,26 +31,15 @@ import {
   type AssignmentFlow,
 } from "./ScheduleAssignmentModal";
 
-const ORIENT_LS_KEY = "accenty.crm.schedule.calendar.orient";
 const DAY_LS_KEY = "accenty.crm.schedule.calendar.day";
 const REGION_OPTIONS: (Region | "all")[] = ["all", "tristate", "ca", "texas"];
 
-export type CalendarOrient = "investigators" | "cases" | "cases-vertical";
+export type CalendarAxis = "investigators" | "cases";
 
 type DayDrag =
   | { kind: "case"; caseId: string }
   | { kind: "investigator"; userId: string }
   | { kind: "block"; block: ScheduleBlock };
-
-function readStoredOrient(): CalendarOrient {
-  try {
-    const v = localStorage.getItem(ORIENT_LS_KEY);
-    if (v === "cases" || v === "cases-vertical" || v === "investigators") return v;
-  } catch {
-    /* ignore */
-  }
-  return "investigators";
-}
 
 const isoOf = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -74,6 +63,8 @@ export function NewCalendarView({
   investigators,
   weekWeather,
   canManage,
+  axis,
+  vertical,
   reloadToken = 0,
   onToast,
   onRemoveBlock,
@@ -87,6 +78,9 @@ export function NewCalendarView({
   investigators: InvestigatorListItem[];
   weekWeather: WeeklyWeather[];
   canManage: boolean;
+  /** Investigators vs cases. Vertical is independent, so both axes have a column layout. */
+  axis: CalendarAxis;
+  vertical: boolean;
   /** Bump from parent after modal save/remove so the day board refreshes. */
   reloadToken?: number;
   onToast: (text: string) => void;
@@ -104,8 +98,6 @@ export function NewCalendarView({
       return today;
     }
   });
-  const [orient, setOrient] = useState<CalendarOrient>(readStoredOrient);
-
   const [blocks, setBlocks] = useState<ScheduleBlock[] | null>(null);
   const [priorWork, setPriorWork] = useState<SchedulePriorWork[]>([]);
   const [saving, setSaving] = useState(false);
@@ -128,15 +120,6 @@ export function NewCalendarView({
     },
     [onSyncWeekMonday],
   );
-
-  const pickOrient = (o: CalendarOrient) => {
-    setOrient(o);
-    try {
-      localStorage.setItem(ORIENT_LS_KEY, o);
-    } catch {
-      /* ignore */
-    }
-  };
 
   const regionInvestigators = useMemo(
     () => (region === "all" ? investigators : investigators.filter((i) => i.region === region)),
@@ -270,7 +253,7 @@ export function NewCalendarView({
   }, [blocks, regionCases]);
 
   const coverageLabel =
-    orient === "investigators"
+    axis === "investigators"
       ? `${bookedInvestigatorCount} / ${regionInvestigators.length} investigators booked`
       : `${coveredCaseCount} / ${regionCases.length} cases covered`;
 
@@ -438,10 +421,9 @@ export function NewCalendarView({
   };
 
   const acceptDropOnInvestigator =
-    drag?.kind === "case" || (drag?.kind === "block" && orient === "investigators");
+    drag?.kind === "case" || (drag?.kind === "block" && axis === "investigators");
   const acceptDropOnCase =
-    drag?.kind === "investigator" ||
-    (drag?.kind === "block" && (orient === "cases" || orient === "cases-vertical"));
+    drag?.kind === "investigator" || (drag?.kind === "block" && axis === "cases");
 
   const openNotes = (block: ScheduleBlock) => {
     const dayBlocks = blocks ?? [];
@@ -582,26 +564,6 @@ export function NewCalendarView({
               </span>
             )}
           </div>
-          <ViewToggleGroup>
-            <ViewToggle
-              active={orient === "investigators"}
-              onClick={() => pickOrient("investigators")}
-              icon={<Users size={13} strokeWidth={1.8} />}
-              label="Investigators"
-            />
-            <ViewToggle
-              active={orient === "cases"}
-              onClick={() => pickOrient("cases")}
-              icon={<Briefcase size={13} strokeWidth={1.8} />}
-              label="Cases"
-            />
-            <ViewToggle
-              active={orient === "cases-vertical"}
-              onClick={() => pickOrient("cases-vertical")}
-              icon={<Rows3 size={13} strokeWidth={1.8} />}
-              label="Vertical"
-            />
-          </ViewToggleGroup>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
@@ -609,9 +571,46 @@ export function NewCalendarView({
             <div className="grid place-items-center py-16 text-[var(--color-text-lo)]">
               <Loader2 size={18} className="animate-spin" />
             </div>
-          ) : orient === "investigators" ? (
+          ) : axis === "investigators" ? (
             sortedInvestigators.length === 0 ? (
               <EmptyState text="No investigators in this region." />
+            ) : vertical ? (
+              <div className="grid grid-cols-[repeat(auto-fill,20rem)] justify-start gap-2.5 pt-1">
+                {sortedInvestigators.map((inv) => {
+                  const block = blockByUser.get(inv.id);
+                  const targetKey = `inv:${inv.id}`;
+                  const highlight = acceptDropOnInvestigator && dropTarget === targetKey && !block;
+                  return (
+                    <InvestigatorBoardColumn
+                      key={inv.id}
+                      name={inv.name}
+                      region={inv.region}
+                      block={block}
+                      canManage={canManage}
+                      dropHighlight={highlight}
+                      onDragOver={(e) => {
+                        if (!acceptDropOnInvestigator || block) return;
+                        e.preventDefault();
+                        setDropTarget(targetKey);
+                      }}
+                      onDragLeave={() => setDropTarget((t) => (t === targetKey ? null : t))}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        onDropInvestigatorRow(inv.id);
+                      }}
+                      onBandDragStart={(b, e) => startBlockDrag(b, e)}
+                      onBandDragEnd={clearDrag}
+                      onAssign={() => openPickCase(inv.id)}
+                      onOpenNotes={openNotes}
+                      onUnassign={(blockId) => {
+                        setBlocks((prev) => prev?.filter((b) => b.id !== blockId) ?? null);
+                        onRemoveBlock(blockId);
+                        refreshCoverage();
+                      }}
+                    />
+                  );
+                })}
+              </div>
             ) : (
               sortedInvestigators.map((inv) => {
                 const block = blockByUser.get(inv.id);
@@ -661,11 +660,11 @@ export function NewCalendarView({
                 );
               })
             )
-          ) : orient === "cases" || orient === "cases-vertical" ? (
+          ) : (
             sortedCases.length === 0 ? (
               <EmptyState text="No open cases in this region." />
-            ) : orient === "cases-vertical" ? (
-              <div className="grid grid-cols-[repeat(auto-fill,15rem)] justify-start gap-2.5 pt-1">
+            ) : vertical ? (
+              <div className="grid grid-cols-[repeat(auto-fill,20rem)] justify-start gap-2.5 pt-1">
                 {boardCases.map((c) => {
                   const dayBlocks = blocksByCase.get(c.id) ?? [];
                   const targetKey = `case:${c.id}`;
@@ -776,7 +775,7 @@ export function NewCalendarView({
                 );
               })
             )
-          ) : null}
+          )}
         </div>
       </div>
 
