@@ -12,6 +12,7 @@ import {
   type CaseStatus,
   type GridLayoutItem,
 } from "@/lib/crm-api";
+import { daysUntilDue, formatCalendarDate } from "@/lib/dates";
 
 // ─── Shared cell styling ─────────────────────────────────────────────────────
 
@@ -39,24 +40,14 @@ const SERVICE_COLORS: Record<CaseService, { bg: string; text: string }> = {
   LIA: { bg: "rgba(244,114,182,0.16)", text: "#f472b6" },
 };
 
-const DAY_MS = 86_400_000;
-
 const fmtShortDate = (iso: string): string =>
   new Date(iso).toLocaleDateString(undefined, { month: "2-digit", day: "2-digit", year: "2-digit" });
-
-const daysUntil = (iso: string): number => {
-  const due = new Date(iso);
-  const today = new Date();
-  due.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due.getTime() - today.getTime()) / DAY_MS);
-};
 
 const Dash = () => <span className="font-mono text-[0.65625rem] text-[var(--color-text-lo)]">—</span>;
 
 function DueCell({ c }: { c: CaseListItem }) {
   if (!c.dueDate) return <Dash />;
-  const left = daysUntil(c.dueDate);
+  const left = daysUntilDue(c.dueDate);
   const closed = c.status === "closed";
   const overdue = !closed && left < 0;
   const soon = !closed && left >= 0 && left <= 7;
@@ -68,7 +59,7 @@ function DueCell({ c }: { c: CaseListItem }) {
           overdue ? "text-[var(--color-neg)]" : soon ? "text-[#fb923c]" : "text-[var(--color-text-hi)]",
         )}
       >
-        {fmtShortDate(c.dueDate)}
+        {formatCalendarDate(c.dueDate, { month: "2-digit", day: "2-digit", year: "2-digit" })}
       </div>
       <div
         className={cn(
@@ -210,7 +201,7 @@ export const CASE_COLUMNS: CaseColumnDef[] = [
   { id: "due", label: "Due", defaultWidth: 9, sortKey: "dueDate", render: (c) => <DueCell c={c} /> },
   {
     id: "active",
-    label: "EAC",
+    label: "EAT",
     defaultWidth: 11,
     sortKey: "earliestActiveAt",
     render: (c) =>

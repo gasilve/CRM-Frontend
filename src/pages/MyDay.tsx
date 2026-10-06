@@ -22,6 +22,7 @@ import { useQuery, invalidateQueries } from "@/lib/query-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCasePhoto } from "@/hooks/useCasePhoto";
 import { ENTRY_META, fmtTime, READABLE_DATE_CLASS } from "@/lib/journal";
+import { dueDateTone } from "@/lib/dates";
 import {
   casesApi,
   timeEntriesApi,
@@ -46,17 +47,6 @@ const fmtDuration = (ms: number): string => {
 };
 
 const fmtToday = (): string => new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
-
-/** Due-date chip color: red once overdue, amber inside 3 days, muted otherwise. */
-const dueTone = (iso: string | null): { label: string; color: string } | null => {
-  if (!iso) return null;
-  const due = new Date(iso);
-  const days = Math.ceil((due.getTime() - Date.now()) / 86_400_000);
-  const label = `Due ${due.toLocaleDateString(undefined, { month: "short", day: "numeric" })} (${due.toLocaleDateString(undefined, { weekday: "short" })})`;
-  if (days < 0) return { label: `${label} · overdue`, color: "#f87171" };
-  if (days <= 3) return { label, color: "#fb923c" };
-  return { label, color: "var(--color-text-mid)" };
-};
 
 export default function MyDay() {
   const navigate = useNavigate();
@@ -218,7 +208,7 @@ export default function MyDay() {
                   </h2>
                   <span className="hidden text-[0.75rem] text-[var(--color-text-lo)] sm:inline">{BUCKET_META[bucket].hint}</span>
                 </div>
-                <div className="grid items-start gap-2.5 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                <div className="grid items-start gap-2.5 sm:grid-cols-2">
                   {groupItems.map((item) => (
                     <CaseGlanceCard
                       key={item.caseId}
@@ -329,7 +319,7 @@ function TodayHero({
 
   const entries = useMemo(() => detail?.days.flatMap((d) => d.entries) ?? [], [detail]);
   const address = k.addresses?.find((a) => a.isPrimary) ?? k.addresses?.[0] ?? null;
-  const due = dueTone(k.dueDate);
+  const due = dueDateTone(k.dueDate);
   const earliest = formatEarliestActive(k.earliestActiveAt);
 
   /** Gallery is specifically extra subject stills + every vehicle on the case — the two things worth a glance before walking in. */
@@ -413,7 +403,7 @@ function TodayHero({
               value={transportLabel(k.subjectTransport)}
             />
           )}
-          <HeroFact icon={Clock} label="Earliest active" value={earliest ? `${earliest.time} · ${earliest.date}` : "No investigator note yet"} />
+          <HeroFact icon={Clock} label="EAT" value={earliest ? `${earliest.time} · ${earliest.date}` : "No investigator note yet"} />
 
           {k.subjectWorkStatus && (
             <p className="line-clamp-2 text-[0.8125rem] leading-relaxed text-[var(--color-text-mid)]">

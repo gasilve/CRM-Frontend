@@ -24,6 +24,7 @@ import { ImageComparisonModal } from "@/components/case/ImageComparisonModal";
 import { FileViewerModal } from "@/components/case/FileViewerModal";
 import { CaseMap } from "@/components/case/CaseMap";
 import type { CasePanelCtx } from "./case-detail-widgets";
+import { formatCalendarDate } from "@/lib/dates";
 
 const fmtFileSize = (bytes: number | null): string => {
   if (bytes === null) return "—";
@@ -341,7 +342,7 @@ export function IdentityPanel({ ctx }: { ctx: CasePanelCtx }) {
             </div>
           </div>
         )}
-        <ProtectedField ctx={ctx} field="case.subjectDob" label="Date of birth" value={fmtDate(c.subjectDob)} />
+        <ProtectedField ctx={ctx} field="case.subjectDob" label="Date of birth" value={formatCalendarDate(c.subjectDob)} />
         {/* Already masked server-side when the role says so; maskSsn keeps the display consistent. */}
         <ProtectedField ctx={ctx} field="case.subjectSsn" label="SSN" value={maskSsn(c.subjectSsn)} />
         <ProtectedField
@@ -465,12 +466,12 @@ export function CaseInfoPanel({ ctx }: { ctx: CasePanelCtx }) {
           <Field label="City" value={city || "—"} mono={false} />
           <Field label="Start time" value={c.startTime ?? "—"} />
           <ProtectedField ctx={ctx} field="case.adjuster" label="Adjuster" value={c.adjusterName ?? "—"} mono={false} />
-          <ProtectedField ctx={ctx} field="case.dateOfInjury" label="Date of injury" value={fmtDate(c.dateOfInjury)} />
+          <ProtectedField ctx={ctx} field="case.dateOfInjury" label="Date of injury" value={formatCalendarDate(c.dateOfInjury)} />
         </div>
         <div className="space-y-3">
           <ProtectedField ctx={ctx} field="case.claimNumber" label="Claim #" value={c.claimNumber ?? "—"} />
           <ProtectedField ctx={ctx} field="case.policyNumber" label="Policy #" value={c.policyNumber ?? "—"} />
-          <Field label="Due date" value={fmtDate(c.dueDate)} />
+          <Field label="Due date" value={formatCalendarDate(c.dueDate)} />
           <Field label="Days" value={c.daysAllotted != null ? String(c.daysAllotted) : "—"} />
           <Field label="Service" value={SERVICE_LABELS[c.service]} mono={false} />
         </div>

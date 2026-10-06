@@ -11,32 +11,10 @@ import {
   type SchedulePriorWork,
 } from "@/lib/crm-api";
 import { SERVICE_LABELS } from "@/lib/mock-data";
+import { daysUntilDue, dueReminderLabel, formatDueShort } from "@/lib/dates";
 
 type PriorKey = string;
 export const priorKey = (caseId: string, userId: string): PriorKey => `${caseId}:${userId}`;
-
-const DAY_MS = 86_400_000;
-
-function formatDueShort(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-function daysUntilDue(iso: string): number {
-  const due = new Date(iso);
-  const today = new Date();
-  due.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due.getTime() - today.getTime()) / DAY_MS);
-}
-
-function dueReminderLabel(iso: string, status: CaseListItem["status"]): string {
-  if (status === "closed") return "closed";
-  const left = daysUntilDue(iso);
-  if (left < 0) return left === -1 ? "1 day overdue" : `${Math.abs(left)} days overdue`;
-  if (left === 0) return "due today";
-  if (left === 1) return "1 day left";
-  return `${left} days left`;
-}
 
 export function sortCasesForInvestigator(
   cases: CaseListItem[],

@@ -230,7 +230,7 @@ function CaseDetailGridInner({
 
     for (const grid of gridsRef.current.values()) {
       try {
-        grid.destroy(true);
+        grid.destroy(false);
       } catch {
         /* ignore */
       }
@@ -601,7 +601,7 @@ function CaseDetailGridInner({
       for (const grid of gridsRef.current.values()) {
         detachGridEvents(grid);
         try {
-          grid.destroy(true);
+          grid.destroy(false);
         } catch {
           /* ignore */
         }
@@ -624,7 +624,7 @@ function CaseDetailGridInner({
     for (const [pid, grid] of [...gridsRef.current]) {
       if (currentIds.has(pid)) continue;
       try {
-        grid.destroy(true);
+        grid.destroy(false);
       } catch {
         /* ignore */
       }

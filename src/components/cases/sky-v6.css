@@ -1,0 +1,781 @@
+/* Sky View v6 — scoped copy of the client reference. Sizes stay in px, which is
+   the 1920 layout. The root rem ladder does not reach those px values, so on a
+   shorter page (1280, a 4K panel at 300%) the columns crush. Scale the whole
+   surface by the same ratio as the ladder (1 at 16px) so 1280 is the 1920
+   page uniformly smaller, and never scale above 1. */
+.sky-v6 {
+  --ink: #f4f6fb;
+  --ink2: rgba(244, 246, 251, 0.72);
+  --ink3: rgba(244, 246, 251, 0.42);
+  --active: #3ee08a;
+  --working: #ffc857;
+  --noact: #9aa5b8;
+  --noticed: #ff9f45;
+  --burned: #ff5c63;
+  --fixed: #5aa9ff;
+  --tail: #b18cff;
+  --glass: rgba(18, 22, 34, 0.42);
+  --glass2: rgba(255, 255, 255, 0.1);
+  --edge: rgba(255, 255, 255, 0.26);
+
+  position: relative;
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #0a0d16;
+  color: var(--ink);
+  font-family: Inter, -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Holds the px layout. Below 1920 it is laid out at the 1920 size and scaled
+   from the top-left so it stays put instead of sliding across the pane. */
+.sky-v6-scale {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  container-type: size;
+}
+
+.sky-v6,
+.sky-v6 * {
+  box-sizing: border-box;
+}
+
+html[data-glass] .surveil-shell .sky-v6 :where(h1, h2, h3, p, span, a, button, label, div, i, em, b, small) {
+  text-shadow: none !important;
+  -webkit-text-stroke: 0 !important;
+}
+
+.sky-v6 .scene {
+  position: sticky;
+  top: 0;
+  z-index: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.sky-v6 .scene-fill {
+  position: relative;
+  height: 100cqh;
+  overflow: hidden;
+}
+
+.sky-v6 .sky {
+  position: absolute;
+  inset: -20%;
+  filter: blur(70px) saturate(130%);
+}
+
+.sky-v6 .orb {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.55;
+  mix-blend-mode: screen;
+  animation: sky-v6-drift 38s ease-in-out infinite alternate;
+}
+
+.sky-v6 .o1 {
+  width: 60vw;
+  height: 60vw;
+  left: -10vw;
+  top: -15vw;
+  background: radial-gradient(circle, #1f7a8c, transparent 70%);
+}
+
+.sky-v6 .o2 {
+  width: 55vw;
+  height: 55vw;
+  right: -15vw;
+  top: 5vw;
+  background: radial-gradient(circle, #5b3fbf, transparent 70%);
+  animation-delay: -14s;
+}
+
+.sky-v6 .o3 {
+  width: 50vw;
+  height: 50vw;
+  left: 25vw;
+  bottom: -20vw;
+  background: radial-gradient(circle, #b4581f, transparent 70%);
+  animation-delay: -26s;
+  opacity: 0.4;
+}
+
+@keyframes sky-v6-drift {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(6vw, 4vw) scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sky-v6 .orb { animation: none; }
+}
+
+.sky-v6 .scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(6, 9, 18, 0.55), rgba(6, 9, 18, 0.35) 40%, rgba(6, 9, 18, 0.7));
+}
+
+.sky-v6 .grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.6'/%3E%3C/svg%3E");
+}
+
+.sky-v6 .g {
+  position: relative;
+  background: var(--glass);
+  border-radius: 28px;
+  border: 1px solid var(--edge);
+  backdrop-filter: blur(36px) saturate(180%);
+  -webkit-backdrop-filter: blur(36px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 60px -30px rgba(0, 0, 0, 0.7);
+}
+
+.sky-v6 .g::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.04) 28%, transparent 55%, rgba(255, 255, 255, 0.06) 100%);
+}
+
+.sky-v6 .page {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(300px, 0.95fr) minmax(380px, 1.2fr) 340px;
+  gap: 32px;
+  padding: 40px 48px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* 1101–1860 is where the rem ladder is below 16px. Lay Skyview out at the 1920
+   size, then scale it from the top-left. Width follows the ladder; a shorter
+   pane (4K at 300% plus browser chrome) uses the 1080 design height instead,
+   so the bottom is not clipped. 1920 and wider are untouched. */
+@media (min-width: 1101px) and (max-width: 1860px) {
+  .sky-v6 {
+    container-type: size;
+  }
+
+  .sky-v6-scale {
+    --sky-w: calc(1rem / 16px);
+    --sky-h: calc((100cqh - 8px) / 1080px);
+    --sky-fit: min(var(--sky-w), var(--sky-h));
+    width: calc(100% / var(--sky-w));
+    height: calc(100% / var(--sky-fit));
+    transform: scale(var(--sky-fit));
+    transform-origin: top left;
+  }
+}
+
+@media (max-width: 1100px) {
+  .sky-v6 .page {
+    grid-template-columns: 1fr;
+    padding: 24px 36px 24px 20px;
+  }
+}
+
+.sky-v6 .id { padding: 34px 36px; }
+.sky-v6 .name { font-size: 52px; font-weight: 300; letter-spacing: -2px; line-height: 0.95; color: var(--ink); }
+.sky-v6 .name span { font-size: 22px; color: var(--ink3); font-weight: 300; letter-spacing: 0; margin-left: 10px; }
+.sky-v6 .addr { margin-top: 20px; font-size: 16px; color: var(--ink2); }
+.sky-v6 .addr b { font-weight: 500; color: var(--ink); }
+.sky-v6 .cap {
+  display: inline-block;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid var(--edge);
+  margin-left: 8px;
+  vertical-align: 2px;
+}
+.sky-v6 .cap.d { color: var(--fixed); }
+.sky-v6 .cap.c { color: var(--burned); }
+.sky-v6 .client { margin-top: 10px; font-size: 16px; color: var(--ink2); }
+.sky-v6 .facts { margin-top: 40px; display: flex; flex-direction: column; gap: 14px; }
+.sky-v6 .fact {
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: var(--glass2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 15px;
+  color: var(--ink2);
+}
+.sky-v6 .fact .big { font-size: 38px; font-weight: 300; letter-spacing: -1.5px; color: var(--ink); line-height: 1; margin-bottom: 6px; }
+.sky-v6 .fact .big small { font-size: 15px; letter-spacing: 0; color: var(--ink3); margin-left: 12px; }
+.sky-v6 .fact b { color: var(--ink); font-weight: 500; }
+.sky-v6 .fact.work { border-color: rgba(255, 200, 87, 0.35); box-shadow: inset 0 0 40px -20px rgba(255, 200, 87, 0.35); }
+.sky-v6 .fact.work .big { color: var(--working); }
+
+.sky-v6 .center { display: flex; flex-direction: column; align-items: center; }
+.sky-v6 .wheel { width: 100%; max-width: 400px; position: relative; z-index: 3; margin-top: 8px; margin-bottom: 22px; }
+.sky-v6 .wheel svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+  transform-origin: center;
+  animation: sky-wheel-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sky-v6 .nav-g { cursor: pointer; }
+.sky-v6 .nav-seg {
+  fill: none;
+  d: var(--arc);
+  /* Rest band is 176–212. Hover shifts the middle out a little and widens the stroke, so it thickens slightly inward and mostly outward. */
+  stroke: color-mix(in srgb, var(--seg) 55%, transparent);
+  stroke-width: 36;
+  stroke-linecap: butt;
+  transition: d 220ms cubic-bezier(0.2, 0.8, 0.2, 1), stroke-width 220ms cubic-bezier(0.2, 0.8, 0.2, 1), stroke 180ms ease;
+}
+.sky-v6 .nav-g:hover .nav-seg {
+  d: var(--arc-hot);
+  stroke-width: 70;
+  stroke: color-mix(in srgb, var(--seg) 88%, transparent);
+}
+.sky-v6 .nav-g .dlab {
+  fill: var(--seg);
+  font-size: 20px;
+  paint-order: stroke fill;
+  stroke: #0a0d16;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sky-v6 .nav-g:hover .dlab {
+  fill: var(--seg);
+  font-weight: 600;
+  transform: translate(var(--nx), var(--ny));
+}
+@keyframes sky-wheel-in {
+  from { opacity: 0; transform: rotate(-12deg) scale(0.94); }
+  to { opacity: 1; transform: rotate(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sky-v6 .wheel svg { animation: none; }
+  .sky-v6 .nav-seg,
+  .sky-v6 .nav-g .dlab { transition: none; }
+}
+.sky-v6 .core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 62%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+}
+.sky-v6 .core .n { font-size: 60px; font-weight: 200; letter-spacing: -2.5px; line-height: 0.9; color: var(--ink); }
+.sky-v6 .core .l { font-size: 15px; color: var(--ink3); margin-top: 4px; }
+.sky-v6 .core .read { margin-top: 14px; font-size: 13.5px; color: var(--ink2); max-width: 190px; line-height: 1.35; }
+.sky-v6 .core .read b { color: var(--ink); font-weight: 500; }
+.sky-v6 .dlab { font-size: 12px; fill: var(--ink3); font-weight: 500; font-family: inherit; cursor: pointer; }
+.sky-v6 .dlab.hot { fill: var(--ink); font-weight: 600; }
+
+.sky-v6 .ledger { width: 100%; margin-top: 36px; display: flex; flex-direction: column; gap: 8px; }
+.sky-v6 .row-wrap { position: relative; width: 100%; }
+.sky-v6 .row-wrap .r { width: 100%; }
+.sky-v6 .ime .row-wrap .r { width: calc(100% - 20px); margin-left: 10px; margin-right: 10px; }
+.sky-v6 .day-x {
+  position: absolute;
+  left: calc(100% + 2px);
+  top: 50%;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--burned);
+  cursor: pointer;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+.sky-v6 .day-x:hover { background: rgba(255, 92, 99, 0.16); }
+.sky-v6 .ime + .ledger,
+.sky-v6 .ledger + .ledger { margin-top: 8px; }
+.sky-v6 .r {
+  display: grid;
+  grid-template-columns: 108px 1fr 120px 88px;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border-radius: 18px;
+  font-size: 15px;
+  background: var(--glass);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.sky-v6 .r .d { color: var(--ink2); }
+.sky-v6 .r .d b { color: var(--ink); font-weight: 500; }
+.sky-v6 .r .i { display: flex; align-items: center; gap: 10px; }
+.sky-v6 .r .i i { width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: 0 0 14px currentColor; }
+.sky-v6 .r .o { font-weight: 500; }
+.sky-v6 .r .c { text-align: right; color: var(--ink3); font-size: 13.5px; }
+.sky-v6 .face { display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-variant-numeric: tabular-nums; }
+.sky-v6 .photo img { width: 100%; height: 100%; object-fit: cover; object-position: center 12%; display: block; }
+.sky-v6 .core .ime-form { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.sky-v6 .core .ime-form input {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--edge);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+}
+.sky-v6 .stake .wait { color: var(--ink3); font-size: 14px; line-height: 1.4; }
+.sky-v6 .r .c em { font-style: normal; color: var(--tail); font-weight: 500; }
+.sky-v6 .r.open { background: transparent; border: 1px dashed rgba(255, 255, 255, 0.18); box-shadow: none; color: var(--ink3); backdrop-filter: none; }
+.sky-v6 .r.open .d b { color: var(--ink3); font-weight: 400; }
+.sky-v6 .r.open .i::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px dashed var(--ink3);
+}
+.sky-v6 .add-day {
+  width: 100%;
+  margin-top: 36px;
+  place-items: center;
+  grid-template-columns: 1fr;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1;
+  font-family: inherit;
+}
+.sky-v6 .ledger ~ .add-day,
+.sky-v6 .ime ~ .add-day { margin-top: 8px; }
+.sky-v6 .add-day:hover { background: rgba(255, 255, 255, 0.16); }
+.sky-v6 .add-day:disabled { cursor: default; opacity: 0.6; }
+.sky-v6 .btn {
+  padding: 9px 18px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  background: var(--glass2);
+  border: 1px solid var(--edge);
+  backdrop-filter: blur(20px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.sky-v6 .btn:hover { background: rgba(255, 255, 255, 0.17); }
+
+.sky-v6 .rail { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.sky-v6 .photo-row {
+  display: grid;
+  grid-template-columns: minmax(0, 262px) 70px;
+  column-gap: 8px;
+  width: 100%;
+  min-width: 0;
+  justify-content: start;
+  align-items: start;
+}
+/* Same shape as before, grown to the spare width beside the summary. */
+.sky-v6 .photo-row .photo {
+  width: 100%;
+  max-width: 262px;
+  height: auto;
+  min-width: 0;
+  aspect-ratio: 232 / 226;
+}
+.sky-v6 .photo {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 28px;
+  overflow: hidden;
+  position: relative;
+  background: linear-gradient(160deg, #3c4a63, #1d2536);
+  border: 1px solid var(--edge);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.sky-v6 .photo .m {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.sky-v6 .photo img { position: absolute; inset: 0; }
+.sky-v6 .photo .probe { z-index: 1; }
+.sky-v6 .photo .scan {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #fff;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.55);
+  z-index: 2;
+  pointer-events: none;
+}
+.sky-v6 .photo .verdict,
+.sky-v6 .photo .score {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  text-align: center;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
+.sky-v6 .photo .verdict { top: 12px; font-size: 13px; font-weight: 650; letter-spacing: 0.4px; text-transform: uppercase; }
+.sky-v6 .photo .score { bottom: 10px; font-size: 32px; font-weight: 300; letter-spacing: -1px; }
+.sky-v6 .shots {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  align-self: stretch;
+  gap: 6px;
+  width: 70px;
+  height: 0;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.sky-v6 .shots button {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  flex: none;
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+.sky-v6 .shots button.on { border-color: #fff; }
+.sky-v6 .shots img { width: 100%; height: 100%; object-fit: cover; object-position: center 12%; display: block; position: static; }
+.sky-v6 .shot-score {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 10, 16, 0.62);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -0.3px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+.sky-v6 .shots button:hover .shot-score { opacity: 1; }
+.sky-v6 .x {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink3);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.sky-v6 .x:hover { color: var(--burned); }
+.sky-v6 .confirm-layer { position: fixed; inset: 0; z-index: 40; }
+.sky-v6 .confirm-back { position: absolute; inset: 0; border: 0; background: rgba(0, 0, 0, 0.55); cursor: pointer; }
+.sky-v6 .confirm {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(24rem, 92vw);
+  padding: 22px 24px;
+  border-radius: 20px;
+  background: #141824;
+  border: 1px solid var(--edge);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.sky-v6 .confirm h2 { margin: 0; font-size: 20px; font-weight: 560; color: var(--ink); }
+.sky-v6 .confirm p { margin: 10px 0 0; color: var(--ink2); font-size: 14px; line-height: 1.45; }
+.sky-v6 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.sky-v6 .btn.danger { color: #fff; background: var(--burned); border-color: transparent; }
+
+.sky-v6 .sec { font-size: 12px; color: var(--ink3); font-weight: 500; margin-bottom: 10px; }
+.sky-v6 .occ { margin-top: 6px; font-size: 16px; color: var(--ink2); }
+.sky-v6 .fact .line { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 14px; }
+.sky-v6 .fact .line:first-of-type { border-top: 0; padding-top: 0; }
+.sky-v6 .fact .line span:last-child { color: var(--ink); font-weight: 500; text-align: right; }
+
+.sky-v6 .stake { padding: 18px 20px 20px; }
+.sky-v6 .stake-map {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
+  z-index: 0;
+  border: 1px solid var(--edge);
+  margin-bottom: 12px;
+}
+.sky-v6 .stake-map .leaflet-container {
+  height: 100%;
+  width: 100%;
+  background: #141820;
+  font-family: inherit;
+}
+.sky-v6 .stake .cfg { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.sky-v6 .chip { padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 500; border: 1px solid var(--edge); background: rgba(255, 255, 255, 0.08); }
+.sky-v6 .chip.two { color: var(--tail); border-color: rgba(177, 140, 255, 0.4); }
+.sky-v6 .chip.fx { color: var(--fixed); }
+.sky-v6 .chip.tl { color: var(--tail); }
+.sky-v6 .map {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 20px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--edge);
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 30px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 30px),
+    rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.sky-v6 .pin {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 16px currentColor;
+}
+.sky-v6 .pin::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0.4;
+}
+.sky-v6 .mkey {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--ink2);
+  display: flex;
+  gap: 14px;
+}
+.sky-v6 .mkey span::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: currentColor;
+  vertical-align: 1px;
+}
+
+.sky-v6 .legend {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 26px;
+  font-size: 13px;
+  color: var(--ink2);
+  justify-content: center;
+  padding-top: 6px;
+}
+.sky-v6 .legend span::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 7px;
+  background: currentColor;
+  vertical-align: 1px;
+  box-shadow: 0 0 10px currentColor;
+}
+
+.sky-v6 .places { padding: 18px 20px; }
+.sky-v6 .pl { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 14px; }
+.sky-v6 .pl:first-of-type { border-top: 0; padding-top: 0; }
+.sky-v6 .pl .k { color: var(--ink); font-weight: 500; }
+.sky-v6 .pl .a { color: var(--ink2); grid-column: 1 / -1; font-size: 13px; }
+.sky-v6 .pl .t { font-size: 12px; color: var(--ink3); text-align: right; white-space: nowrap; }
+.sky-v6 .pl.poe .k { color: var(--working); }
+
+.sky-v6 .idl { padding: 18px 22px; font-size: 14px; color: var(--ink2); }
+.sky-v6 .idl .row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); line-height: 1.4; }
+.sky-v6 .idl .row:first-of-type { border-top: 0; padding-top: 0; }
+.sky-v6 .idl .row .v { color: var(--ink); font-weight: 500; text-align: right; }
+.sky-v6 .idl .row .v.on::before { content: "✓ "; color: var(--active); }
+
+.sky-v6 .assign {
+  width: 100%;
+  margin-top: 28px;
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: center;
+}
+.sky-v6 .assign .items { display: flex; flex-wrap: wrap; gap: 8px; }
+.sky-v6 .ai {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink2);
+}
+.sky-v6 .ai.done { color: var(--active); border-color: rgba(62, 224, 138, 0.4); }
+.sky-v6 .ai.done::before { content: "✓ "; }
+.sky-v6 .ai.med { color: var(--working); border-color: rgba(255, 200, 87, 0.45); background: rgba(255, 200, 87, 0.08); }
+.sky-v6 .ai.med b { font-weight: 600; color: var(--ink); }
+.sky-v6 .assign .rem { display: flex; gap: 22px; text-align: right; }
+.sky-v6 .assign .rem div { line-height: 1; }
+.sky-v6 .assign .rem .n { font-size: 34px; font-weight: 300; letter-spacing: -1.5px; color: var(--ink); }
+.sky-v6 .assign .rem .l { font-size: 12px; color: var(--ink3); margin-top: 4px; }
+.sky-v6 .r.med { border-color: rgba(255, 200, 87, 0.45); background: rgba(255, 200, 87, 0.06); }
+.sky-v6 .r.med .d b { color: var(--working); }
+
+.sky-v6 .ime {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 0;
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--mark, var(--working)) 45%, transparent);
+  background: color-mix(in srgb, var(--mark, var(--working)) 8%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sky-v6 .ime-lab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--mark, var(--working));
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  padding: 2px 10px 0;
+}
+.sky-v6 .idl .sum { margin: 0; font-size: 15px; line-height: 1.45; color: var(--ink2); }
+.sky-v6 .ime-core { font-size: 13px; font-weight: 600; letter-spacing: 2px; color: var(--working); margin-bottom: 6px; }
+
+.sky-v6 .guide {
+  width: min(40rem, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  gap: 18px;
+  min-height: 100%;
+  padding: 28px 20px 40px;
+}
+.sky-v6 .guide-steps { display: flex; gap: 10px; }
+.sky-v6 .guide-steps button {
+  flex: 1;
+  border: 0;
+  border-bottom: 3px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0 0 8px;
+  cursor: pointer;
+}
+.sky-v6 .guide-steps button.done { color: color-mix(in srgb, var(--seg) 72%, white); border-bottom-color: color-mix(in srgb, var(--seg) 55%, transparent); }
+.sky-v6 .guide-steps button.on { color: var(--seg, var(--ink)); border-bottom-color: var(--seg, var(--ink)); }
+.sky-v6 .guide-card { padding: 28px 28px 22px; display: flex; flex-direction: column; gap: 18px; }
+.sky-v6 .guide-card > * { position: relative; z-index: 1; }
+.sky-v6 .guide-kicker { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; }
+.sky-v6 .guide-card h1 { margin: 0; font-size: 36px; font-weight: 300; letter-spacing: -1px; line-height: 1.05; color: var(--ink); }
+.sky-v6 .guide-hint { margin: -8px 0 0; font-size: 15px; line-height: 1.4; color: var(--ink2); }
+.sky-v6 .guide-error { margin: 0; color: var(--burned); font-size: 14px; }
+.sky-v6 .guide-fields { display: flex; flex-direction: column; gap: 16px; }
+.sky-v6 .guide-block { display: flex; flex-direction: column; gap: 8px; }
+.sky-v6 .guide-block > span { font-size: 12px; color: var(--ink3); }
+.sky-v6 .guide-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sky-v6 .guide-split.place { grid-template-columns: 1.4fr 0.6fr 0.7fr; }
+.sky-v6 .guide label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--ink3); }
+.sky-v6 .guide input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--edge);
+  color: var(--ink);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 16px;
+  color-scheme: dark;
+}
+.sky-v6 .guide input:focus { outline: none; border-color: color-mix(in srgb, var(--seg, white) 75%, transparent); }
+.sky-v6 .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.sky-v6 .choices button {
+  border-radius: 999px;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink2);
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.sky-v6 .choices button:hover { color: var(--ink); border-color: rgba(255, 255, 255, 0.45); }
+.sky-v6 .choices button.on { color: var(--ink); border-color: transparent; background: color-mix(in srgb, var(--active) 28%, transparent); }
+.sky-v6 .choices button.hot.on { background: color-mix(in srgb, var(--burned) 32%, transparent); }
+.sky-v6 .review { display: flex; flex-direction: column; }
+.sky-v6 .review-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 10px 8px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.sky-v6 .review-line:hover { background: rgba(255, 255, 255, 0.05); }
+.sky-v6 .review-line span { color: var(--ink3); }
+.sky-v6 .review-line b { color: var(--ink); font-weight: 500; text-align: right; }
+.sky-v6 .guide-nav { display: flex; justify-content: space-between; gap: 12px; margin-top: 4px; }
+.sky-v6 .btn.next { color: #062117; background: var(--active); border-color: transparent; }

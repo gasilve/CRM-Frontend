@@ -110,6 +110,27 @@ const trackStyle = (columns: { width: number }[]): CSSProperties => ({
   gridTemplateColumns: ["3.625rem", ...columns.map((c) => `minmax(2.75rem, ${c.width}fr)`)].join(" "),
 });
 
+const CASES_VIEW_LS_KEY = "accenty.crm.cases.view";
+
+function readCasesView(): "table" | "cards" {
+  try {
+    const stored = localStorage.getItem(CASES_VIEW_LS_KEY);
+    if (stored === "table" || stored === "cards") return stored;
+  } catch {
+    /* ignore */
+  }
+  return "cards";
+}
+
+function chooseCasesView(next: "table" | "cards", setView: (view: "table" | "cards") => void) {
+  setView(next);
+  try {
+    localStorage.setItem(CASES_VIEW_LS_KEY, next);
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Outside-click / Escape dismissal for lightweight popovers. */
 function useDismiss<T extends HTMLElement>(open: boolean, onDismiss: () => void) {
   const ref = useRef<T>(null);
@@ -133,13 +154,13 @@ function useDismiss<T extends HTMLElement>(open: boolean, onDismiss: () => void)
 
 export default function Cases() {
   const navigate = useNavigate();
-  const { isSuperadmin } = useAuth();
+  const { isSuperadmin, can } = useAuth();
 
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<SortState>(null);
   const [page, setPage] = useState(1);
-  const [view, setView] = useState<"table" | "cards">("table");
+  const [view, setView] = useState<"table" | "cards">(readCasesView);
   const perPage = LIST_PAGE;
 
   useEffect(() => setPage(1), [search, filters, sort, view]);
@@ -234,6 +255,15 @@ export default function Cases() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {can("cases.create") && (
+            <button
+              type="button"
+              onClick={() => navigate("/cases/new")}
+              className="inline-flex h-8 items-center rounded-full border border-[var(--color-line)] bg-[var(--color-ink-2)] px-3 text-[0.75rem] font-medium text-[var(--color-text-hi)] hover:border-[var(--color-accent)]"
+            >
+              New case
+            </button>
+          )}
           <WeatherStrip />
         </div>
       </div>
@@ -288,19 +318,7 @@ export default function Cases() {
             <div className="flex items-center rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] p-0.5">
               <button
                 type="button"
-                onClick={() => setView("table")}
-                aria-pressed={view === "table"}
-                title="Table"
-                className={cn(
-                  "grid h-7 w-7 place-items-center rounded-[0.375rem] transition-colors",
-                  view === "table" ? "bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]" : "text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]",
-                )}
-              >
-                <Table2 size={13} strokeWidth={1.8} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setView("cards")}
+                onClick={() => chooseCasesView("cards", setView)}
                 aria-pressed={view === "cards"}
                 title="Cards"
                 className={cn(
@@ -309,6 +327,18 @@ export default function Cases() {
                 )}
               >
                 <LayoutGrid size={13} strokeWidth={1.8} />
+              </button>
+              <button
+                type="button"
+                onClick={() => chooseCasesView("table", setView)}
+                aria-pressed={view === "table"}
+                title="Table"
+                className={cn(
+                  "grid h-7 w-7 place-items-center rounded-[0.375rem] transition-colors",
+                  view === "table" ? "bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]" : "text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]",
+                )}
+              >
+                <Table2 size={13} strokeWidth={1.8} />
               </button>
             </div>
             {isSuperadmin && view === "table" && (

@@ -20,7 +20,6 @@ import {
   useBackground,
   type BackgroundCategoryId,
   type BackgroundId,
-  type BackgroundMeta,
 } from "@/contexts/BackgroundContext";
 import { BgSwatch } from "@/components/layout/BackgroundPicker";
 import { cn } from "@/lib/cn";
@@ -104,15 +103,6 @@ export function ThemePicker({ open, onClose, triggerRef, align = "bottom-end" }:
     return () => document.removeEventListener("mousedown", handler);
   }, [open, onClose, triggerRef]);
 
-  const still = useMemo((): BackgroundMeta => {
-    const base = BACKGROUNDS.find((b) => b.id === "static")!;
-    if (glass) return base;
-    return {
-      ...base,
-      subtitle: "Theme backdrop",
-      thumb: "",
-    };
-  }, [glass]);
   const inCategory = useMemo(
     () => BACKGROUNDS.filter((b) => b.category === category),
     [category],
@@ -335,13 +325,6 @@ export function ThemePicker({ open, onClose, triggerRef, align = "bottom-end" }:
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-3">
-            <BgSwatch
-              bg={still}
-              active={backgroundId === still.id}
-              onSelect={() => pickBg(still.id)}
-              wide
-              themePlate={!glass}
-            />
             <div
               className="mb-2 mt-3 text-[0.5625rem] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
               style={{ fontFamily: "var(--font-sans)" }}
@@ -350,7 +333,10 @@ export function ThemePicker({ open, onClose, triggerRef, align = "bottom-end" }:
             </div>
             <div
               className="grid grid-cols-2 gap-2 pb-3"
-              style={{ pointerEvents: glass ? "auto" : "none", opacity: glass ? 1 : 0.4 }}
+              style={{
+                pointerEvents: glass || category === "plates" ? "auto" : "none",
+                opacity: glass || category === "plates" ? 1 : 0.4,
+              }}
             >
               {inCategory.map((bg) => (
                 <BgSwatch

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
 import { ChevronLeft, ChevronRight, Loader2, MapPin } from "lucide-react";
+import { CaseGlanceCard, glanceFromListItem } from "@/components/cases/CaseGlanceCard";
 import { weatherIcon, weatherColor, conditionLabel } from "@/components/cases/WeatherStrip";
 import { cn } from "@/lib/cn";
 import {
@@ -18,8 +19,6 @@ import { MiniMonthCalendar } from "./MiniMonthCalendar";
 import {
   CalendarDayRow,
   CaseAssignmentBand,
-  CaseBoardColumn,
-  CaseRowLabel,
   EmptyAssignSlot,
   InvestigatorAssignmentBand,
   InvestigatorBoardColumn,
@@ -663,20 +662,16 @@ export function NewCalendarView({
           ) : (
             sortedCases.length === 0 ? (
               <EmptyState text="No open cases in this region." />
-            ) : vertical ? (
-              <div className="grid grid-cols-[repeat(auto-fill,20rem)] justify-start gap-2.5 pt-1">
-                {boardCases.map((c) => {
+            ) : (
+              <div className={vertical ? "grid grid-cols-[repeat(auto-fill,minmax(20rem,1fr))] justify-start gap-2.5 pt-1" : "flex flex-col gap-2 pt-1"}>
+                {(vertical ? boardCases : sortedCases).map((c) => {
                   const dayBlocks = blocksByCase.get(c.id) ?? [];
                   const targetKey = `case:${c.id}`;
                   const highlight = acceptDropOnCase && dropTarget === targetKey;
                   return (
-                    <CaseBoardColumn
+                    <div
                       key={c.id}
-                      subjectName={c.subjectName}
-                      caseNumber={c.caseNumber}
-                      blocks={dayBlocks}
-                      canManage={canManage}
-                      dropHighlight={highlight}
+                      className={cn(highlight && "rounded-[1rem] ring-1 ring-[rgba(74,127,255,0.55)]")}
                       onDragOver={(e) => {
                         if (!acceptDropOnCase) return;
                         e.preventDefault();
@@ -687,93 +682,45 @@ export function NewCalendarView({
                         e.preventDefault();
                         onDropCaseRow(c.id);
                       }}
-                      onBandDragStart={(block, e) => startBlockDrag(block, e)}
-                      onBandDragEnd={clearDrag}
-                      onAssign={() => openPickInvestigator(c.id)}
-                      onOpenNotes={openNotes}
-                      onUnassign={(blockId) => {
-                        setBlocks((prev) => prev?.filter((b) => b.id !== blockId) ?? null);
-                        onRemoveBlock(blockId);
-                        refreshCoverage();
-                      }}
-                    />
+                    >
+                      <CaseGlanceCard
+                        glance={glanceFromListItem(c)}
+                        tone="amber"
+                        panel={
+                          <div className="flex max-h-52 flex-col gap-1.5 overflow-y-auto border-t border-[rgba(247,168,19,0.28)] p-2">
+                            {dayBlocks.map((block) => (
+                              <InvestigatorAssignmentBand
+                                key={block.id}
+                                block={block}
+                                dense
+                                draggable={canManage}
+                                onDragStart={(e) => startBlockDrag(block, e)}
+                                onDragEnd={clearDrag}
+                                onClick={() => openNotes(block)}
+                                onContextUnassign={
+                                  canManage
+                                    ? () => {
+                                        setBlocks((prev) => prev?.filter((b) => b.id !== block.id) ?? null);
+                                        onRemoveBlock(block.id);
+                                        refreshCoverage();
+                                      }
+                                    : undefined
+                                }
+                              />
+                            ))}
+                            <EmptyAssignSlot
+                              dense
+                              label={canManage ? (dayBlocks.length ? "Add investigator" : "Assign investigator") : "Unassigned"}
+                              disabled={!canManage}
+                              onClick={() => canManage && openPickInvestigator(c.id)}
+                            />
+                          </div>
+                        }
+                      />
+                    </div>
                   );
                 })}
               </div>
-            ) : (
-              sortedCases.map((c) => {
-                const dayBlocks = blocksByCase.get(c.id) ?? [];
-                const targetKey = `case:${c.id}`;
-                const highlight = acceptDropOnCase && dropTarget === targetKey;
-                return (
-                  <CalendarDayRow
-                    key={c.id}
-                    label={<CaseRowLabel subjectName={c.subjectName} caseNumber={c.caseNumber} region={c.region} />}
-                  >
-                    {dayBlocks.length > 0 ? (
-                      <div
-                        className={cn(
-                          "flex flex-col gap-1.5 rounded-[0.5rem]",
-                          highlight && "ring-1 ring-[rgba(74,127,255,0.45)]",
-                        )}
-                        onDragOver={(e) => {
-                          if (!acceptDropOnCase) return;
-                          e.preventDefault();
-                          setDropTarget(targetKey);
-                        }}
-                        onDragLeave={() => setDropTarget((t) => (t === targetKey ? null : t))}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          onDropCaseRow(c.id);
-                        }}
-                      >
-                        {dayBlocks.map((block) => (
-                          <InvestigatorAssignmentBand
-                            key={block.id}
-                            block={block}
-                            draggable={canManage}
-                            onDragStart={(e) => startBlockDrag(block, e)}
-                            onDragEnd={clearDrag}
-                            onClick={() => openNotes(block)}
-                            onContextUnassign={
-                              canManage
-                                ? () => {
-                                    setBlocks((prev) => prev?.filter((b) => b.id !== block.id) ?? null);
-                                    onRemoveBlock(block.id);
-                                    refreshCoverage();
-                                  }
-                                : undefined
-                            }
-                          />
-                        ))}
-                        {canManage && (
-                          <EmptyAssignSlot
-                            label="Add investigator"
-                            onClick={() => openPickInvestigator(c.id)}
-                          />
-                        )}
-                      </div>
-                    ) : (
-                      <EmptyAssignSlot
-                        label={canManage ? "Assign investigator" : "Unassigned"}
-                        disabled={!canManage}
-                        onClick={() => canManage && openPickInvestigator(c.id)}
-                        dropHighlight={highlight}
-                        onDragOver={(e) => {
-                          if (!acceptDropOnCase) return;
-                          e.preventDefault();
-                          setDropTarget(targetKey);
-                        }}
-                        onDragLeave={() => setDropTarget((t) => (t === targetKey ? null : t))}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          onDropCaseRow(c.id);
-                        }}
-                      />
-                    )}
-                  </CalendarDayRow>
-                );
-              })
             )
           )}
         </div>

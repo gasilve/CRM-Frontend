@@ -638,7 +638,7 @@ export default function CaseDetail() {
               className="inline-flex items-center gap-1.5 rounded-[0.625rem] border border-[var(--color-line)] px-3 py-1.5 text-[0.71875rem] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
             >
               <ArrowLeft size={13} strokeWidth={1.8} />
-              Cases
+              Back to cases
             </button>
             {can("schedule.manage") && (
               <button

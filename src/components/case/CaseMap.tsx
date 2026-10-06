@@ -17,6 +17,15 @@ const defaultIcon = L.icon({
   shadowSize: [41, 41],
 });
 
+function FitFrame() {
+  const map = useMap();
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => map.invalidateSize());
+    return () => cancelAnimationFrame(frame);
+  }, [map]);
+  return null;
+}
+
 function FlyToFocus({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
   useEffect(() => {
@@ -61,6 +70,7 @@ export function CaseMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <FitFrame />
         <ZoomControl position="topright" />
         {focus && <FlyToFocus lat={focus.lat} lng={focus.lng} />}
         {pinned.map((a) => (

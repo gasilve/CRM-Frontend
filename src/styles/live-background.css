@@ -1,5 +1,29 @@
 /* Live city cam backdrop (YouTube embed) */
 
+.atmo-orbs .sky {
+  position: absolute;
+  inset: -20%;
+  filter: blur(70px) saturate(130%);
+}
+.atmo-orbs .orb {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.55;
+  mix-blend-mode: screen;
+}
+.atmo-orbs .o1 { width: 60vw; height: 60vw; left: -10vw; top: -15vw; background: radial-gradient(circle, #1f7a8c, transparent 70%); }
+.atmo-orbs .o2 { width: 55vw; height: 55vw; right: -15vw; top: 5vw; background: radial-gradient(circle, #5b3fbf, transparent 70%); }
+.atmo-orbs .o3 { width: 50vw; height: 50vw; left: 25vw; bottom: -20vw; background: radial-gradient(circle, #b4581f, transparent 70%); opacity: 0.4; }
+
+.atmo-procedural-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
 .atmo-live-bg {
   position: fixed;
   inset: 0;
@@ -7,6 +31,11 @@
   overflow: hidden;
   pointer-events: none;
   background: #05070e;
+}
+
+.atmo-live-bg.atmo-orbs,
+.atmo-live-bg.atmo-procedural {
+  z-index: 1;
 }
 
 .atmo-live-bg iframe {

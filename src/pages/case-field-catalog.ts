@@ -1,4 +1,5 @@
 import { SERVICE_LABELS } from "@/lib/mock-data";
+import { formatCalendarDate } from "@/lib/dates";
 import type { CaseDetail } from "@/lib/crm-api";
 import {
   getCustomCaseFieldByKey,
@@ -43,7 +44,7 @@ export const CASE_FIELD_CATALOG: CaseFieldEntry[] = [
   },
   {
     key: "case.subjectDob", label: "Date of birth", group: "Subject", rbacField: "case.subjectDob",
-    resolve: (c) => fmtDate(c.subjectDob),
+    resolve: (c) => formatCalendarDate(c.subjectDob),
   },
   {
     key: "case.subjectSsn", label: "SSN", group: "Subject", rbacField: "case.subjectSsn",
@@ -97,7 +98,7 @@ export const CASE_FIELD_CATALOG: CaseFieldEntry[] = [
     },
   },
   { key: "case.priority", label: "Priority", group: "Assignment", resolve: (c) => c.priority },
-  { key: "case.dueDate", label: "Due date", group: "Assignment", resolve: (c) => fmtDate(c.dueDate) },
+  { key: "case.dueDate", label: "Due date", group: "Assignment", resolve: (c) => formatCalendarDate(c.dueDate) },
   {
     key: "case.daysAllotted", label: "Days allotted", group: "Assignment",
     resolve: (c) => (c.daysAllotted != null ? String(c.daysAllotted) : "—"),
@@ -105,7 +106,7 @@ export const CASE_FIELD_CATALOG: CaseFieldEntry[] = [
   { key: "case.dateOpened", label: "Date opened", group: "Assignment", resolve: (c) => fmtDate(c.dateOpened) },
   {
     key: "case.dateOfInjury", label: "Date of injury", group: "Assignment", rbacField: "case.dateOfInjury",
-    resolve: (c) => fmtDate(c.dateOfInjury),
+    resolve: (c) => formatCalendarDate(c.dateOfInjury),
   },
   { key: "case.startTime", label: "Start time", group: "Assignment", resolve: (c) => dash(c.startTime) },
   {

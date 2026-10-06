@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>True Cognition — CRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
     <link rel="icon" type="image/png" href="/admin/favicon.png" />
     <!-- Prevent flash of wrong theme / glass: apply before first paint -->
     <script>
@@ -102,6 +105,16 @@
         var blSm = Math.max(0, Math.round(bl * 0.7));
         root.style.setProperty("--glass-blur", bl + "px");
         root.style.setProperty("--glass-blur-sm", blSm + "px");
+
+        /* First paint for root-scale.ts — keep the two in sync.
+           Only grow above a real 1920×1080 CSS viewport. A Windows-scaled
+           4K panel is already a smaller CSS page and keeps the rem ladder. */
+        var cssW = root.clientWidth || window.innerWidth;
+        var cssH = root.clientHeight || window.innerHeight;
+        if (cssW > 1920 && cssH > 1080) {
+          var factor = Math.min(cssW / 1920, cssH / 1080);
+          root.style.fontSize = Math.min(32, Math.round(16 * factor * 10) / 10) + "px";
+        }
       })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

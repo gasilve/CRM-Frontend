@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Camera, ScanFace, User } from "lucide-react";
 import { placeholderPhotoFor, SERVICE_LABELS, type EvidencePhoto } from "@/lib/mock-data";
 import { casesApi, ApiError, type CaseDetail } from "@/lib/crm-api";
+import { formatCalendarDate } from "@/lib/dates";
 import { ImageComparisonModal } from "@/components/case/ImageComparisonModal";
 import {
   AddPhotoPanel,
@@ -20,9 +21,6 @@ const ACCENT = "#f87171";
 const SOFT = "rgba(248,113,113,0.12)";
 
 type Tab = "photos" | "compare" | "details";
-
-const fmtDate = (iso: string | null): string =>
-  iso ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
 
 /**
  * Everything we hold on the subject in one place: the photo library (on-file
@@ -197,7 +195,7 @@ export function SubjectOverviewModal({
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                 <DetailField label="Name" value={kase.subjectName} />
                 {showAliases && <DetailField label="Aliases" value={kase.subjectAliases.join(" · ")} />}
-                {showDob && <DetailField label="Date of birth" value={fmtDate(kase.subjectDob)} />}
+                {showDob && <DetailField label="Date of birth" value={formatCalendarDate(kase.subjectDob)} />}
                 <DetailField label="Work status" value={kase.subjectWorkStatus} />
                 <DetailField
                   label="Gets around"
