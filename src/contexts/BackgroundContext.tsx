@@ -7,11 +7,14 @@ import {
 } from "react";
 
 export type BackgroundCategoryId =
+  | "plates"
   | "cities"
   | "nature"
   | "ocean"
   | "sky"
   | "aerial";
+
+export type ProceduralKind = "neural" | "aurora" | "lattice" | "bloom" | "ripple";
 
 export type BackgroundId = "static" | string;
 
@@ -20,9 +23,12 @@ export type BackgroundMeta = {
   name: string;
   subtitle: string;
   category: BackgroundCategoryId | "still";
-  /** Looping HD clip URL — null for still photo */
+  /** Looping HD clip URL — null for still / canvas scenes */
   videoSrc: string | null;
   thumb: string;
+  procedural?: ProceduralKind;
+  /** Skyview orb plate — canvas-free CSS scene. */
+  orbs?: boolean;
 };
 
 export type BackgroundCategory = {
@@ -42,6 +48,7 @@ const mix = (id: number) =>
   `https://assets.mixkit.co/videos/${id}/${id}-1080.mp4`;
 
 export const BACKGROUND_CATEGORIES: BackgroundCategory[] = [
+  { id: "plates", name: "Still", blurb: "Night plate, orbs, and generative scenes" },
   { id: "cities", name: "Cities", blurb: "Skylines, towers & top-down urban" },
   { id: "nature", name: "Nature", blurb: "Forests, falls & green" },
   { id: "ocean", name: "Ocean", blurb: "Waves, coast & sea" },
@@ -55,10 +62,64 @@ export const BACKGROUND_CATEGORIES: BackgroundCategory[] = [
  */
 export const BACKGROUNDS: BackgroundMeta[] = [
   {
+    id: "orbs",
+    name: "Orbs",
+    subtitle: "Skyview night scene",
+    category: "plates",
+    videoSrc: null,
+    thumb: "",
+    orbs: true,
+  },
+  {
+    id: "proc-ripple",
+    name: "Rain Ripples",
+    subtitle: "Random drop impacts",
+    category: "plates",
+    videoSrc: null,
+    thumb: "",
+    procedural: "ripple",
+  },
+  {
+    id: "proc-neural",
+    name: "Neural Net",
+    subtitle: "Synapses & nodes",
+    category: "plates",
+    videoSrc: null,
+    thumb: "",
+    procedural: "neural",
+  },
+  {
+    id: "proc-aurora",
+    name: "Aurora Flow",
+    subtitle: "Ribbon curtains",
+    category: "plates",
+    videoSrc: null,
+    thumb: "",
+    procedural: "aurora",
+  },
+  {
+    id: "proc-lattice",
+    name: "Warp Lattice",
+    subtitle: "Topology grid",
+    category: "plates",
+    videoSrc: null,
+    thumb: "",
+    procedural: "lattice",
+  },
+  {
+    id: "proc-bloom",
+    name: "Star Bloom",
+    subtitle: "Particle field",
+    category: "plates",
+    videoSrc: null,
+    thumb: "",
+    procedural: "bloom",
+  },
+  {
     id: "static",
-    name: "Still",
-    subtitle: "Night city plate",
-    category: "still",
+    name: "City",
+    subtitle: "Daytime plate",
+    category: "plates",
     videoSrc: null,
     thumb: stillThumb,
   },
@@ -417,6 +478,7 @@ type BackgroundCtx = {
   backgroundMeta: BackgroundMeta;
   setBackground: (id: BackgroundId) => void;
   isVideo: boolean;
+  isProcedural: boolean;
 };
 
 const defaultMeta =
@@ -427,6 +489,7 @@ const BackgroundContext = createContext<BackgroundCtx>({
   backgroundMeta: defaultMeta,
   setBackground: () => {},
   isVideo: false,
+  isProcedural: false,
 });
 
 function readStoredBackground(): BackgroundId {
@@ -468,6 +531,7 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
         backgroundMeta,
         setBackground: setBackgroundId,
         isVideo: Boolean(backgroundMeta.videoSrc),
+        isProcedural: Boolean(backgroundMeta.procedural),
       }}
     >
       {children}

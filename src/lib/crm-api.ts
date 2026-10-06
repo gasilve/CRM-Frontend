@@ -503,7 +503,7 @@ export interface CaseVehicle {
   personLinks?: {
     id: string;
     role: PersonVehicleRole;
-    person: { id: string; name: string; relationship: CasePersonRelationship };
+    person: { id: string; name: string; relationship: CasePersonRelationship; isSubject?: boolean };
   }[];
   /** Chronological log of who was tagged driver/passenger/etc. and when. Present on case detail. */
   occupancyEvents?: VehicleOccupancyEvent[];
@@ -675,6 +675,8 @@ export interface CaseListItem {
   dateClosed: string | null;
   dateOfInjury: string | null;
   dueDate: string | null;
+  /** Independent medical exam. Null until someone schedules one. */
+  imeAt: string | null;
   daysAllotted: number | null;
   startTime: string | null;
   estimatedValue: number | null;
@@ -706,6 +708,9 @@ export interface CaseDetail extends CaseListItem {
   days: CaseDay[];
   /** Who was scheduled in the field on which date — the journal's day-crew credit. */
   scheduleBlocks: { id: string; date: string; notes: string | null; user: CaseParticipant }[];
+  openDays: { id: string; caseId: string; date: string; createdAt: string }[];
+  specialDates: { id: string; caseId: string; date: string; name: string; color: string; createdAt: string }[];
+  patterns: CasePattern[];
   files: CaseFile[];
   todos: CaseTodo[];
   situationSummary: string | null;
@@ -826,6 +831,7 @@ export interface CreateCasePayload {
   dateOpened?: string;
   dateOfInjury?: string;
   dueDate?: string;
+  imeAt?: string | null;
   daysAllotted?: number | null;
   startTime?: string;
   estimatedValue?: number | null;
@@ -998,6 +1004,25 @@ export const casesApi = {
     request<{ case: CaseDetail }>("/cases", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: UpdateCasePayload) =>
     request<{ case: CaseDetail }>(`/cases/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  setIme: (id: string, imeAt: string | null) =>
+    request<{ id: string; imeAt: string | null }>(`/cases/${id}/ime`, {
+      method: "PATCH",
+      body: JSON.stringify({ imeAt }),
+    }),
+  addOpenDay: (id: string, date: string) =>
+    request<{ openDay: { id: string; caseId: string; date: string; createdAt: string } }>(`/cases/${id}/open-days`, {
+      method: "POST",
+      body: JSON.stringify({ date }),
+    }),
+  removeOpenDay: (id: string, openDayId: string) =>
+    request<null>(`/cases/${id}/open-days/${openDayId}`, { method: "DELETE" }),
+  addSpecialDate: (id: string, body: { date: string; name: string; color: string }) =>
+    request<{ specialDate: { id: string; caseId: string; date: string; name: string; color: string; createdAt: string } }>(
+      `/cases/${id}/special-dates`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  removeSpecialDate: (id: string, specialDateId: string) =>
+    request<null>(`/cases/${id}/special-dates/${specialDateId}`, { method: "DELETE" }),
   remove: (id: string) => request<null>(`/cases/${id}`, { method: "DELETE" }),
 
   addAddress: (id: string, body: CaseAddressInput) =>

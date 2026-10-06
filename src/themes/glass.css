@@ -171,7 +171,7 @@ html[data-glass="true"] .atmo-glass-scene {
       var(--glass-tint-strong),
       transparent 70%
     ),
-    url("/glass-backdrop.jpg") center / cover no-repeat;
+    url("/admin/glass-backdrop.jpg") center / cover no-repeat;
   z-index: 0;
 }
 
@@ -230,7 +230,7 @@ html[data-theme^="light"][data-glass="true"] .atmo-glass-scene {
       rgb(from var(--color-accent-2) r g b / 0.16),
       transparent 70%
     ),
-    url("/glass-backdrop.jpg") center / cover no-repeat;
+    url("/admin/glass-backdrop.jpg") center / cover no-repeat;
 }
 
 html[data-glass="true"] .surveil-shell {
@@ -708,7 +708,7 @@ html[data-glass="tinted"] .atmo-glass-scene {
       var(--glass-tint-strong),
       transparent 70%
     ),
-    url("/glass-backdrop.jpg") center / cover no-repeat;
+    url("/admin/glass-backdrop.jpg") center / cover no-repeat;
   z-index: 0;
 }
 
@@ -730,15 +730,18 @@ html[data-theme^="light"][data-glass="tinted"] .atmo-glass-scene {
       var(--glass-tint-strong),
       transparent 70%
     ),
-    url("/glass-backdrop.jpg") center / cover no-repeat;
+    url("/admin/glass-backdrop.jpg") center / cover no-repeat;
 }
 
 /* Dark scene: lighter flat scrim so the city plate / live video still reads */
 html[data-glass="dark"] .atmo-glass-scene {
   display: block;
   background:
-    color-mix(in srgb, var(--glass-scene-ink) 38%, transparent),
-    url("/glass-backdrop.jpg") center / cover no-repeat;
+    linear-gradient(
+      color-mix(in srgb, var(--glass-scene-ink) 38%, transparent),
+      color-mix(in srgb, var(--glass-scene-ink) 38%, transparent)
+    ),
+    url("/admin/glass-backdrop.jpg") center / cover no-repeat;
   z-index: 0;
 }
 

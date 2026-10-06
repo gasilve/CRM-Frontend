@@ -17,6 +17,7 @@ const AppShell = lazy(() => import("./components/layout/AppShell"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const MyDay = lazy(() => import("./pages/MyDay"));
 const Cases = lazy(() => import("./pages/Cases"));
+const NewCase = lazy(() => import("./pages/NewCase"));
 const CaseDetail = lazy(() => import("./pages/CaseDetail"));
 const SkyView = lazy(() => import("./components/cases/SkyViewModal"));
 const CaseWorkMode = lazy(() => import("./pages/CaseWorkMode"));
@@ -33,6 +34,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const Administration = lazy(() => import("./pages/Administration"));
 const Assistant = lazy(() => import("./pages/Assistant"));
 const DocumentGenerator = lazy(() => import("./pages/DocumentGenerator"));
+const Reports = lazy(() => import("./pages/Reports"));
 const VideoPlayer = lazy(() => import("./pages/VideoPlayer"));
 
 function LazyRoute({ children }: { children: ReactNode }) {
@@ -86,6 +88,16 @@ export default function App() {
                 </LazyRoute>
               }
             />
+            <Route element={<RequirePermission anyOf={["cases.create"]} />}>
+              <Route
+                path="/cases/new"
+                element={
+                  <LazyRoute>
+                    <NewCase />
+                  </LazyRoute>
+                }
+              />
+            </Route>
             <Route
               path="/cases/:id/skyview"
               element={
@@ -238,6 +250,14 @@ export default function App() {
               }
             />
           </Route>
+          <Route
+            path="/reports"
+            element={
+              <LazyRoute>
+                <Reports />
+              </LazyRoute>
+            }
+          />
           <Route element={<RequirePermission anyOf={["documents.generate"]} />}>
             <Route
               path="/documents"

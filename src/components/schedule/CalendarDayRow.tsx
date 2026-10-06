@@ -2,6 +2,7 @@ import type { DragEvent, ReactNode } from "react";
 import { Folder, MapPin, Plus, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatEarliestActive } from "@/components/cases/CaseGlanceCard";
+import { daysUntilDue, dueReminderLabel, formatCalendarDate, formatDueShort } from "@/lib/dates";
 import { SERVICE_LABELS } from "@/lib/mock-data";
 import { type Region, type ScheduleBlock } from "@/lib/crm-api";
 
@@ -28,34 +29,6 @@ function formatTime(raw: string | null | undefined): string | null {
   const ampm = h >= 12 ? "PM" : "AM";
   h = h % 12 || 12;
   return `${h}:${min} ${ampm}`;
-}
-
-const DAY_MS = 86_400_000;
-
-function formatDueDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-/** Calendar-day delta from today → due (negative = overdue). */
-function daysUntilDue(iso: string): number {
-  const due = new Date(iso);
-  const today = new Date();
-  due.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due.getTime() - today.getTime()) / DAY_MS);
-}
-
-function dueReminder(iso: string, status: ScheduleBlock["case"]["status"]): string {
-  if (status === "closed") return "closed";
-  const left = daysUntilDue(iso);
-  if (left < 0) return left === -1 ? "1 day overdue" : `${Math.abs(left)} days overdue`;
-  if (left === 0) return "due today";
-  if (left === 1) return "1 day left";
-  return `${left} days left`;
 }
 
 function MetaChip({
@@ -220,14 +193,14 @@ export function CaseAssignmentBand({
           <span className="calendar-band-text truncate text-[0.8125rem] font-medium leading-tight text-[var(--color-text-hi)]">
             {block.case.subjectName}
           </span>
-          <StackedFact label="EAC" value={eac ? `${eac.time} · ${eac.date}` : "—"} />
+          <StackedFact label="EAT" value={eac ? `${eac.time} · ${eac.date}` : "—"} />
           <StackedFact label="Addr" value={address ?? "—"} />
           <StackedFact label="Client" value={client ?? "—"} />
           <StackedFact
             label="Due"
             value={
               dueIso
-                ? `${new Date(dueIso).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${dueReminder(dueIso, block.case.status)}`
+                ? `${formatDueShort(dueIso)} · ${dueReminderLabel(dueIso, block.case.status)}`
                 : "—"
             }
             valueClassName={dueTone}
@@ -252,12 +225,12 @@ export function CaseAssignmentBand({
         {address && <MetaChip label="Addr" value={address} />}
         {street && street !== address && <MetaChip label="Street" value={street} />}
         {start && <MetaChip label="Start" value={start} />}
-        <MetaChip label="EAC" value={eac ? `${eac.time} · ${eac.date}` : "—"} />
+        <MetaChip label="EAT" value={eac ? `${eac.time} · ${eac.date}` : "—"} />
         {client && <MetaChip label="Client" value={client} />}
         {dueIso && (
           <MetaChip
             label="Due"
-            value={`${formatDueDate(dueIso)} · ${dueReminder(dueIso, block.case.status)}`}
+            value={`${formatCalendarDate(dueIso, { month: "short", day: "numeric", year: "numeric" })} · ${dueReminderLabel(dueIso, block.case.status)}`}
             valueClassName={dueTone}
           />
         )}
@@ -443,7 +416,7 @@ export function CaseBoardColumn({
   );
 }
 
-/** Vertical investigator column: name on top, the assigned case (with EAC) underneath. */
+/** Vertical investigator column: name on top, the assigned case (with EAT) underneath. */
 export function InvestigatorBoardColumn({
   name,
   region,

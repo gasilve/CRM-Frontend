@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { daysUntilDue, dueReminderLabel, formatDueShort } from "@/lib/dates";
 import { CoverStatusMark } from "@/components/icons";
 import { CASE_BG, INVESTIGATOR_BG } from "@/components/schedule/CalendarDayRow";
 import { placeholderCoverStatus } from "@/components/schedule/cover-status";
@@ -85,30 +86,9 @@ type Props = {
   /** When set, the investigator step also asks which day. */
   dateValue?: string;
   onDateChange?: (iso: string) => void;
+  /** Save a named, colored day on the case being scheduled. */
+  onCreateSpecial?: (input: { date: string; name: string; color: string }) => Promise<void>;
 };
-
-const DAY_MS = 86_400_000;
-
-function formatDueShort(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-function daysUntilDue(iso: string): number {
-  const due = new Date(iso);
-  const today = new Date();
-  due.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due.getTime() - today.getTime()) / DAY_MS);
-}
-
-function dueReminderLabel(iso: string, status: CaseListItem["status"]): string {
-  if (status === "closed") return "closed";
-  const left = daysUntilDue(iso);
-  if (left < 0) return left === -1 ? "1 day overdue" : `${Math.abs(left)} days overdue`;
-  if (left === 0) return "due today";
-  if (left === 1) return "1 day left";
-  return `${left} days left`;
-}
 
 function SignalBadge({
   icon,
@@ -151,6 +131,7 @@ export function ScheduleAssignmentModal({
   othersThatDay = [],
   dateValue,
   onDateChange,
+  onCreateSpecial,
 }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -248,6 +229,7 @@ export function ScheduleAssignmentModal({
                 busy={busy}
                 dateValue={dateValue}
                 onDateChange={onDateChange}
+                onCreateSpecial={onCreateSpecial}
                 onPick={(id) => onDraftInvestigator?.(id)}
               />
             )}
@@ -458,17 +440,75 @@ function MonthCalendar({ value, onChange }: { value: string; onChange: (iso: str
   );
 }
 
+const SPECIAL_COLORS = ["#c084fc", "#ffc857", "#3ee08a", "#5aa9ff", "#ff5c63", "#ff9f45"];
+
+function SpecialDateForm({
+  date,
+  busy,
+  onCreate,
+}: {
+  date: string;
+  busy?: boolean;
+  onCreate: (input: { date: string; name: string; color: string }) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState(SPECIAL_COLORS[0]);
+  return (
+    <form
+      className="flex flex-col gap-2 rounded-[0.75rem] border border-[var(--color-line)] px-3 py-2.5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        void onCreate({ date, name: trimmed, color }).then(() => setName(""));
+      }}
+    >
+      <div className="font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">Special date</div>
+      <div className="flex items-center gap-2">
+        <input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Name"
+          maxLength={40}
+          className="min-w-0 flex-1 rounded-full border border-[var(--color-line)] bg-[var(--color-ink-2)] px-3 py-1.5 text-[0.8125rem] text-[var(--color-text-hi)] outline-none"
+        />
+        <button
+          type="submit"
+          disabled={busy || !name.trim()}
+          className="rounded-full border border-[var(--color-line)] px-3 py-1.5 text-[0.75rem] text-[var(--color-text-hi)] disabled:opacity-40"
+        >
+          Add
+        </button>
+      </div>
+      <div className="flex gap-1.5">
+        {SPECIAL_COLORS.map((swatch) => (
+          <button
+            key={swatch}
+            type="button"
+            aria-label={swatch}
+            onClick={() => setColor(swatch)}
+            className="h-5 w-5 rounded-full border-2"
+            style={{ background: swatch, borderColor: color === swatch ? "#fff" : "transparent" }}
+          />
+        ))}
+      </div>
+    </form>
+  );
+}
+
 function PickInvestigatorStep({
   flow,
   busy,
   dateValue,
   onDateChange,
+  onCreateSpecial,
   onPick,
 }: {
   flow: AssignInvestigatorFlow;
   busy?: boolean;
   dateValue?: string;
   onDateChange?: (iso: string) => void;
+  onCreateSpecial?: (input: { date: string; name: string; color: string }) => Promise<void>;
   onPick: (userId: string) => void;
 }) {
   const [q, setQ] = useState("");
@@ -492,6 +532,7 @@ function PickInvestigatorStep({
   return (
     <>
       {dateValue && onDateChange && <MonthCalendar value={dateValue} onChange={onDateChange} />}
+      {dateValue && onCreateSpecial && <SpecialDateForm date={dateValue} busy={busy} onCreate={onCreateSpecial} />}
       <SearchField value={q} onChange={setQ} placeholder="Search investigators…" />
       <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-0.5">
         {busy && <BusyRow />}

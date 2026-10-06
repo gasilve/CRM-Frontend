@@ -36,7 +36,8 @@ import { cn } from "@/lib/cn";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@/lib/query-cache";
 import { placeholderPhotoFor, SERVICE_LABELS } from "@/lib/mock-data";
-import { ENTRY_META, fmtDate, fmtTime, READABLE_DATE_CLASS } from "@/lib/journal";
+import { ENTRY_META, fmtTime, READABLE_DATE_CLASS } from "@/lib/journal";
+import { formatCalendarDate } from "@/lib/dates";
 import { PanelLoader } from "@/components/ui/LoadingState";
 import { SubjectOverviewModal } from "@/components/case/SubjectOverviewModal";
 import { PeopleModal } from "@/components/case/PeopleModal";
@@ -1938,10 +1939,10 @@ function CaseInfoModal({
       <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[0.8125rem] sm:grid-cols-3">
         <Field label="Client" value={kase.client?.company} />
         <Field label="Adjuster" value={kase.adjusterName} />
-        <Field label="Due" value={fmtDate(kase.dueDate)} />
+        <Field label="Due" value={formatCalendarDate(kase.dueDate)} />
         <Field label="Work status" value={kase.subjectWorkStatus} />
         {showAliases && <Field label="Aliases" value={kase.subjectAliases.join(", ")} />}
-        {showDob && <Field label="DOB" value={fmtDate(kase.subjectDob)} />}
+        {showDob && <Field label="DOB" value={formatCalendarDate(kase.subjectDob)} />}
         {showEmployment && (
           <>
             <Field label="Employer" value={kase.subjectEmployer} />

@@ -1,9 +1,11 @@
+import type { ReactNode } from "react";
 import { Clock, MapPin, UserRound } from "lucide-react";
 import { MobilityMark } from "@/components/cases/SubjectMobility";
 import { cn } from "@/lib/cn";
 import { placeholderPhotoFor, SERVICE_LABELS } from "@/lib/mock-data";
 import { useCasePhoto } from "@/hooks/useCasePhoto";
 import { READABLE_DATE_CLASS } from "@/lib/journal";
+import { dueDateTone, formatCalendarDate } from "@/lib/dates";
 import { REGION_LABELS, type CaseListItem, type CasePriority, type CaseRecentNote, type CaseService, type MyCaseloadItem, type Region, type SubjectTransport } from "@/lib/crm-api";
 
 /** Shared snapshot for the little case cards on My Day and the cases board. */
@@ -33,7 +35,7 @@ export interface CaseGlance {
 }
 
 const fmtShortDate = (iso: string | null): string =>
-  iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+  iso ? formatCalendarDate(iso, { month: "short", day: "numeric" }) : "";
 
 export const formatEarliestActive = (iso: string | null): { time: string; date: string } | null => {
   if (!iso) return null;
@@ -43,16 +45,6 @@ export const formatEarliestActive = (iso: string | null): { time: string; date: 
     time: d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
     date: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
   };
-};
-
-const dueTone = (iso: string | null): { label: string; color: string } | null => {
-  if (!iso) return null;
-  const due = new Date(iso);
-  const days = Math.ceil((due.getTime() - Date.now()) / 86_400_000);
-  const label = `Due ${due.toLocaleDateString(undefined, { month: "short", day: "numeric" })} (${due.toLocaleDateString(undefined, { weekday: "short" })})`;
-  if (days < 0) return { label: `${label} · overdue`, color: "#f87171" };
-  if (days <= 3) return { label, color: "#fb923c" };
-  return { label, color: "var(--color-text-mid)" };
 };
 
 const addressLine = (parts: { line1?: string | null; city?: string | null; state?: string | null; zip?: string | null } | null | undefined) => {
@@ -129,25 +121,60 @@ export function CaseGlanceCard({
   muted = false,
   isActiveClock = false,
   onOpen,
+  tone,
+  panel,
 }: {
   glance: CaseGlance;
   muted?: boolean;
   isActiveClock?: boolean;
-  onOpen: () => void;
+  onOpen?: () => void;
+  /** Scheduling case cards use a yellow wash. */
+  tone?: "amber";
+  /** Replaces the summary that drops open on hover. */
+  panel?: ReactNode;
 }) {
   const direct =
     glance.subjectPhotoUrl && /^(https?:|data:|blob:)/.test(glance.subjectPhotoUrl) ? glance.subjectPhotoUrl : null;
   const resolved = useCasePhoto(glance.id, direct ? null : glance.subjectPhotoUrl);
   const src = direct || resolved || placeholderPhotoFor(glance.id);
   const active = formatEarliestActive(glance.earliestActiveAt);
-  const due = dueTone(glance.dueDate);
+  const due = dueDateTone(glance.dueDate);
 
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="group surface flex w-full flex-col items-stretch overflow-hidden rounded-[1rem] border border-[var(--color-line)] text-left transition-colors hover:border-[var(--color-line-2)] hover:shadow-lg focus-visible:border-[var(--color-line-2)] focus-visible:shadow-lg"
-    >
+  const cardClass = cn(
+    "group surface flex w-full flex-col items-stretch overflow-hidden rounded-[1rem] border text-left transition-colors hover:shadow-lg",
+    tone === "amber"
+      ? "border-[rgba(247,168,19,0.45)] hover:border-[rgba(247,168,19,0.7)]"
+      : "border-[var(--color-line)] hover:border-[var(--color-line-2)]",
+  );
+  const cardStyle = tone === "amber"
+    ? { background: "color-mix(in srgb, #f7a813 18%, var(--color-ink-2))" }
+    : undefined;
+  const hover = (
+    <div className="grid grid-rows-[0fr] transition-[grid-template-rows] duration-200 group-hover:grid-rows-[1fr] group-focus-within:grid-rows-[1fr]">
+      <div className="overflow-hidden">
+        {panel ?? (
+          <div className="flex h-[7.25rem] flex-col gap-1.5 border-t border-[var(--color-line)] px-3 py-2">
+            {glance.investigators.length > 0 && (
+              <div className="flex shrink-0 items-center gap-1.5 font-mono text-[0.625rem] text-[var(--color-text-hi)]">
+                <UserRound size={11} className="shrink-0 text-[var(--color-accent-2)]" />
+                <span className="min-w-0 truncate">{glance.investigators.join(" · ")}</span>
+              </div>
+            )}
+            <p
+              className="min-h-0 flex-1 overflow-hidden text-[0.75rem] leading-snug text-[var(--color-text-mid)]"
+              style={{ display: "-webkit-box", WebkitLineClamp: glance.investigators.length > 0 ? 4 : 5, WebkitBoxOrient: "vertical" }}
+              title={glance.situationSummary ?? undefined}
+            >
+              {glance.situationSummary?.trim() || "No case summary yet"}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const body = (
+    <>
       <div className="flex h-[6.25rem] w-full items-stretch">
         <img
           src={src}
@@ -180,7 +207,7 @@ export function CaseGlanceCard({
               title={active ? `Earliest active ${active.time} on ${active.date}` : "No investigator note yet"}
             >
               <Clock size={9} className="text-[var(--color-accent-2)]" />
-              {active ? `EAC: ${active.time}` : "EAC: —"}
+              {active ? `EAT: ${active.time}` : "EAT: —"}
             </span>
           </div>
 
@@ -220,25 +247,21 @@ export function CaseGlanceCard({
         </div>
       </div>
 
-      <div className="grid grid-rows-[0fr] transition-[grid-template-rows] duration-200 group-hover:grid-rows-[1fr] group-focus-within:grid-rows-[1fr]">
-        <div className="overflow-hidden">
-          <div className="flex h-[7.25rem] flex-col gap-1.5 border-t border-[var(--color-line)] px-3 py-2">
-            {glance.investigators.length > 0 && (
-              <div className="flex shrink-0 items-center gap-1.5 font-mono text-[0.625rem] text-[var(--color-text-hi)]">
-                <UserRound size={11} className="shrink-0 text-[var(--color-accent-2)]" />
-                <span className="min-w-0 truncate">{glance.investigators.join(" · ")}</span>
-              </div>
-            )}
-            <p
-              className="min-h-0 flex-1 overflow-hidden text-[0.75rem] leading-snug text-[var(--color-text-mid)]"
-              style={{ display: "-webkit-box", WebkitLineClamp: glance.investigators.length > 0 ? 4 : 5, WebkitBoxOrient: "vertical" }}
-              title={glance.situationSummary ?? undefined}
-            >
-              {glance.situationSummary?.trim() || "No case summary yet"}
-            </p>
-          </div>
-        </div>
+      {hover}
+    </>
+  );
+
+  if (panel) {
+    return (
+      <div className={cardClass} style={cardStyle}>
+        {body}
       </div>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onOpen} className={cardClass} style={cardStyle}>
+      {body}
     </button>
   );
 }

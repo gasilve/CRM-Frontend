@@ -1,4 +1,5 @@
 import { cn } from "@/lib/cn";
+import { formatCalendarDate } from "@/lib/dates";
 import { CaseTypePill, FilesPill, IngestorStatusPill } from "@/components/cases/PendingCasePills";
 import type { PendingCaseListItem } from "@/lib/crm-api";
 
@@ -150,7 +151,7 @@ function PendingRow({
       </div>
 
       <div className="text-right font-mono text-[0.6875rem] text-[var(--color-text-mid)]">
-        {item.dueDate ? fmtShortDate(item.dueDate) : "—"}
+        {formatCalendarDate(item.dueDate, { month: "2-digit", day: "2-digit", year: "2-digit" })}
       </div>
     </div>
   );

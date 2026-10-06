@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { X, Loader2, FolderPlus } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/cn";
 import { SERVICE_LABELS } from "@/lib/mock-data";
 import type { InvTag } from "@/lib/mock-data";
@@ -41,6 +42,7 @@ export function NewCaseModal({
   const [region, setRegion] = useState<Region | "">("");
   const [state, setState] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [imeAt, setImeAt] = useState("");
   const [daysAllotted, setDaysAllotted] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
   const [addressCity, setAddressCity] = useState("");
@@ -49,6 +51,8 @@ export function NewCaseModal({
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { can } = useAuth();
+  const canManageClients = can("clients.manage");
 
   useEffect(() => {
     if (!open) return;
@@ -66,6 +70,7 @@ export function NewCaseModal({
       setRegion("");
       setState("");
       setDueDate("");
+      setImeAt("");
       setDaysAllotted("");
       setAddressLine1("");
       setAddressCity("");
@@ -88,6 +93,10 @@ export function NewCaseModal({
       setError("Subject name is required.");
       return;
     }
+    if (clientId === "__new__" && !newClientName.trim()) {
+      setError("Enter a name for the new client, or choose none.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -108,6 +117,7 @@ export function NewCaseModal({
         region: region || undefined,
         state: state.trim() || undefined,
         dueDate: dueDate || undefined,
+        imeAt: imeAt ? new Date(imeAt).toISOString() : undefined,
         daysAllotted: daysAllotted ? Number(daysAllotted) : undefined,
         address: addressLine1.trim()
           ? { line1: addressLine1.trim(), city: addressCity.trim() || undefined, state: addressState.trim() || undefined, zip: addressZip.trim() || undefined }
@@ -189,7 +199,7 @@ export function NewCaseModal({
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>{c.company}</option>
                 ))}
-                <option value="__new__">+ New client…</option>
+                {canManageClients && <option value="__new__">+ New client…</option>}
               </select>
             </div>
             {clientId === "__new__" ? (
@@ -239,6 +249,10 @@ export function NewCaseModal({
             <div>
               <label className={labelClass}>Due date</label>
               <input className={inputClass} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>IME</label>
+              <input className={inputClass} type="datetime-local" value={imeAt} onChange={(e) => setImeAt(e.target.value)} />
             </div>
           </div>
 

@@ -1,889 +1,997 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus } from "lucide-react";
-import { cn } from "@/lib/cn";
-import { SERVICE_LABELS } from "@/lib/mock-data";
+import { ScanFace } from "lucide-react";
+import { CaseMap } from "@/components/case/CaseMap";
 import { useCasePhoto } from "@/hooks/useCasePhoto";
-import { useQuery, invalidateQueries } from "@/lib/query-cache";
+import { ScheduleAssignmentModal, type AssignInvestigatorFlow } from "@/components/schedule/ScheduleAssignmentModal";
 import {
+  ApiError,
   casesApi,
-  geocodeApi,
   investigatorsApi,
   scheduleApi,
-  ApiError,
-  type CaseAddress,
   type CaseDetail,
-  type CasePattern,
-  type SubjectAwareness,
-  type SubjectSetting,
+  type CaseVehicle,
+  type InvestigatorListItem,
 } from "@/lib/crm-api";
-import { formatEarliestActive } from "@/components/cases/CaseGlanceCard";
-import { transportLabel } from "@/components/cases/SubjectMobility";
-import { CasePhoto, comparisonsFromEntries, type ComparisonRecord } from "@/components/case/EntityModal";
-import { CaseMap } from "@/components/case/CaseMap";
-import { ScheduleAssignmentModal, type AssignInvestigatorFlow } from "@/components/schedule/ScheduleAssignmentModal";
-import { useAuth } from "@/contexts/AuthContext";
+import { SERVICE_LABELS } from "@/lib/mock-data";
+import { ageFromDob } from "@/lib/dates";
+import { useQuery } from "@/lib/query-cache";
+import "./sky-v6.css";
 
-const LAYOUT_KEY = "accenty.crm.skyview.layout";
+const CX = 230;
+const CY = 230;
+const OUTER = 212;
+const GAP = 3;
 
-type SkyLayout = "board" | "horizon";
+const NAV = [
+  { label: "Case", title: "Case", color: "#3ee08a", path: (id: string) => `/cases/${id}` },
+  { label: "Investigator view", title: "Investigator view", color: "#ffc857", path: (id: string) => `/cases/${id}/work` },
+  { label: "Video", title: "Video", color: "#b18cff", path: (_id: string) => `/video` },
+  { label: "Reports", title: "Reports", color: "#5aa9ff", path: (_id: string) => `/reports` },
+  { label: "Back", title: "Back to cases", color: "#ff9f45", path: (_id: string) => `/cases` },
+] as const;
 
-const TONE = {
-  active: "var(--color-pos)",
-  working: "var(--color-warn)",
-  quiet: "var(--color-text-lo)",
-  noticed: "var(--color-warn)",
-  burned: "var(--color-neg)",
-} as const;
+const SETTING_LABEL = { suburban: "suburban", rural: "rural", dense: "densely populated" } as const;
+const TRANSPORT_LABEL = { vehicle: "Drives", foot: "On foot", transit: "Transit", other: "Other" } as const;
 
-/** Solid `.surface` when glass is off; glass.css restyles `.surface` when it is on. */
-const card = "surface";
-const slot = "surface sky-inset px-5 py-4";
-
-const AREAS: { id: SubjectSetting; label: string; title: string; color: string }[] = [
-  { id: "suburban", label: "suburban", title: "Suburban", color: "var(--color-accent)" },
-  { id: "rural", label: "rural", title: "Rural", color: "var(--color-pos)" },
-  { id: "dense", label: "dense", title: "Densely populated", color: "var(--color-warn)" },
-];
-
-const areaKey = (id: string) => `accenty.crm.skyview.area.${id}`;
-
-const readArea = (id: string): SubjectSetting | null => {
-  try {
-    const raw = localStorage.getItem(areaKey(id));
-    return raw === "suburban" || raw === "rural" || raw === "dense" ? raw : null;
-  } catch {
-    return null;
-  }
+const polar = (angle: number, radius: number): [number, number] => {
+  const a = ((angle - 90) * Math.PI) / 180;
+  return [CX + radius * Math.cos(a), CY + radius * Math.sin(a)];
 };
 
-const writeArea = (id: string, value: SubjectSetting) => {
-  try {
-    localStorage.setItem(areaKey(id), value);
-  } catch {
-    /* ignore */
-  }
+const BAND_MID = 194;
+const BAND_MID_HOVER = 201;
+
+/** Arc through the middle of a segment. Stroke width grows around this line. */
+const midArc = (a0: number, a1: number, radius: number) => {
+  const [x0, y0] = polar(a0, radius);
+  const [x1, y1] = polar(a1, radius);
+  return `M${x0},${y0} A${radius},${radius} 0 0 1 ${x1},${y1}`;
 };
 
-const readLayout = (): SkyLayout => {
-  try {
-    return localStorage.getItem(LAYOUT_KEY) === "horizon" ? "horizon" : "board";
-  } catch {
-    return "board";
-  }
-};
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
 
-const ageOf = (iso: string | null): number | null => {
-  if (!iso) return null;
-  const born = new Date(iso);
-  if (Number.isNaN(born.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - born.getFullYear();
-  const beforeBirthday = now.getMonth() < born.getMonth() || (now.getMonth() === born.getMonth() && now.getDate() < born.getDate());
-  if (beforeBirthday) age -= 1;
+function localKey(d: Date) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function scheduleKey(iso: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+  return localKey(new Date(iso));
+}
+
+function compareDateKeys(a: string, b: string) {
+  const [ay, am, ad] = a.split("-").map(Number);
+  const [by, bm, bd] = b.split("-").map(Number);
+  return ay - by || am - bm || ad - bd;
+}
+
+function clock(d: Date) {
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function ageYears(iso: string | null) {
+  const key = iso ? /^(\d{4})-(\d{2})-(\d{2})/.exec(iso) : null;
+  if (!key) return null;
+  const age = ageFromDob(`${key[1]}-${key[2]}-${key[3]}`);
   return age >= 0 && age < 130 ? age : null;
-};
+}
 
-const dayKey = (iso: string) => iso.slice(0, 10);
+function toLocalInput(iso: string) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
-const shortDay = (iso: string) => {
-  const d = new Date(`${dayKey(iso)}T12:00:00`);
-  return { weekday: d.toLocaleDateString(undefined, { weekday: "short" }), day: d.getDate() };
-};
+function addDays(key: string, days: number) {
+  const d = new Date(`${key}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
-const toneOf = (awareness: SubjectAwareness | null, hasNotes: boolean): { label: string; color: string } => {
-  if (awareness === "aware") return { label: "Aware", color: TONE.burned };
-  if (awareness === "suspicious") return { label: "Noticed", color: TONE.noticed };
-  if (awareness === "unnoticed") return { label: "Active", color: TONE.active };
-  if (hasNotes) return { label: "Working", color: TONE.working };
-  return { label: "No activity", color: TONE.quiet };
-};
-
-
-const daysUntil = (iso: string | null): number | null => {
-  if (!iso) return null;
-  const due = new Date(iso);
-  if (Number.isNaN(due.getTime())) return null;
-  const today = new Date();
-  due.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due.getTime() - today.getTime()) / 86_400_000);
-};
-
-export default function SkyViewPage() {
-  const { id: caseId } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const [layout, setLayout] = useState<SkyLayout>(readLayout);
-  const [writing, setWriting] = useState(false);
-  const [writeError, setWriteError] = useState<string | null>(null);
-
-  const { data, loading, error, refresh } = useQuery(caseId ? `case:${caseId}` : null, () => casesApi.get(caseId!), {
-    staleMs: 15_000,
-    enabled: !!caseId,
-  });
-  const patternsQuery = useQuery(caseId ? `case:${caseId}:patterns` : null, () => casesApi.listPatterns(caseId!), {
-    staleMs: 15_000,
-    enabled: !!caseId,
-  });
-  const kase = data?.case ?? null;
-
-  const pickLayout = (next: SkyLayout) => {
-    setLayout(next);
-    try {
-      localStorage.setItem(LAYOUT_KEY, next);
-    } catch {
-      /* ignore */
-    }
+function dayLabel(key: string) {
+  const d = new Date(`${key}T12:00:00Z`);
+  return {
+    wd: d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }),
+    n: d.getUTCDate(),
+    month: d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" }),
+    weekend: d.getUTCDay() === 0 || d.getUTCDay() === 6,
   };
+}
 
-  const refreshSummary = async () => {
-    setWriting(true);
-    setWriteError(null);
-    try {
-      if (!caseId) return;
-      await casesApi.generateSituationSummary(caseId);
-      await refresh();
-      invalidateQueries("cases:list");
-    } catch (err) {
-      setWriteError(err instanceof ApiError ? err.message : "Could not write the case summary.");
-    } finally {
-      setWriting(false);
-    }
-  };
+function shareLabel(vehicle: CaseVehicle) {
+  const others = (vehicle.personLinks ?? []).filter((link) => !link.person.isSubject);
+  if (others.length === 0) return "not shared";
+  const rels = [...new Set(others.map((link) => link.person.relationship.replaceAll("_", " ")))];
+  return `shared, ${rels.join(", ")}`;
+}
 
+function vehicleTitle(vehicle: CaseVehicle) {
+  const name = [vehicle.color, vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ");
+  const plate = [vehicle.state, vehicle.licensePlate].filter(Boolean).join(" ");
+  return [name || "Vehicle", plate].filter(Boolean).join(" · ");
+}
+
+type Face = { ok: boolean; score: number | null };
+
+function faceFromEntries(entries: { type: string; meta: Record<string, unknown> | null }[]): Face {
+  const scores = entries
+    .filter((entry) => entry.type === "face_match")
+    .map((entry) => entry.meta?.score)
+    .filter((score): score is number => typeof score === "number");
+  if (scores.length === 0) return { ok: false, score: null };
+  const best = Math.max(...scores);
+  return { ok: best >= 80, score: best };
+}
+
+function NavRing({ caseId, onGo }: { caseId: string; onGo: (path: string) => void }) {
+  const seg = 360 / NAV.length;
   return (
-    <div className="skyview flex h-full min-h-0 w-full flex-col">
-      <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => navigate("/cases")}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-line-2)] bg-[var(--color-ink-2)] px-3 py-1.5 text-[0.8125rem] text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]"
-          >
-            <ArrowLeft size={14} />
-            Cases
-          </button>
-          <span className="font-mono text-[0.6875rem] uppercase tracking-[0.22em] text-[var(--color-text-lo)]">Skyview</span>
-          <div className="flex items-center rounded-full border border-[var(--color-line)] bg-[var(--color-ink-2)] p-0.5">
-            {(["board", "horizon"] as const).map((id) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => pickLayout(id)}
-                className={cn(
-                  "rounded-full px-3 py-1 text-[0.75rem] font-medium capitalize transition-colors",
-                  layout === id ? "bg-[var(--color-accent)] text-white" : "text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]",
-                )}
-              >
-                {id}
-              </button>
-            ))}
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => caseId && navigate(`/cases/${caseId}`)}
-              className="rounded-full border border-[var(--color-line-2)] bg-[var(--color-ink-2)] px-4 py-1.5 text-[0.8125rem] font-medium text-[var(--color-text-hi)] hover:border-[var(--color-accent)]"
-            >
-              Open case
-            </button>
-          </div>
-        </div>
-
-        {loading && !kase ? (
-          <div className={cn(card, "grid min-h-0 flex-1 place-items-center text-[var(--color-text-mid)]")}>
-            <Loader2 className="animate-spin" size={18} />
-          </div>
-        ) : error || !kase ? (
-          <div className={cn(card, "px-5 py-8 text-[0.8125rem] text-[var(--color-text-mid)]")}>{error ?? "Case not found."}</div>
-        ) : layout === "board" ? (
-          <Board
-            kase={kase}
-            patterns={patternsQuery.data?.patterns ?? []}
-            writing={writing}
-            writeError={writeError}
-            onRefresh={() => void refreshSummary()}
-            onChanged={() => void refresh()}
-          />
-        ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <Horizon
-              kase={kase}
-              patterns={patternsQuery.data?.patterns ?? []}
-              writing={writing}
-              writeError={writeError}
-              onRefresh={() => void refreshSummary()}
+    <svg viewBox="0 0 460 460" role="navigation" aria-label="Case pages">
+      {NAV.map((item, index) => {
+        const a0 = index * seg + GAP / 2;
+        const a1 = (index + 1) * seg - GAP / 2;
+        const mid = (a0 + a1) / 2;
+        const [x, y] = polar(mid, OUTER + 20);
+        const aim = ((mid - 90) * Math.PI) / 180;
+        const path = item.path(caseId);
+        return (
+          <g key={item.label} className="nav-g" style={{ ["--seg" as string]: item.color }} onClick={() => onGo(path)}>
+            <title>{item.title}</title>
+            <path
+              className="nav-seg"
+              d={midArc(a0, a1, BAND_MID)}
+              style={{
+                ["--arc" as string]: `path("${midArc(a0, a1, BAND_MID)}")`,
+                ["--arc-hot" as string]: `path("${midArc(a0, a1, BAND_MID_HOVER)}")`,
+              }}
             />
-          </div>
-        )}
+            <text
+              x={x}
+              y={y + 4}
+              textAnchor="middle"
+              className="dlab"
+              style={{
+                ["--nx" as string]: `${Math.cos(aim) * 18}px`,
+                ["--ny" as string]: `${Math.sin(aim) * 18}px`,
+              }}
+            >
+              {item.label.split(" ").map((line, index, lines) => (
+                <tspan
+                  key={line}
+                  x={x}
+                  dy={index === 0 ? (lines.length > 1 ? "-0.55em" : "0") : "1.15em"}
+                >
+                  {line}
+                </tspan>
+              ))}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function DayRow({
+  row,
+  onOpen,
+  onRemove,
+}: {
+  row: LedgerRow;
+  onOpen: (row: LedgerRow) => void;
+  onRemove: (row: LedgerRow) => void;
+}) {
+  const label = dayLabel(row.key);
+  const passed = compareDateKeys(row.key, localKey(new Date())) <= 0;
+  const removable = !passed && !row.worked && (row.blockIds.length > 0 || !!row.openDayId);
+  return (
+    <div className="row-wrap">
+      <div
+        className={row.open ? "r open" : "r"}
+        onClick={() => row.open && onOpen(row)}
+        style={{ cursor: row.open ? "pointer" : "default" }}
+      >
+        <div className="d">
+          <b>{label.wd}</b> {label.month} {label.n}
+        </div>
+        <div className="i">
+          {row.dot && <i style={{ background: row.dot, color: row.dot }} />}
+          {row.names}
+        </div>
+        <div className="o" style={{ color: row.color }}>{row.outcome}</div>
+        <FaceMark face={row.face} />
+      </div>
+      {removable && (
+        <button
+          type="button"
+          className="day-x"
+          aria-label="Remove day"
+          onClick={() => onRemove(row)}
+        >
+          ×
+        </button>
+      )}
     </div>
   );
 }
 
-function Board({
-  kase,
-  patterns,
-  writing,
-  writeError,
-  onRefresh,
-  onChanged,
-}: {
-  kase: CaseDetail;
-  patterns: CasePattern[];
-  writing: boolean;
-  writeError: string | null;
-  onRefresh: () => void;
-  onChanged: () => void;
-}) {
-  const navigate = useNavigate();
-  const { can } = useAuth();
-  const canSchedule = can("schedule.manage");
-  const days = useMemo(() => [...kase.days].sort((a, b) => dayKey(a.date).localeCompare(dayKey(b.date))), [kase.days]);
-  const rows = useMemo(() => scheduleRows(kase), [kase]);
-  const summary = kase.situationSummary?.trim() ?? "";
-  const notes = useMemo(() => investigatorNotes(kase), [kase]);
-  const records = useMemo(
-    () => comparisonsFromEntries(kase.days.flatMap((day) => day.entries.map((entry) => ({ ...entry, date: day.date })))),
-    [kase.days],
-  );
-  const worked = days.filter((day) => day.entries.some((entry) => entry.type === "note") || day.summary).length;
-  const dueIn = daysUntil(kase.dueDate);
-  const eac = formatEarliestActive(kase.earliestActiveAt);
-  const age = ageOf(kase.subjectDob);
-  const primary = kase.addresses.find((address) => address.isPrimary) ?? kase.addresses[0] ?? null;
-  const latest = records[0];
-  const latestScore = scoreOf(latest);
-  const photo = useCasePhoto(kase.id, kase.subjectPhotoUrl);
-  const [area, setArea] = useState<SubjectSetting | null>(() => kase.subjectSetting ?? readArea(kase.id));
-  useEffect(() => setArea(kase.subjectSetting ?? readArea(kase.id)), [kase.id, kase.subjectSetting]);
-  const weekdays = rows.filter((row) => {
-    const n = new Date(`${dayKey(row.date)}T12:00:00`).getDay();
-    return n !== 0 && n !== 6;
-  }).length;
-  const weekend = rows.length - weekdays;
-  const vehicles = kase.vehicles.slice(0, 2);
-  const addressLine = primary ? [primary.city, primary.state, primary.zip].filter(Boolean).join(" ") : "";
-  const [addDate, setAddDate] = useState<string | null>(null);
-  const [flow, setFlow] = useState<AssignInvestigatorFlow | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
-  const investigators = useQuery(canSchedule ? "investigators:list" : null, () => investigatorsApi.list(), { enabled: canSchedule });
-  const openDate = useMemo(() => nextOpenDate(rows), [rows]);
+type CompareShot = { url: string; score: number | null };
 
-  const pickArea = async (next: SubjectSetting) => {
-    setArea(next);
-    writeArea(kase.id, next);
+function comparisonShots(kase: CaseDetail): CompareShot[] {
+  const scores = new Map<string, number>();
+  const urls: string[] = [];
+  const push = (url: string | null | undefined) => {
+    if (!url || url === kase.subjectPhotoUrl || urls.includes(url)) return;
+    urls.push(url);
+  };
+  for (const day of kase.days) {
+    for (const entry of day.entries) {
+      if (entry.type === "face_match" && typeof entry.meta?.score === "number") {
+        const probe =
+          (typeof entry.meta.probePhotoUrl === "string" && entry.meta.probePhotoUrl) || entry.photoUrl;
+        if (probe) scores.set(probe, Math.max(scores.get(probe) ?? 0, entry.meta.score));
+      }
+      if (entry.photoUrl && (entry.type === "photo_person" || entry.type === "face_match")) push(entry.photoUrl);
+    }
+  }
+  return urls
+    .map((url) => ({ url, score: scores.get(url) ?? null }))
+    .sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+}
+
+function ShotThumb({
+  caseId,
+  url,
+  score,
+  selected,
+  onSelect,
+}: {
+  caseId: string;
+  url: string;
+  score: number | null;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const src = useCasePhoto(caseId, url);
+  const tone = score == null ? "var(--ink2)" : score >= 80 ? "var(--active)" : "var(--burned)";
+  return (
+    <button type="button" className={selected ? "on" : ""} onClick={onSelect} aria-label="Select photo">
+      {src && <img src={src} alt="" />}
+      <span className="shot-score" style={{ color: tone }}>
+        {score == null ? "—" : `${Math.round(score)}%`}
+      </span>
+    </button>
+  );
+}
+
+function PhotoCompare({
+  caseId,
+  subjectUrl,
+  shots,
+}: {
+  caseId: string;
+  subjectUrl: string | null;
+  shots: CompareShot[];
+}) {
+  const subject = useCasePhoto(caseId, subjectUrl);
+  const [selected, setSelected] = useState("");
+  const [split, setSplit] = useState<number | null>(null);
+  const chosen = shots.find((shot) => shot.url === selected) ?? null;
+  const shown = useCasePhoto(caseId, chosen?.url ?? subjectUrl);
+  const hovering = split != null && !!chosen;
+  const comparing = hovering && !!subject && !!shown;
+  const verdict =
+    !chosen || chosen.score == null ? "No facial comparison performed" : chosen.score >= 80 ? "Match" : "No match";
+  const verdictColor = !chosen || chosen.score == null ? "var(--ink2)" : chosen.score >= 80 ? "var(--active)" : "var(--burned)";
+
+  return (
+    <div className="photo-row">
+      <div
+        className="photo"
+        onMouseMove={(event) => {
+          if (!chosen) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          setSplit(Math.max(0, Math.min(rect.width, event.clientX - rect.left)));
+        }}
+        onMouseLeave={() => setSplit(null)}
+      >
+        {shown && <img src={shown} alt="" />}
+        {comparing && (
+          <img className="probe" src={subject} alt="" style={{ clipPath: `inset(0 0 0 ${split}px)` }} />
+        )}
+        {comparing && <div className="scan" style={{ left: split }} />}
+        {hovering && (
+          <>
+            <div className="verdict" style={{ color: verdictColor }}>{verdict}</div>
+            {chosen?.score != null && <div className="score" style={{ color: verdictColor }}>{Math.round(chosen.score)}%</div>}
+          </>
+        )}
+      </div>
+      {shots.length > 0 && (
+        <div className="shots">
+          {shots.map((shot) => (
+            <ShotThumb
+              key={shot.url}
+              caseId={caseId}
+              url={shot.url}
+              score={shot.score}
+              selected={shot.url === selected}
+              onSelect={() => {
+                setSelected(shot.url);
+                setSplit(null);
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FaceMark({ face }: { face: Face }) {
+  return (
+    <div className="face" style={{ color: face.ok ? "var(--active)" : "var(--burned)" }}>
+      <ScanFace size={15} strokeWidth={1.8} />
+      <span>{face.score == null ? "—" : `${Math.round(face.score)}%`}</span>
+    </div>
+  );
+}
+
+type LedgerRow = {
+  key: string;
+  names: string;
+  open: boolean;
+  openDayId?: string;
+  blockIds: string[];
+  outcome: string;
+  color: string;
+  dot: string | null;
+  face: Face;
+  /** Notes, photos, or an awareness answer — the day cannot be unscheduled. */
+  worked: boolean;
+};
+
+type DaySection = { key: string; label: string; color: string; specialId?: string };
+
+const ACTIVITY = new Set(["note", "manager_note", "photo_person", "photo_vehicle", "photo_home", "face_match"]);
+
+function entryIsWork(entry: { type: string; body: string | null }) {
+  return ACTIVITY.has(entry.type) || (entry.type === "qa" && !!entry.body?.trim());
+}
+
+function dayWasWorked(day: { awareness: string | null; entries: { type: string; body: string | null }[] } | undefined) {
+  if (!day) return false;
+  if (day.awareness) return true;
+  return day.entries.some(entryIsWork);
+}
+
+function dayStatus(entries: { type: string; body: string | null }[] | undefined, awareness: string | null | undefined) {
+  if (awareness === "aware") return { outcome: "Burned", color: "var(--burned)", dot: "var(--burned)" };
+  if (awareness === "suspicious") return { outcome: "Noticed", color: "var(--noticed)", dot: "var(--noticed)" };
+  const active = (entries ?? []).some(entryIsWork);
+  if (active) return { outcome: "Active", color: "var(--active)", dot: "var(--active)" };
+  return { outcome: "No activity", color: "var(--noact)", dot: "var(--noact)" };
+}
+
+function nextBirthdayKey(dobIso: string | null): string | null {
+  if (!dobIso) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dobIso);
+  if (!match) return null;
+  const now = new Date();
+  let year = now.getFullYear();
+  let key = `${year}-${match[2]}-${match[3]}`;
+  if (compareDateKeys(key, localKey(now)) < 0) {
+    year += 1;
+    key = `${year}-${match[2]}-${match[3]}`;
+  }
+  return key;
+}
+
+function blankRow(key: string, day: CaseDetail["days"][number] | undefined): LedgerRow {
+  return {
+    key,
+    names: "unassigned",
+    open: true,
+    blockIds: [],
+    outcome: "Open",
+    color: "var(--ink3)",
+    dot: null,
+    face: faceFromEntries(day?.entries ?? []),
+    worked: dayWasWorked(day),
+  };
+}
+
+function buildLedger(kase: CaseDetail): { rows: LedgerRow[]; sections: Map<string, DaySection> } {
+  const byDay = new Map<string, LedgerRow>();
+  const days = new Map(kase.days.map((day) => [scheduleKey(day.date), day]));
+  const sections = new Map<string, DaySection>();
+
+  const grouped = new Map<string, typeof kase.scheduleBlocks>();
+  for (const block of kase.scheduleBlocks) {
+    const key = scheduleKey(block.date);
+    grouped.set(key, [...(grouped.get(key) ?? []), block]);
+  }
+  for (const [key, blocks] of grouped) {
+    const day = days.get(key);
+    const status = dayStatus(day?.entries, day?.awareness);
+    byDay.set(key, {
+      key,
+      names: blocks.map((block) => block.user.name?.split(" ")[0] || "Investigator").join(", "),
+      open: false,
+      blockIds: blocks.map((block) => block.id),
+      ...status,
+      face: faceFromEntries(day?.entries ?? []),
+      worked: dayWasWorked(day),
+    });
+  }
+
+  for (const open of kase.openDays) {
+    const key = scheduleKey(open.date);
+    if (byDay.has(key)) continue;
+    const day = days.get(key);
+    byDay.set(key, { ...blankRow(key, day), openDayId: open.id });
+  }
+
+  const imeKeys = new Set<string>();
+  if (kase.imeAt) {
+    const exam = new Date(kase.imeAt);
+    const examKey = localKey(exam);
+    const window = [
+      { key: addDays(examKey, -1), tag: "day before" },
+      { key: examKey, tag: `IME ${clock(exam)}` },
+      { key: addDays(examKey, 1), tag: "day after" },
+    ];
+    for (const slot of window) {
+      imeKeys.add(slot.key);
+      const existing = byDay.get(slot.key) ?? blankRow(slot.key, days.get(slot.key));
+      byDay.set(slot.key, {
+        ...existing,
+        outcome: slot.tag,
+        color: slot.key === examKey ? "var(--working)" : existing.color,
+      });
+      sections.set(slot.key, {
+        key: "ime",
+        label: "IME set — day before · exam · day after",
+        color: "var(--working)",
+      });
+    }
+  }
+
+  const birthdayKey = nextBirthdayKey(kase.subjectDob);
+  if (birthdayKey && !imeKeys.has(birthdayKey)) {
+    const existing = byDay.get(birthdayKey);
+    const row = existing ?? blankRow(birthdayKey, days.get(birthdayKey));
+    if (row.open && row.outcome === "Open") {
+      row.outcome = "Birthday";
+      row.color = "#c084fc";
+    }
+    byDay.set(birthdayKey, row);
+    sections.set(birthdayKey, { key: `birthday-${birthdayKey}`, label: "Birthday", color: "#c084fc" });
+  } else if (birthdayKey && imeKeys.has(birthdayKey)) {
+    for (const key of imeKeys) {
+      const section = sections.get(key);
+      if (section) section.label = "IME · birthday — day before · exam · day after";
+    }
+  }
+
+  for (const special of kase.specialDates ?? []) {
+    const key = scheduleKey(special.date);
+    if (imeKeys.has(key)) continue;
+    const existing = byDay.get(key);
+    const row = existing ?? blankRow(key, days.get(key));
+    if (row.open && (row.outcome === "Open" || row.outcome === "Birthday")) {
+      row.outcome = special.name;
+      row.color = special.color;
+    }
+    byDay.set(key, row);
+    sections.set(key, { key: special.id, label: special.name, color: special.color, specialId: special.id });
+  }
+
+  const rows = [...byDay.values()].sort((a, b) => compareDateKeys(a.key, b.key));
+  return { rows, sections };
+}
+
+export default function SkyViewPage() {
+  const { id = "" } = useParams();
+  const navigate = useNavigate();
+  const query = useQuery(id ? `case:${id}` : null, () => casesApi.get(id));
+  const investigators = useQuery("investigators:list", () => investigatorsApi.list());
+  const kase = query.data?.case;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editingIme, setEditingIme] = useState(false);
+  const [imeDraft, setImeDraft] = useState("");
+  const [flow, setFlow] = useState<AssignInvestigatorFlow | null>(null);
+  const [assignDate, setAssignDate] = useState("");
+  const [openDayId, setOpenDayId] = useState<string | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<LedgerRow | null>(null);
+
+  const ledger = useMemo(() => (kase ? buildLedger(kase) : { rows: [], sections: new Map<string, DaySection>() }), [kase]);
+  const rows = ledger.rows;
+  const chunks = useMemo(() => {
+    const groups: { section: DaySection | null; rows: LedgerRow[] }[] = [];
+    for (const row of rows) {
+      const section = ledger.sections.get(row.key) ?? null;
+      const last = groups[groups.length - 1];
+      const same = last && (section ? last.section?.key === section.key : last.section == null);
+      if (same && last) last.rows.push(row);
+      else groups.push({ section, rows: [row] });
+    }
+    return groups;
+  }, [rows, ledger.sections]);
+
+  const removeDay = async (row: LedgerRow) => {
+    if (!kase || row.worked || compareDateKeys(row.key, localKey(new Date())) <= 0) return;
+    setBusy(true);
+    setError(null);
+    setPendingRemove(null);
     try {
-      await casesApi.setSubjectSetting(kase.id, next);
-    } catch {
-      /* The choice still sticks in this browser until the case field is available. */
+      if (row.blockIds.length > 0) {
+        await Promise.all(row.blockIds.map((blockId) => scheduleApi.remove(blockId)));
+      } else if (row.openDayId) {
+        await casesApi.removeOpenDay(kase.id, row.openDayId);
+      }
+      await query.refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not remove that day.");
+    } finally {
+      setBusy(false);
     }
   };
 
-  const openAdd = async () => {
-    if (!canSchedule) return;
-    setAddError(null);
-    const date = openDate;
-    setAddDate(date);
-    let people = investigators.data?.investigators;
-    if (!people) {
-      try {
-        people = (await investigatorsApi.list()).investigators;
-      } catch (err) {
-        setAddError(err instanceof ApiError ? err.message : "Could not load investigators.");
-        return;
-      }
+  const createSpecial = async (input: { date: string; name: string; color: string }) => {
+    if (!kase) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await casesApi.addSpecialDate(kase.id, input);
+      await query.refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not save that date.");
+    } finally {
+      setBusy(false);
     }
-    const booked = new Set(kase.scheduleBlocks.filter((block) => dayKey(block.date) === date).map((block) => block.user.id));
+  };
+
+  const removeSpecial = async (specialId: string) => {
+    if (!kase) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await casesApi.removeSpecialDate(kase.id, specialId);
+      await query.refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not remove that date.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveIme = async (value: string | null) => {
+    if (!kase) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await casesApi.setIme(kase.id, value);
+      setEditingIme(false);
+      await query.refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not save the exam.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addDay = async () => {
+    if (!kase) return;
+    const taken = [
+      ...kase.scheduleBlocks.map((block) => scheduleKey(block.date)),
+      ...kase.openDays.map((day) => scheduleKey(day.date)),
+    ].sort(compareDateKeys);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    let date = taken.length > 0 ? addDays(taken[taken.length - 1], 1) : localKey(tomorrow);
+    const used = new Set(taken);
+    for (let i = 0; i < 120 && used.has(date); i++) date = addDays(date, 1);
+    if (used.has(date)) {
+      setError("No free day after the last one.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await casesApi.addOpenDay(kase.id, date);
+      await query.refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not add the day.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openAssign = (row: LedgerRow) => {
+    if (!kase || !row.open) return;
+    const list = investigators.data?.investigators ?? [];
+    const booked = new Set(
+      kase.scheduleBlocks.filter((block) => scheduleKey(block.date) === row.key).map((block) => block.user.id),
+    );
+    setAssignDate(row.key);
+    setOpenDayId(row.openDayId ?? null);
     setFlow({
       kind: "assign-investigator",
       step: "pick",
       kase,
-      dayLabel: new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }),
-      investigators: people,
+      dayLabel: row.key,
+      investigators: list,
       priorWork: [],
       excludeUserIds: booked,
       draftNotes: "",
     });
   };
 
+  const remapOpenDay = async (next: string) => {
+    if (!kase || next === assignDate) return;
+    if (kase.scheduleBlocks.some((block) => scheduleKey(block.date) === next)) {
+      setError("That day already has an investigator.");
+      return;
+    }
+    const previous = assignDate;
+    const previousId = openDayId;
+    setAssignDate(next);
+    setFlow((current) =>
+      current?.kind === "assign-investigator" ? { ...current, dayLabel: next } : current,
+    );
+    setError(null);
+    const existing = kase.openDays.find((day) => scheduleKey(day.date) === next);
+    if (existing) {
+      if (!previousId || existing.id === previousId) {
+        setOpenDayId(existing.id);
+        return;
+      }
+      setBusy(true);
+      try {
+        await casesApi.removeOpenDay(kase.id, previousId);
+        setOpenDayId(existing.id);
+        await query.refresh();
+      } catch (err) {
+        setAssignDate(previous);
+        setFlow((current) =>
+          current?.kind === "assign-investigator" ? { ...current, dayLabel: previous } : current,
+        );
+        setError(err instanceof ApiError ? err.message : "Could not move that day.");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    setBusy(true);
+    try {
+      const { openDay } = await casesApi.addOpenDay(kase.id, next);
+      if (previousId) await casesApi.removeOpenDay(kase.id, previousId);
+      setOpenDayId(openDay.id);
+      await query.refresh();
+    } catch (err) {
+      setAssignDate(previous);
+      setFlow((current) =>
+        current?.kind === "assign-investigator" ? { ...current, dayLabel: previous } : current,
+      );
+      setError(err instanceof ApiError ? err.message : "Could not move that day.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmAssign = async (notes: string | null) => {
+    if (!kase || !flow?.draftInvestigator) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await scheduleApi.create({
+        caseId: kase.id,
+        userId: flow.draftInvestigator.id,
+        date: assignDate,
+        notes,
+      });
+      if (openDayId) await casesApi.removeOpenDay(kase.id, openDayId).catch(() => {});
+      setFlow(null);
+      setOpenDayId(null);
+      await query.refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not assign that investigator.");
+      throw err;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!kase) {
+    return (
+      <div className="sky-v6">
+        <div className="sky-v6-scale">
+          <div className="page">
+            <p className="occ">{query.error ?? "Loading case…"}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const primary = kase.addresses.find((item) => item.isPrimary) ?? kase.addresses[0];
+  const address = primary
+    ? [primary.line1, [primary.city, primary.state].filter(Boolean).join(", "), primary.zip].filter(Boolean).join(", ")
+    : "No address on file";
+  const homeListed = primary
+    ? kase.patterns.some((pattern) => pattern.place?.toLowerCase().includes(primary.line1.toLowerCase()))
+    : true;
+  const knownPlaces = [
+    ...(!homeListed && primary
+      ? [{ id: `home-${primary.id}`, title: "Home", when: "Lives here", place: address }]
+      : []),
+    ...kase.patterns.map((pattern) => ({
+      id: pattern.id,
+      title: pattern.title,
+      when: pattern.whenLabel,
+      place: pattern.place,
+    })),
+  ];
+  const age = ageYears(kase.subjectDob);
+  const eat = kase.earliestActiveAt ? new Date(kase.earliestActiveAt) : null;
+  const deploy = eat ? new Date(eat.getTime() - 60 * 60 * 1000) : null;
+  const observed = kase.days.filter((day) => day.entries.length > 0).length;
+  const exam = kase.imeAt ? new Date(kase.imeAt) : null;
+  const remaining = exam ? exam.getTime() - Date.now() : null;
+  const daysLeft = remaining == null ? null : Math.max(0, Math.floor(remaining / 86_400_000));
+  const hoursLeft = remaining == null ? null : Math.max(0, Math.floor((remaining % 86_400_000) / 3_600_000));
+  const until =
+    exam == null
+      ? null
+      : remaining != null && remaining < 0
+        ? "passed"
+        : daysLeft === 0
+          ? `in ${hoursLeft} hr${hoursLeft === 1 ? "" : "s"}`
+          : `in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`;
+  const weekdayCount = kase.scheduleBlocks.filter((block) => !dayLabel(scheduleKey(block.date)).weekend).length;
+  const weekendCount = kase.scheduleBlocks.filter((block) => dayLabel(scheduleKey(block.date)).weekend).length;
+
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 items-stretch gap-6 overflow-hidden text-[var(--color-text-hi)] xl:grid-cols-[minmax(18rem,0.92fr)_minmax(0,1.2fr)_minmax(19rem,22rem)]">
-      <section className={cn(card, "flex min-h-0 flex-col p-6")}>
-        <h2 className="truncate text-[2.35rem] font-light leading-none tracking-[-0.04em] text-[var(--color-text-hi)]">
-          {kase.subjectName}
-          {age != null && <span className="ml-2 text-[1.15rem] font-light text-[var(--color-text-lo)]">{age}</span>}
-        </h2>
-        <p className="mt-1.5 truncate text-[0.95rem] text-[var(--color-text-mid)]">{kase.subjectJobTitle || "Subject"}</p>
-        <p className="mt-3 text-[0.95rem] leading-snug text-[var(--color-text-mid)]">
-          {primary ? (
-            <>
-              <b className="font-medium text-[var(--color-text-hi)]">{primary.line1}</b>
-              {addressLine ? `, ${addressLine}` : ""}
-            </>
-          ) : (
-            <span className="text-[var(--color-text-lo)]">No address on file</span>
-          )}
-          <AreaChip value={area} onPick={(next) => void pickArea(next)} />
-        </p>
-        <p className="mt-1.5 truncate text-[0.95rem] text-[var(--color-text-mid)]">
-          {kase.client?.company || "No client"}
-          <span className="ml-2 inline-block rounded-full border border-[var(--color-line)] bg-[var(--color-accent-soft)] px-2.5 py-0.5 align-middle text-[0.75rem] text-[var(--color-accent)]">
-            {SERVICE_LABELS[kase.service]}
-          </span>
-        </p>
+    <div className="sky-v6">
+      <div className="sky-v6-scale">
+      <div className="scene" aria-hidden>
+        <div className="scene-fill">
+          <div className="sky">
+            <div className="orb o1" />
+            <div className="orb o2" />
+            <div className="orb o3" />
+          </div>
+          <div className="scrim" />
+          <div className="grain" />
+        </div>
+      </div>
 
-        <div className="mt-6 flex min-h-0 flex-1 flex-col gap-4">
-          <div className={slot}>
-            <div className="text-[1.85rem] font-light leading-none tracking-tight text-[var(--color-text-hi)]">
-              {eac ? eac.time : "—"}
-              {eac && <small className="ml-2.5 text-[0.85rem] tracking-normal text-[var(--color-text-lo)]">{eac.date}</small>}
+      <div className="page">
+        <div>
+          <div className="g id">
+            <h1 className="name">
+              {kase.subjectName}
+              {age != null && <span>{age}</span>}
+            </h1>
+            {kase.subjectJobTitle && <p className="occ">{kase.subjectJobTitle}</p>}
+            <p className="addr">
+              <b>{address}</b>
+              {kase.subjectSetting && <span className="cap d">{SETTING_LABEL[kase.subjectSetting]}</span>}
+            </p>
+            <p className="client">
+              {kase.client?.company ?? "No client"}
+              <span className="cap c">{SERVICE_LABELS[kase.service]}</span>
+            </p>
+
+            <div className="facts">
+              <div className="fact">
+                <div className="big">
+                  {eat ? clock(eat) : "—"}
+                  {deploy && <small>deploy {clock(deploy)}</small>}
+                </div>
+                earliest active time, {observed} day{observed === 1 ? "" : "s"} observed
+              </div>
+
+              <div className="fact">
+                <div className="sec">Transport</div>
+                {kase.subjectTransport && (
+                  <div className="line">
+                    <span>Mode</span>
+                    <span>{TRANSPORT_LABEL[kase.subjectTransport]}</span>
+                  </div>
+                )}
+                {kase.vehicles.length === 0 && <div className="line"><span>No vehicles on file</span><span /></div>}
+                {kase.vehicles.map((vehicle) => (
+                  <div className="line" key={vehicle.id}>
+                    <span>{vehicleTitle(vehicle)}</span>
+                    <span>{shareLabel(vehicle)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {knownPlaces.length > 0 && (
+                <div className="fact">
+                  <div className="sec">Known places — returns to</div>
+                  {knownPlaces.map((place) => (
+                    <div className="pl" key={place.id}>
+                      <span className="k">{place.title}</span>
+                      <span className="t">{place.when}</span>
+                      {place.place && <span className="a">{place.place}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
             </div>
-            <div className="mt-1.5 text-[0.85rem] text-[var(--color-text-mid)]">earliest active · {worked} days observed</div>
+          </div>
+        </div>
+
+        <div className="center">
+          <div className="wheel">
+            <NavRing caseId={kase.id} onGo={(path) => navigate(path)} />
+            <div className="core g">
+              {editingIme ? (
+                <form
+                  className="ime-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void saveIme(imeDraft ? new Date(imeDraft).toISOString() : null);
+                  }}
+                >
+                  <div className="ime-core">IME</div>
+                  <input type="datetime-local" value={imeDraft} onChange={(event) => setImeDraft(event.target.value)} />
+                  <button type="submit" className="btn" disabled={busy}>Save</button>
+                  <button type="button" className="btn" onClick={() => setEditingIme(false)}>Cancel</button>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImeDraft(exam ? toLocalInput(exam.toISOString()) : "");
+                    setEditingIme(true);
+                  }}
+                  style={{ background: "none", border: 0, color: "inherit", cursor: "pointer", font: "inherit" }}
+                >
+                  <div className="ime-core">IME</div>
+                  {exam ? (
+                    <>
+                      <div className="n">{exam.toLocaleDateString("en-US", { weekday: "short" })} {exam.getDate()}</div>
+                      <div className="l">
+                        {exam.toLocaleDateString("en-US", { month: "short" })} · {clock(exam)}
+                        {until ? ` · ${until}` : ""}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="n">—</div>
+                      <div className="l">Set exam</div>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className={slot}>
-            <div className="eyebrow">Transport</div>
-            <Line k="Mode" v={kase.subjectTransport ? transportLabel(kase.subjectTransport) : "Not set"} />
-            {vehicles.length > 0 ? (
-              vehicles.map((vehicle) => (
-                <Line
-                  key={vehicle.id}
-                  k={[vehicle.color, vehicle.make, vehicle.model, vehicle.licensePlate].filter(Boolean).join(" · ") || "Vehicle"}
-                  v={vehicle.registeredOwner || vehicle.personLinks?.[0]?.person.name || ""}
-                />
-              ))
+          <div className="g assign">
+            <div className="items">
+              <span className="ai done">{weekdayCount} weekday{weekdayCount === 1 ? "" : "s"}</span>
+              <span className="ai done">{weekendCount} weekend day{weekendCount === 1 ? "" : "s"}</span>
+              {exam && (
+                <span className="ai med">
+                  IME <b>{exam.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</b> · before, day of, after
+                </span>
+              )}
+            </div>
+            <div className="rem">
+              <div>
+                <div className="n">{daysLeft ?? "—"}</div>
+                <div className="l">days</div>
+              </div>
+              <div>
+                <div className="n">{hoursLeft ?? "—"}</div>
+                <div className="l">hours</div>
+              </div>
+            </div>
+          </div>
+
+          {error && <p className="occ">{error}</p>}
+
+          {chunks.map((chunk, index) =>
+            chunk.section ? (
+              <div
+                className="ime"
+                key={`mark-${chunk.section.key}-${chunk.rows[0]?.key ?? index}`}
+                style={{ ["--mark" as string]: chunk.section.color }}
+              >
+                <div className="ime-lab">
+                  {chunk.section.label}
+                  {chunk.section.specialId && (
+                    <button type="button" className="x" aria-label="Remove special date" onClick={() => void removeSpecial(chunk.section!.specialId!)}>
+                      ×
+                    </button>
+                  )}
+                </div>
+                {chunk.rows.map((row) => (
+                  <DayRow key={row.key} row={row} onOpen={openAssign} onRemove={setPendingRemove} />
+                ))}
+              </div>
             ) : (
-              <p className="pt-1.5 text-[0.85rem] text-[var(--color-text-lo)]">No vehicles on file</p>
-            )}
+              <div className="ledger" key={`days-${chunk.rows[0]?.key ?? index}`}>
+                {chunk.rows.map((row) => (
+                  <DayRow key={row.key} row={row} onOpen={openAssign} onRemove={setPendingRemove} />
+                ))}
+              </div>
+            ),
+          )}
+          <button type="button" className="r add-day" disabled={busy} aria-label="Add day" onClick={() => void addDay()}>
+            +
+          </button>
+        </div>
+
+        <div className="rail">
+          <PhotoCompare caseId={kase.id} subjectUrl={kase.subjectPhotoUrl} shots={comparisonShots(kase)} />
+          <div className="g idl">
+            <div className="sec">Summary</div>
+            <p className="sum">{kase.situationSummary?.trim() || "No case summary yet."}</p>
           </div>
 
-          <div className={cn(slot, "shrink-0")}>
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="eyebrow">Case summary</span>
-              <button type="button" onClick={onRefresh} disabled={writing} className="text-[0.75rem] text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)] disabled:opacity-50">
-                {writing ? "Writing…" : "Refresh"}
+          <div className="g stake">
+            <div className="sec">Stakeout</div>
+            <div className="stake-map">
+              <CaseMap addresses={kase.addresses} frameClassName="h-full min-h-0 rounded-none border-0" />
+            </div>
+            <p className="wait">Home address. Stakeout positions are not placed yet.</p>
+          </div>
+
+        </div>
+      </div>
+
+      {pendingRemove && (
+        <div className="confirm-layer">
+          <button type="button" className="confirm-back" aria-label="Keep the day" onClick={() => setPendingRemove(null)} />
+          <div className="confirm" role="dialog" aria-modal="true" aria-labelledby="remove-day-title">
+            <h2 id="remove-day-title">Remove this day?</h2>
+            <p>
+              {dayLabel(pendingRemove.key).wd} {dayLabel(pendingRemove.key).month} {dayLabel(pendingRemove.key).n} will leave the schedule.
+              The field record stays.
+            </p>
+            <div className="confirm-actions">
+              <button type="button" className="btn" onClick={() => setPendingRemove(null)}>Keep</button>
+              <button type="button" className="btn danger" disabled={busy} onClick={() => void removeDay(pendingRemove)}>
+                Remove
               </button>
             </div>
-            <p className="max-h-[5.5rem] overflow-y-auto text-[0.9rem] leading-relaxed text-[var(--color-text-mid)]">
-              {summary || "No case summary yet."}
-            </p>
-            {writeError && <p className="mt-1 text-[0.75rem] text-[var(--color-neg)]">{writeError}</p>}
           </div>
+        </div>
+      )}
 
-          <div className={cn(slot, "flex min-h-0 flex-1 flex-col")}>
-            <div className="eyebrow mb-3">Notes</div>
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-              {notes.length === 0 && <p className="text-[0.9rem] leading-relaxed text-[var(--color-text-lo)]">No investigator notes yet.</p>}
-              {notes.map((item) => (
-                <div key={item.id}>
-                  <div className="text-[0.75rem] font-medium text-[var(--color-accent)]">{item.label}</div>
-                  <p className="mt-1 line-clamp-3 text-[0.9rem] leading-relaxed text-[var(--color-text-mid)]">{item.body}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="flex min-h-0 flex-col">
-        <div className="flex h-[34%] min-h-[9.5rem] shrink-0 gap-4">
-          <div className="aspect-[4/3] h-full overflow-hidden rounded-[1.75rem] border border-[var(--color-line)]">
-            {photo ? (
-              <img src={photo} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <div className="grid h-full w-full place-items-center text-[3rem] font-light text-[var(--color-text-lo)]">{kase.subjectName.slice(0, 1)}</div>
-            )}
-          </div>
-          <div className={cn(card, "flex min-w-0 flex-1 flex-col justify-center px-5 py-4")}>
-            <div className="flex items-baseline gap-2">
-              <span className="text-[1.85rem] font-light leading-none text-[var(--color-pos)]">{latestScore != null ? `${latestScore}%` : "—"}</span>
-              <span className="text-[0.8rem] text-[var(--color-text-mid)]">{latest ? "latest comparison" : "no comparison yet"}</span>
-            </div>
-            <p className="mt-2 text-[0.85rem] text-[var(--color-text-mid)]">
-              {eac ? `${eac.time} earliest active` : "Earliest active not set"} · {worked} days observed
-            </p>
-            <div className="mt-3 text-[1.65rem] font-light leading-none">{dueIn == null ? "—" : dueIn}</div>
-            <div className="text-[0.72rem] text-[var(--color-text-lo)]">days to due</div>
-          </div>
-        </div>
-
-        <div className="mt-5 flex min-h-0 flex-1 flex-col justify-end gap-3">
-          <div className={cn(card, "sky-inset flex shrink-0 flex-wrap items-center gap-2 px-5 py-3")}>
-            {rows.length === 0 ? (
-              <span className="text-[0.8rem] text-[var(--color-text-lo)]">Nothing scheduled yet</span>
-            ) : (
-              <>
-                {weekdays > 0 && <Chip done>{weekdays} weekdays</Chip>}
-                {weekend > 0 && <Chip done>{weekend} weekend {weekend === 1 ? "day" : "days"}</Chip>}
-              </>
-            )}
-          </div>
-          <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
-            {rows.length === 0 && <p className="px-1 text-[0.85rem] text-[var(--color-text-lo)]">Schedule a day to put someone on this case.</p>}
-            {rows.map((row) => (
-              <LedgerRow key={row.key} row={row} />
-            ))}
-            {canSchedule && <AddDayRow onClick={() => void openAdd()} />}
-            {addError && <p className="px-1 text-[0.75rem] text-[var(--color-neg)]">{addError}</p>}
-          </div>
-          <div className="flex shrink-0 justify-end">
-            <Legend />
-          </div>
-        </div>
-      </section>
-
-      <aside className="flex min-h-0 flex-col gap-5 overflow-hidden">
-        <div className={cn(card, "flex min-h-0 flex-1 flex-col overflow-hidden p-5")}>
-          <div className="eyebrow mb-4">Comparison history</div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <SkyComparisons caseId={kase.id} subjectPhotoUrl={kase.subjectPhotoUrl} records={records} />
-          </div>
-        </div>
-        <div className={cn(card, "flex min-h-[9rem] flex-[0.85] flex-col p-5")}>
-          <div className="eyebrow mb-3">Map</div>
-          <div className="min-h-0 flex-1 overflow-hidden rounded-[1.25rem]">
-            <SkyMap addresses={kase.addresses} />
-          </div>
-        </div>
-        <Places patterns={patterns} addresses={kase.addresses.filter((address) => !address.isPrimary)} compact />
-      </aside>
-      {flow && addDate && (
+      {flow && (
         <ScheduleAssignmentModal
           flow={flow}
-          canManage={canSchedule}
-          busy={saving}
+          canManage
+          busy={busy}
+          dateValue={assignDate}
+          onDateChange={(iso) => void remapOpenDay(iso)}
+          onCreateSpecial={createSpecial}
           onClose={() => setFlow(null)}
           onDraftInvestigator={(userId) => {
-            const draftInvestigator = flow.investigators.find((person) => person.id === userId);
+            const draftInvestigator = flow.investigators.find((person: InvestigatorListItem) => person.id === userId);
             if (!draftInvestigator) return;
             setFlow({ ...flow, step: "notes", draftInvestigator, draftNotes: "" });
           }}
           onBackToPick={() => setFlow({ ...flow, step: "pick", draftInvestigator: undefined, draftNotes: "" })}
-          onConfirmAssign={async (notes) => {
-            if (!flow.draftInvestigator) return;
-            setSaving(true);
-            setAddError(null);
-            try {
-              await scheduleApi.create({
-                caseId: kase.id,
-                userId: flow.draftInvestigator.id,
-                date: addDate,
-                notes,
-              });
-              setFlow(null);
-              onChanged();
-            } catch (err) {
-              setAddError(err instanceof ApiError ? err.message : "Could not schedule that day.");
-              setFlow(null);
-            } finally {
-              setSaving(false);
-            }
-          }}
+          onConfirmAssign={confirmAssign}
           onSaveNotes={async () => {}}
           onRemove={() => setFlow(null)}
           onGoToCase={() => navigate(`/cases/${kase.id}`)}
-          dateValue={addDate}
-          onDateChange={(iso) => {
-            setAddDate(iso);
-            const booked = new Set(kase.scheduleBlocks.filter((block) => dayKey(block.date) === iso).map((block) => block.user.id));
-            setFlow((current) =>
-              current
-                ? {
-                    ...current,
-                    dayLabel: new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }),
-                    excludeUserIds: booked,
-                    step: "pick",
-                    draftInvestigator: undefined,
-                  }
-                : current,
-            );
-          }}
         />
       )}
-    </div>
-  );
-}
-
-type ScheduleRow = {
-  key: string;
-  date: string;
-  who: string;
-  tone: { label: string; color: string };
-  detail: string;
-};
-
-function nextOpenDate(rows: ScheduleRow[]): string {
-  const last = rows.map((row) => dayKey(row.date)).sort().at(-1);
-  const base = last ? new Date(`${last}T12:00:00`) : new Date();
-  base.setDate(base.getDate() + 1);
-  const month = String(base.getMonth() + 1).padStart(2, "0");
-  const day = String(base.getDate()).padStart(2, "0");
-  return `${base.getFullYear()}-${month}-${day}`;
-}
-
-function scheduleRows(kase: CaseDetail): ScheduleRow[] {
-  const blocks = new Map<string, { names: string[]; note: string | null }>();
-  for (const block of kase.scheduleBlocks) {
-    const key = dayKey(block.date);
-    const cur = blocks.get(key) ?? { names: [], note: null };
-    const name = block.user.name.split(" ")[0];
-    if (name && !cur.names.includes(name)) cur.names.push(name);
-    if (!cur.note && block.notes) cur.note = block.notes;
-    blocks.set(key, cur);
-  }
-  const dayBy = new Map(kase.days.map((day) => [dayKey(day.date), day]));
-  return [...new Set([...blocks.keys(), ...dayBy.keys()])].sort().map((key) => {
-    const day = dayBy.get(key);
-    const sched = blocks.get(key);
-    const hasNotes = !!day?.entries.some((entry) => entry.type === "note");
-    const tone = toneOf(day?.awareness ?? null, hasNotes || !!day?.summary);
-    const author = day?.entries.find((entry) => entry.author)?.author?.name.split(" ")[0];
-    return {
-      key: day?.id ?? key,
-      date: day?.date ?? key,
-      who: sched?.names.join(", ") || author || "Unassigned",
-      tone,
-      detail: sched?.note || "",
-    };
-  });
-}
-
-function investigatorNotes(kase: CaseDetail): { id: string; label: string; body: string }[] {
-  const items: { id: string; label: string; body: string }[] = [];
-  const ordered = [...kase.days].sort((a, b) => dayKey(b.date).localeCompare(dayKey(a.date)));
-  for (const day of ordered) {
-    const stamp = shortDay(day.date);
-    const when = `${stamp.weekday} ${stamp.day}`;
-    for (const entry of [...day.entries].reverse()) {
-      if (entry.type === "note" && entry.body?.trim()) {
-        items.push({
-          id: entry.id,
-          label: `${when}${entry.author?.name ? ` · ${entry.author.name}` : ""}`,
-          body: entry.body.trim(),
-        });
-      }
-    }
-  }
-  return items;
-}
-
-function scoreOf(record: ComparisonRecord | undefined): number | null {
-  if (!record) return null;
-  if (record.score != null) return Math.round(record.score);
-  const parsed = Number(record.verdict.match(/(\d+(?:\.\d+)?)\s*%/)?.[1]);
-  return Number.isFinite(parsed) ? Math.round(parsed) : null;
-}
-
-function AddDayRow({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-label="Add day"
-      onClick={onClick}
-      className={cn(
-        card,
-        "sky-inset sky-add relative grid shrink-0 place-items-center border-dashed border-[var(--color-line-2)] px-5 py-3 text-[var(--color-text-mid)] hover:border-[var(--color-accent)] hover:text-[var(--color-text-hi)]",
-      )}
-    >
-      <Plus size={18} strokeWidth={1.75} />
-    </button>
-  );
-}
-
-function SkyComparisons({
-  caseId,
-  subjectPhotoUrl,
-  records,
-}: {
-  caseId: string;
-  subjectPhotoUrl: string | null;
-  records: ComparisonRecord[];
-}) {
-  if (records.length === 0) {
-    return <p className="text-[0.9rem] leading-relaxed text-[var(--color-text-lo)]">No comparisons yet.</p>;
-  }
-  return (
-    <div className="flex flex-col gap-4">
-      {records.map((record) => {
-        const score = scoreOf(record);
-        const color = score == null ? "var(--color-text-lo)" : score >= 80 ? "var(--color-pos)" : "var(--color-neg)";
-        return (
-          <div key={record.id} className="flex items-center justify-between gap-4">
-            <CasePhoto
-              caseId={caseId}
-              photoUrl={record.subjectUrl || subjectPhotoUrl}
-              className="h-[5.25rem] w-[5.25rem] rounded-[1.15rem]"
-            />
-            <span className="text-[1.85rem] font-light leading-none tabular-nums" style={{ color }}>
-              {score != null ? `${score}%` : "—"}
-            </span>
-            <CasePhoto caseId={caseId} photoUrl={record.probeUrl} className="h-[5.25rem] w-[5.25rem] rounded-[1.15rem]" />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function LedgerRow({ row }: { row: ScheduleRow }) {
-  const label = shortDay(row.date);
-  return (
-    <div className={cn(card, "sky-inset grid shrink-0 grid-cols-[4rem_minmax(0,1fr)_6.2rem_minmax(0,7rem)] items-center gap-3 px-5 py-3 text-[0.9rem]")}>
-      <div className="text-[var(--color-text-mid)]">
-        <b className="font-medium text-[var(--color-text-hi)]">{label.weekday}</b> {label.day}
       </div>
-      <div className="flex min-w-0 items-center gap-2.5">
-        <i className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: row.tone.color }} />
-        <span className="truncate">{row.who}</span>
-      </div>
-      <div className="font-medium" style={{ color: row.tone.color }}>
-        {row.tone.label === "Aware" ? "Burned" : row.tone.label}
-      </div>
-      <div className="truncate text-right text-[0.8rem] text-[var(--color-text-lo)]">{row.detail}</div>
-    </div>
-  );
-}
-
-function Horizon({
-  kase,
-  patterns,
-  writing,
-  writeError,
-  onRefresh,
-}: {
-  kase: CaseDetail;
-  patterns: CasePattern[];
-  writing: boolean;
-  writeError: string | null;
-  onRefresh: () => void;
-}) {
-  const days = useMemo(() => [...kase.days].sort((a, b) => dayKey(a.date).localeCompare(dayKey(b.date))), [kase.days]);
-  const age = ageOf(kase.subjectDob);
-  const dueIn = daysUntil(kase.dueDate);
-  const eac = formatEarliestActive(kase.earliestActiveAt);
-
-  return (
-    <div className="flex flex-col gap-5 text-[var(--color-text-hi)]">
-      <div className="flex flex-wrap items-end justify-between gap-4 px-1">
-        <h2 className="text-[3.4rem] font-light leading-[0.9] tracking-[-0.04em]">
-          {kase.subjectName}
-          {age != null && <span className="ml-3 align-middle text-[1.25rem] text-[var(--color-text-lo)]">{age}</span>}
-        </h2>
-        <div className="text-right text-[0.9rem] text-[var(--color-text-mid)]">
-          <div>
-            {kase.client?.company ?? "No client"}
-            <span className="ml-2 rounded-full border border-[var(--color-line)] bg-[var(--color-accent-soft)] px-2 py-0.5 text-[0.7rem] text-[var(--color-accent)]">{SERVICE_LABELS[kase.service]}</span>
-          </div>
-          <div className="mt-2 text-[2rem] font-light leading-none">{dueIn == null ? "—" : dueIn}</div>
-          <div className="text-[0.7rem] uppercase tracking-[0.16em] text-[var(--color-text-lo)]">days to due</div>
-        </div>
-      </div>
-
-      <div className={cn(card, "px-6 py-6")}>
-        <div className="relative flex min-h-[11rem] items-end gap-2 overflow-x-auto pb-2">
-          <div className="pointer-events-none absolute bottom-10 left-0 right-0 h-px bg-[var(--color-line)]" />
-          {days.length === 0 && <p className="text-[0.85rem] text-[var(--color-text-lo)]">No field days yet.</p>}
-          {days.map((day) => {
-            const label = shortDay(day.date);
-            const tone = toneOf(day.awareness, day.entries.some((entry) => entry.type === "note"));
-            return (
-              <div key={day.id} className="relative z-[1] w-[6.5rem] shrink-0 text-center">
-                <div
-                  className="mx-auto h-8 w-8 rounded-full border border-[var(--color-line-2)]"
-                  style={{ background: `radial-gradient(circle at 35% 30%, white, ${tone.color} 62%)`, boxShadow: `0 0 18px ${tone.color}` }}
-                />
-                <div className="mt-2 text-[0.8rem] font-medium">
-                  {label.weekday} {label.day}
-                </div>
-                <div className="text-[0.68rem] uppercase tracking-wide" style={{ color: tone.color }}>
-                  {tone.label}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Fact>
-          <div className="text-[1.8rem] font-light leading-none">{eac ? `${eac.time}` : "—"}</div>
-          <div className="mt-1 text-[0.8rem] text-[var(--color-text-mid)]">earliest active{eac ? ` · ${eac.date}` : ""}</div>
-        </Fact>
-        <Fact>
-          <div className="mb-1 flex items-center justify-between">
-            <span className="eyebrow">Case summary</span>
-            <button type="button" onClick={onRefresh} disabled={writing} className="text-[0.7rem] text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)] disabled:opacity-50">
-              {writing ? "Writing…" : "Refresh"}
-            </button>
-          </div>
-          <p className="text-[0.85rem] leading-relaxed text-[var(--color-text-mid)]">{kase.situationSummary?.trim() || "No case summary yet."}</p>
-          {writeError && <p className="mt-1 text-[0.75rem] text-[var(--color-neg)]">{writeError}</p>}
-        </Fact>
-        <Places patterns={patterns} addresses={kase.addresses} />
-      </div>
-      <Legend />
-    </div>
-  );
-}
-
-function Places({
-  patterns,
-  addresses,
-  compact = false,
-}: {
-  patterns: CasePattern[];
-  addresses: { id: string; label: string | null; line1: string; city: string | null; state: string | null }[];
-  compact?: boolean;
-}) {
-  const recorded = [
-    ...patterns.map((pattern) => ({
-      id: pattern.id,
-      title: pattern.place || pattern.title,
-      meta: pattern.whenLabel,
-      detail: pattern.detail,
-    })),
-    ...addresses.map((address) => ({
-      id: address.id,
-      title: address.label || "Address",
-      meta: "",
-      detail: [address.line1, address.city, address.state].filter(Boolean).join(", "),
-    })),
-  ];
-  const rows = recorded.slice(0, compact ? 3 : 5);
-  return (
-    <div className={cn(card, "shrink-0 overflow-hidden px-5 py-4 text-[0.85rem]")}>
-      <div className="eyebrow mb-1">Known places</div>
-      {rows.length === 0 && <p className="text-[var(--color-text-lo)]">None recorded.</p>}
-      {rows.map((row) => (
-        <div key={row.id} className="border-t border-[var(--color-line)] py-1.5 first:border-0 first:pt-0">
-          <div className="flex justify-between gap-2">
-            <span className="truncate font-medium text-[var(--color-text-hi)]">{row.title}</span>
-            {row.meta && <span className="shrink-0 text-[0.72rem] text-[var(--color-text-lo)]">{row.meta}</span>}
-          </div>
-          {row.detail && <div className="truncate text-[0.78rem] text-[var(--color-text-mid)]">{row.detail}</div>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function AreaChip({ value, onPick }: { value: SubjectSetting | null; onPick: (next: SubjectSetting) => void }) {
-  const [open, setOpen] = useState(false);
-  const current = AREAS.find((area) => area.id === value);
-  return (
-    <span className="relative ml-1.5 inline-block align-middle">
-      <button
-        type="button"
-        title="Suburban, rural, or densely populated"
-        onClick={() => setOpen((v) => !v)}
-        className="rounded-full border border-[var(--color-line)] bg-[var(--color-ink-2)] px-2.5 py-0.5 text-[0.75rem]"
-        style={{ color: current?.color ?? "var(--color-text-lo)" }}
-      >
-        {current?.label ?? "set area"}
-      </button>
-      {open && (
-        <span className="surface absolute left-0 top-full z-20 mt-1 flex w-max flex-col rounded-xl border border-[var(--color-line)] p-1 shadow-lg">
-          {AREAS.map((area) => (
-            <button
-              key={area.id}
-              type="button"
-              onClick={() => {
-                onPick(area.id);
-                setOpen(false);
-              }}
-              className="rounded-lg px-2.5 py-1 text-left text-[0.8rem] hover:bg-[var(--color-ink-3)]"
-              style={{ color: area.color }}
-            >
-              {area.title}
-            </button>
-          ))}
-        </span>
-      )}
-    </span>
-  );
-}
-
-function SkyMap({ addresses }: { addresses: CaseAddress[] }) {
-  const key = addresses.map((address) => `${address.id}:${address.lat ?? ""}:${address.lng ?? ""}:${address.line1}`).join("|");
-  const [resolved, setResolved] = useState(addresses);
-  useEffect(() => {
-    let cancel = false;
-    setResolved(addresses);
-    const missing = addresses.filter((address) => (address.lat == null || address.lng == null) && address.line1);
-    if (missing.length === 0) return;
-    void (async () => {
-      const next = addresses.map((address) => ({ ...address }));
-      for (const address of missing.slice(0, 5)) {
-        try {
-          const res = await geocodeApi.lookup({
-            line1: address.line1,
-            city: address.city ?? undefined,
-            state: address.state ?? undefined,
-            zip: address.zip ?? undefined,
-          });
-          if (!res.result || cancel) continue;
-          const index = next.findIndex((item) => item.id === address.id);
-          if (index >= 0) next[index] = { ...address, lat: res.result.lat, lng: res.result.lng };
-        } catch {
-          /* leave this address ungeocoded */
-        }
-      }
-      if (!cancel) setResolved(next);
-    })();
-    return () => {
-      cancel = true;
-    };
-  }, [key, addresses]);
-  return <CaseMap addresses={resolved} frameClassName="rounded-[1.25rem] border-0" />;
-}
-
-function Fact({ children, hot = false }: { children: ReactNode; hot?: boolean }) {
-  return (
-    <div className={cn(card, "px-4 py-4", hot && "border-[var(--color-warn)]")}>{children}</div>
-  );
-}
-
-function Line({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="flex justify-between gap-3 border-t border-[var(--color-line)] py-1.5 text-[0.85rem] first:border-0">
-      <span className="text-[var(--color-text-mid)]">{k}</span>
-      <span className="text-right font-medium text-[var(--color-text-hi)]">{v}</span>
-    </div>
-  );
-}
-
-function Chip({ children, done = false, tone }: { children: ReactNode; done?: boolean; tone?: "med" }) {
-  return (
-    <span
-      className={cn(
-        "rounded-full border px-2.5 py-1 text-[0.78rem] font-medium",
-        tone === "med" && "border-[var(--color-warn)] bg-[var(--color-ink-2)] text-[var(--color-warn)]",
-        !tone && done && "border-[var(--color-pos)] text-[var(--color-pos)]",
-        !tone && !done && "border-[var(--color-line)] text-[var(--color-text-lo)]",
-      )}
-    >
-      {done ? "✓ " : ""}
-      {children}
-    </span>
-  );
-}
-
-function Legend() {
-  const items = [
-    ["Active", TONE.active],
-    ["Working", TONE.working],
-    ["No activity", TONE.quiet],
-    ["Noticed", TONE.noticed],
-    ["Aware", TONE.burned],
-  ] as const;
-  return (
-    <div className="flex flex-wrap justify-end gap-3 text-[0.72rem] text-[var(--color-text-mid)]">
-      {items.map(([label, color]) => (
-        <span key={label} className="inline-flex items-center gap-1.5">
-          <i className="h-2 w-2 rounded-full" style={{ background: color, boxShadow: `0 0 8px ${color}` }} />
-          {label}
-        </span>
-      ))}
     </div>
   );
 }

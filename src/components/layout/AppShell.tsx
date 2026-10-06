@@ -4,6 +4,7 @@ import { Menu } from "lucide-react";
 import { cn } from "@/lib/cn";
 import Sidebar from "./Sidebar";
 import { LiveBackground } from "./LiveBackground";
+import { OrbsBackground, ProceduralBackground } from "./ProceduralBackground";
 
 const FULL_BLEED_ROUTES = ["/assistant", "/video"];
 /**
@@ -23,8 +24,11 @@ const FILL_HEIGHT_PREFIXES = [
   "/profile",
   "/administration",
   "/documents",
+  "/reports",
 ];
 const SIDEBAR_COLLAPSED_LS_KEY = "accenty.crm.sidebar.collapsed";
+/** Skyview remembers its own rail. Opening or closing it does not change other pages. */
+const SKYVIEW_SIDEBAR_LS_KEY = "accenty.crm.sidebar.skyview";
 
 function pathMatchesPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -32,7 +36,8 @@ function pathMatchesPrefix(pathname: string, prefix: string) {
 
 export default function AppShell() {
   const { pathname } = useLocation();
-  const fullBleed = FULL_BLEED_ROUTES.some((r) => pathname.startsWith(r));
+  const skyview = /\/cases\/[^/]+\/skyview\/?$/.test(pathname) || /\/cases\/new\/?$/.test(pathname);
+  const fullBleed = FULL_BLEED_ROUTES.some((r) => pathname.startsWith(r)) || skyview;
   const fillHeight = FILL_HEIGHT_PREFIXES.some((r) => pathMatchesPrefix(pathname, r));
   const noScroll = fullBleed || fillHeight;
   /** Pending case detail only — not the list. Full-screen caution wash. */
@@ -45,15 +50,34 @@ export default function AppShell() {
       return false;
     }
   });
+  const [skyCollapsed, setSkyCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SKYVIEW_SIDEBAR_LS_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const railCollapsed = skyview ? skyCollapsed : collapsed;
 
   // Keeps `--app-sidebar-w` in sync at :root so elements portaled straight
   // onto `document.body` (case action bar, page arrows) can position
   // themselves relative to the content pane rather than the whole viewport.
   useEffect(() => {
-    document.documentElement.style.setProperty("--app-sidebar-w", collapsed ? "3.25rem" : "16rem");
-  }, [collapsed]);
+    document.documentElement.style.setProperty("--app-sidebar-w", railCollapsed ? "3.25rem" : "16rem");
+  }, [railCollapsed]);
 
   const toggleCollapsed = () => {
+    if (skyview) {
+      setSkyCollapsed((v) => {
+        try {
+          localStorage.setItem(SKYVIEW_SIDEBAR_LS_KEY, v ? "0" : "1");
+        } catch {
+          /* ignore */
+        }
+        return !v;
+      });
+      return;
+    }
     setCollapsed((v) => {
       try {
         localStorage.setItem(SIDEBAR_COLLAPSED_LS_KEY, v ? "0" : "1");
@@ -86,6 +110,8 @@ export default function AppShell() {
     <div className="surveil-shell relative flex h-screen w-full overflow-hidden bg-[var(--color-ink-0)] text-[var(--color-text-hi)]">
       {/* Atmospheric overlays */}
       <LiveBackground />
+      <ProceduralBackground />
+      <OrbsBackground />
       <div className="atmo atmo-glass-scene" aria-hidden />
       <div className="atmo atmo-radial" aria-hidden />
       <div className="atmo atmo-noise" aria-hidden>
@@ -141,7 +167,7 @@ export default function AppShell() {
 
       <Sidebar
         open={navOpen}
-        collapsed={collapsed}
+        collapsed={railCollapsed}
         onToggleCollapsed={toggleCollapsed}
         onNavigate={() => setNavOpen(false)}
       />
@@ -172,7 +198,7 @@ export default function AppShell() {
               Fade only — no transform (transformed ancestors break GridStack). */}
           <div
             key={pathname}
-            className={cn("anim-fade", fillHeight || fullBleed ? "flex h-full min-h-0 flex-col" : "min-h-full")}
+            className={cn("anim-fade", fillHeight || fullBleed ? "flex h-full min-h-0 min-w-0 flex-col" : "min-h-full")}
           >
             <Outlet />
           </div>
