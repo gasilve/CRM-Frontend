@@ -130,6 +130,7 @@ export function proposalToCaseDetail(p: PendingCaseDetail): CaseDetail {
     days: [],
     scheduleBlocks: [],
     openDays: [],
+    specialDates: [],
     patterns: [],
     files: p.files.map((f) => ({ ...f, source: "ingest" })),
     todos: [],
