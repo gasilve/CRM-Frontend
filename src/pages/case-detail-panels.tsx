@@ -21,6 +21,7 @@ import {
   type UpdateCasePayload,
 } from "@/lib/crm-api";
 import { ImageComparisonModal } from "@/components/case/ImageComparisonModal";
+import { CasePhoto } from "@/components/case/EntityModal";
 import { FileViewerModal } from "@/components/case/FileViewerModal";
 import { CaseMap } from "@/components/case/CaseMap";
 import type { CasePanelCtx } from "./case-detail-widgets";
@@ -188,6 +189,16 @@ function photosForTab(c: CaseDetail, tab: PhotoTab): PanelPhoto[] {
   return [];
 }
 
+const isDirectPhoto = (url: string) => /^(https?:|data:|blob:)/.test(url);
+
+/** A public or blob URL renders directly. A case-file id is loaded through the case. */
+function PanelPhotoImg({ photo }: { photo: PanelPhoto }) {
+  if (isDirectPhoto(photo.url)) {
+    return <img src={photo.url} alt={photo.label} className="h-full w-full object-cover" />;
+  }
+  return <CasePhoto caseId={photo.caseId} photoUrl={photo.url} alt={photo.label} className="h-full w-full" />;
+}
+
 export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
   const c = ctx.case;
   const { pxWidth, pxHeight } = useWidgetSize();
@@ -232,7 +243,7 @@ export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
         p.id === activeId ? "border-[var(--color-accent)]" : "border-[var(--color-line-2)]",
       )}
     >
-      <img src={p.url} alt={p.label} className="h-full w-full object-cover" />
+      <PanelPhotoImg photo={p} />
     </button>
   );
 
@@ -268,7 +279,7 @@ export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
         >
           <div className="relative min-h-[7.5rem] min-w-0 flex-1 overflow-hidden rounded-[0.625rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]">
             {primary ? (
-              <img src={primary.url} alt={primary.label} className="h-full w-full object-cover" />
+              <PanelPhotoImg photo={primary} />
             ) : (
               <div className="grid h-full place-items-center px-4 text-center">
                 <span className="font-mono text-[0.65625rem] text-[var(--color-text-lo)]">

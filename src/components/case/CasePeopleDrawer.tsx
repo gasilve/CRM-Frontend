@@ -10,6 +10,7 @@ import {
   type PersonVehicleRole,
 } from "@/lib/crm-api";
 import type { CasePanelCtx } from "@/pages/case-detail-widgets";
+import { CasePhoto } from "@/components/case/EntityModal";
 
 const RELATIONSHIP_LABELS: Record<CasePersonRelationship, string> = {
   cohabitant: "Cohabitant",
@@ -169,11 +170,20 @@ export function CasePeopleDrawer({ ctx }: { ctx: CasePanelCtx }) {
     <div className="flex flex-col gap-4">
       {/* Subject callout — the subject lives on the case itself, not in this list */}
       <div className="flex items-center gap-3 rounded-[0.625rem] border border-[var(--color-accent-soft)]/60 bg-[var(--color-accent-soft)]/20 px-2.5 py-2">
-        <img
-          src={c.subjectPhotoUrl || placeholderPhotoFor(c.id)}
-          alt=""
-          className="h-10 w-10 shrink-0 rounded-full border border-[var(--color-line-2)] object-cover"
-        />
+        {c.subjectPhotoUrl && !/^(https?:|data:|blob:)/.test(c.subjectPhotoUrl) ? (
+          <CasePhoto
+            caseId={c.id}
+            photoUrl={c.subjectPhotoUrl}
+            alt=""
+            className="h-10 w-10 shrink-0 rounded-full border border-[var(--color-line-2)]"
+          />
+        ) : (
+          <img
+            src={c.subjectPhotoUrl || placeholderPhotoFor(c.id)}
+            alt=""
+            className="h-10 w-10 shrink-0 rounded-full border border-[var(--color-line-2)] object-cover"
+          />
+        )}
         <div className="min-w-0">
           <div className="truncate text-[0.78125rem] font-medium text-[var(--color-text-hi)]">
             {c.subjectName || "Subject"}
