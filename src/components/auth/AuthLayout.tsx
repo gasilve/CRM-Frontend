@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { Palette } from "lucide-react";
 import { LiveBackground } from "@/components/layout/LiveBackground";
+import { OrbsBackground, ProceduralBackground } from "@/components/layout/ProceduralBackground";
 import { ThemePicker } from "@/components/layout/ThemePicker";
 
 export default function AuthLayout({
@@ -27,6 +28,8 @@ export default function AuthLayout({
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[var(--color-ink-0)] px-4 py-10 text-[var(--color-text-hi)]">
       <LiveBackground />
+      <ProceduralBackground />
+      <OrbsBackground />
       <div className="atmo atmo-glass-scene" aria-hidden />
       <div className="atmo atmo-radial" aria-hidden />
       <div className="atmo atmo-vignette" aria-hidden />

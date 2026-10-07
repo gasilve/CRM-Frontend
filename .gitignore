@@ -6,3 +6,9 @@ dist
 .env
 .env.*
 *.tsbuildinfo
+
+# Backup files
+*.bak
+*.bak.*
+*.bak*.txt
+src/App.tsx.bak

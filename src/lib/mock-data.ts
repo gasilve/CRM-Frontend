@@ -544,7 +544,7 @@ export function evidencePhotosForCase(caseId: string): EvidencePhoto[] {
 
 export const SERVICE_LABELS: Record<ServiceType, string> = {
   SURV: "Surveillance",
-  WC:   "Workers Comp",
+  WC:   "Medical Canvass",
   FMLA: "FMLA",
   BG:   "Background",
   DOM:  "Domestic",

@@ -1,17 +1,19 @@
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Columns2, MapPin, User, Plus, X, Loader2, Car, ShieldQuestion, StickyNote,
-  ImagePlus, ScanFace, Trash2, UserPlus, Lock, Paperclip, FileText, Eye,
+  ImagePlus, ScanFace, UserPlus, Lock, Paperclip, FileText, Eye, Home, Briefcase, Users2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/format";
+import { useWidgetSize } from "@/lib/widget-size";
 import { SERVICE_LABELS, TAG_COLORS, placeholderPhotoFor, type InvTag } from "@/lib/mock-data";
 import {
   casesApi,
   caseFilePath,
   fileDownloadUrl,
   geocodeApi,
+  noteVersionsOf,
   type CaseDetail,
   type CaseStatus,
   type CaseDayEntry,
@@ -50,7 +52,7 @@ export function Field({ label, value, mono = true }: { label: string; value: str
 export function PanelShell({ title, icon, children, className, action }: { title: string; icon?: ReactNode; children: ReactNode; className?: string; action?: ReactNode }) {
   return (
     <div className={cn("surface flex h-full min-h-0 flex-col overflow-hidden", className)}>
-      <div className="eyebrow shrink-0 border-b border-[var(--color-line)] px-4 py-2.5 flex items-center gap-2">
+      <div className="widget-shell-header eyebrow shrink-0 border-b border-[var(--color-line)] px-4 py-2.5 flex items-center gap-2">
         {icon}
         {title}
         {action && <span className="ml-auto normal-case tracking-normal">{action}</span>}
@@ -101,18 +103,37 @@ function ProtectedField({
 
 // ─── Subject photo ──────────────────────────────────────────────────────────
 
-export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
-  const c = ctx.case;
-  const photoEntries = useMemo(
-    () => c.days.flatMap((d) => d.entries.filter((e) => e.type === "photo_person")),
-    [c.days],
-  );
+type PhotoTab = "subject" | "vehicle" | "residence" | "cohabitant";
 
-  const photos = useMemo(() => {
-    const primaryUrl = c.subjectPhotoUrl ?? placeholderPhotoFor(c.id);
+type PanelPhoto = {
+  id: string;
+  caseId: string;
+  url: string;
+  label: string;
+  kind: "primary" | "surveillance";
+  capturedAt: string;
+};
+
+const PHOTO_TABS: { id: PhotoTab; label: string; icon: typeof User }[] = [
+  { id: "subject", label: "Subject", icon: User },
+  { id: "vehicle", label: "Vehicle", icon: Car },
+  { id: "residence", label: "Residence", icon: Home },
+  { id: "cohabitant", label: "Cohabitant", icon: Users2 },
+];
+
+function photosForTab(c: CaseDetail, tab: PhotoTab): PanelPhoto[] {
+  if (tab === "subject") {
+    const entries = c.days.flatMap((d) => d.entries.filter((e) => e.type === "photo_person"));
     return [
-      { id: `${c.id}-primary`, caseId: c.id, url: primaryUrl, label: "Subject primary", kind: "primary" as const, capturedAt: c.dateOpened },
-      ...photoEntries.map((e) => ({
+      {
+        id: `${c.id}-primary`,
+        caseId: c.id,
+        url: c.subjectPhotoUrl ?? placeholderPhotoFor(c.id),
+        label: "Subject primary",
+        kind: "primary",
+        capturedAt: c.dateOpened,
+      },
+      ...entries.map((e) => ({
         id: e.id,
         caseId: c.id,
         url: e.photoUrl ?? placeholderPhotoFor(e.id),
@@ -121,68 +142,170 @@ export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
         capturedAt: e.createdAt,
       })),
     ];
-  }, [c, photoEntries]);
+  }
 
-  const primary = photos[0];
-  const gallery = photos.slice(1);
+  if (tab === "vehicle") {
+    const fromVehicles = c.vehicles
+      .filter((v) => v.photoUrl)
+      .map((v) => ({
+        id: `vehicle-${v.id}`,
+        caseId: c.id,
+        url: v.photoUrl!,
+        label: [v.year, v.color, v.make, v.model].filter(Boolean).join(" ") || v.licensePlate || "Vehicle",
+        kind: "surveillance" as const,
+        capturedAt: c.dateOpened,
+      }));
+    const fromDays = c.days.flatMap((d) =>
+      d.entries
+        .filter((e) => e.type === "photo_vehicle")
+        .map((e) => ({
+          id: e.id,
+          caseId: c.id,
+          url: e.photoUrl ?? placeholderPhotoFor(e.id),
+          label: e.body || "Vehicle photo",
+          kind: "surveillance" as const,
+          capturedAt: e.createdAt,
+        })),
+    );
+    return [...fromVehicles, ...fromDays];
+  }
+
+  if (tab === "cohabitant") {
+    return c.people
+      .filter((p) => p.relationship === "cohabitant")
+      .map((p) => ({
+        id: `person-${p.id}`,
+        caseId: c.id,
+        url: p.photoUrl ?? placeholderPhotoFor(p.id),
+        label: p.name,
+        kind: "surveillance" as const,
+        capturedAt: p.updatedAt ?? p.createdAt,
+      }));
+  }
+
+  // Residence photos aren't a dedicated API field yet.
+  return [];
+}
+
+export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
+  const c = ctx.case;
+  const { pxWidth, pxHeight } = useWidgetSize();
+  const [tab, setTab] = useState<PhotoTab>("subject");
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const [uploadedId, setUploadedId] = useState<string | undefined>();
 
+  const photos = useMemo(() => photosForTab(c, tab), [c, tab]);
+
+  useEffect(() => {
+    setActiveId(photos[0]?.id ?? null);
+  }, [tab, photos]);
+
+  const primary = photos.find((p) => p.id === activeId) ?? photos[0] ?? null;
+  const gallery = photos.filter((p) => p.id !== primary?.id);
+  // Wide widget → thumbs on the right; tall widget → thumbs below.
+  const galleryBeside = gallery.length > 0 && pxWidth > 0 && pxWidth >= pxHeight;
+
   const openCompare = (probeId?: string) => {
+    if (photos.length < 2) return;
     setUploadedId(probeId ?? photos[1]?.id ?? photos[0]?.id);
     setCompareOpen(true);
   };
 
   if (!ctx.canSee("case.subjectPhoto")) {
     return (
-      <PanelShell title="Subject photo" icon={<User size={11} strokeWidth={1.8} />}>
+      <PanelShell title="Photos" icon={<User size={11} strokeWidth={1.8} />}>
         <RestrictedPanelBody />
       </PanelShell>
     );
   }
 
+  const thumbBtn = (p: PanelPhoto) => (
+    <button
+      key={p.id}
+      type="button"
+      title={`${p.label} · ${fmtDate(p.capturedAt)}`}
+      onClick={() => setActiveId(p.id)}
+      className={cn(
+        "relative h-12 w-12 shrink-0 overflow-hidden rounded-[0.5rem] border bg-[var(--color-ink-2)] transition-opacity hover:opacity-90",
+        p.id === activeId ? "border-[var(--color-accent)]" : "border-[var(--color-line-2)]",
+      )}
+    >
+      <img src={p.url} alt={p.label} className="h-full w-full object-cover" />
+    </button>
+  );
+
   return (
-    <PanelShell title="Subject photo" icon={<User size={11} strokeWidth={1.8} />}>
-      <div className="flex h-full min-h-0 flex-col gap-3">
-        <div className="relative min-h-[7.5rem] flex-1 overflow-hidden rounded-[0.625rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]">
-          <img src={primary.url} alt={primary.label} className="h-full w-full object-cover" />
+    <PanelShell title="Photos" icon={<User size={11} strokeWidth={1.8} />}>
+      <div className="flex h-full min-h-0 flex-col gap-2.5">
+        <div className="flex shrink-0 gap-0.5 overflow-x-auto rounded-[0.5rem] border border-[var(--color-line)] bg-[var(--color-ink-3)] p-0.5">
+          {PHOTO_TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              aria-pressed={tab === id}
+              title={label}
+              className={cn(
+                "inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-[0.375rem] px-1.5 py-1.5 font-mono text-[0.5625rem] uppercase tracking-wider transition-colors",
+                tab === id
+                  ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]"
+                  : "text-[var(--color-text-lo)] hover:text-[var(--color-text-hi)]",
+              )}
+            >
+              <Icon size={11} strokeWidth={1.8} className="shrink-0" />
+              <span className="truncate">{label}</span>
+            </button>
+          ))}
         </div>
 
-        {gallery.length > 0 && (
-          <div>
-            <div className="mb-1.5 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-              Other photos · {gallery.length}
-            </div>
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-              {gallery.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  title={`${p.label} · ${fmtDate(p.capturedAt)}`}
-                  onClick={() => openCompare(p.id)}
-                  className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-2)] transition-opacity hover:opacity-90"
-                >
-                  <img src={p.url} alt={p.label} className="h-full w-full object-cover" />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={() => openCompare()}
-          disabled={photos.length < 2}
+        <div
           className={cn(
-            "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[0.625rem] border px-3 py-2 text-[0.71875rem] font-medium transition-colors",
-            photos.length < 2
-              ? "cursor-not-allowed border-[var(--color-line)] text-[var(--color-text-lo)] opacity-50"
-              : "border-[var(--color-line-2)] bg-[var(--color-ink-2)] text-[var(--color-text-mid)] hover:border-[var(--color-line-3)] hover:text-[var(--color-text-hi)]",
+            "flex min-h-0 flex-1 gap-2",
+            galleryBeside ? "flex-row" : "flex-col",
           )}
         >
-          <Columns2 size={13} strokeWidth={1.8} />
-          Visual Comparison
-        </button>
+          <div className="relative min-h-[7.5rem] min-w-0 flex-1 overflow-hidden rounded-[0.625rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]">
+            {primary ? (
+              <img src={primary.url} alt={primary.label} className="h-full w-full object-cover" />
+            ) : (
+              <div className="grid h-full place-items-center px-4 text-center">
+                <span className="font-mono text-[0.65625rem] text-[var(--color-text-lo)]">
+                  {tab === "residence" ? "No residence photos on file." : `No ${tab} photos on file.`}
+                </span>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => openCompare()}
+              disabled={photos.length < 2}
+              title="Visual comparison"
+              aria-label="Visual comparison"
+              className={cn(
+                "absolute bottom-2 right-2 z-[1] grid h-8 w-8 place-items-center rounded-[0.5rem] border shadow-lg backdrop-blur transition-colors",
+                photos.length < 2
+                  ? "cursor-not-allowed border-[var(--color-line)] bg-[var(--color-ink-2)]/70 text-[var(--color-text-lo)] opacity-50"
+                  : "border-[var(--color-line)] bg-[var(--color-ink-2)]/92 text-[var(--color-text-mid)] hover:border-[var(--color-line-3)] hover:text-[var(--color-text-hi)]",
+              )}
+            >
+              <Columns2 size={14} strokeWidth={1.8} />
+            </button>
+          </div>
+
+          {gallery.length > 0 && (
+            <div
+              className={cn(
+                "flex gap-1.5",
+                galleryBeside
+                  ? "h-full w-12 shrink-0 flex-col overflow-y-auto overflow-x-hidden"
+                  : "w-full shrink-0 flex-row overflow-x-auto overflow-y-hidden pb-0.5",
+              )}
+            >
+              {gallery.map(thumbBtn)}
+            </div>
+          )}
+        </div>
       </div>
 
       <ImageComparisonModal
@@ -192,6 +315,7 @@ export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
         subjectOnFileId={photos[0]?.id}
         subjectName={c.subjectName}
         caseReference={c.claimNumber ?? c.caseNumber}
+        caseId={c.id}
         onClose={() => setCompareOpen(false)}
       />
     </PanelShell>
@@ -418,23 +542,82 @@ export function AddressesMapPanel({ ctx }: { ctx: CasePanelCtx }) {
   const [state, setState] = useState("");
   const [zip, setZip] = useState("");
   const [busy, setBusy] = useState(false);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  /** Client-only pins for read-only views (pending cases) that can't PATCH addresses. */
+  const [localPins, setLocalPins] = useState<Record<string, { lat: number; lng: number }>>({});
+  const geocodeAttempted = useRef(new Set<string>());
+  const canEdit = ctx.canEdit;
+  const onRefresh = ctx.onRefresh;
+
+  // Backfill pins for addresses that landed without lat/lng (pre-Photon ingest / pending proposals).
+  useEffect(() => {
+    const missing = c.addresses.filter(
+      (a) => (a.lat == null || a.lng == null) && !geocodeAttempted.current.has(a.id),
+    );
+    if (missing.length === 0) return;
+
+    let cancelled = false;
+    void (async () => {
+      let changed = false;
+      const pinUpdates: Record<string, { lat: number; lng: number }> = {};
+      for (const a of missing) {
+        geocodeAttempted.current.add(a.id);
+        try {
+          let lat: number | null = null;
+          let lng: number | null = null;
+          try {
+            const { result } = await geocodeApi.lookup({
+              line1: a.line1,
+              city: a.city ?? undefined,
+              state: a.state ?? undefined,
+              zip: a.zip ?? undefined,
+            });
+            if (result) { lat = result.lat; lng = result.lng; }
+          } catch {
+            // Fallback: Nominatim (free, no auth needed)
+            const q = encodeURIComponent([a.line1, a.city, a.state, a.zip].filter(Boolean).join(', '));
+            const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, { headers: { 'User-Agent': 'proti.ai/1.0' } });
+            const data = await r.json() as { lat: string; lon: string }[];
+            if (data[0]) { lat = parseFloat(data[0].lat); lng = parseFloat(data[0].lon); }
+          }
+          if (cancelled || lat == null || lng == null) continue;
+          if (canEdit) {
+            await casesApi.updateAddress(c.id, a.id, { line1: a.line1, lat, lng });
+            changed = true;
+          } else {
+            pinUpdates[a.id] = { lat, lng };
+          }
+        } catch {
+          /* best-effort */
+        }
+      }
+      if (cancelled) return;
+      if (Object.keys(pinUpdates).length > 0) {
+        setLocalPins((prev) => ({ ...prev, ...pinUpdates }));
+      }
+      if (changed) onRefresh();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [c.id, c.addresses, canEdit, onRefresh]);
+
+  useEffect(() => {
+    if (focusId && !c.addresses.some((a) => a.id === focusId)) setFocusId(null);
+  }, [c.addresses, focusId]);
+
+  const addressesForMap = c.addresses.map((a) => {
+    if (a.lat != null && a.lng != null) return a;
+    const pin = localPins[a.id];
+    return pin ? { ...a, lat: pin.lat, lng: pin.lng } : a;
+  });
 
   const submit = async () => {
     if (!line1.trim()) return;
     setBusy(true);
     try {
-      let lat: number | undefined;
-      let lng: number | undefined;
-      try {
-        const { result } = await geocodeApi.lookup({ line1, city, state, zip });
-        if (result) {
-          lat = result.lat;
-          lng = result.lng;
-        }
-      } catch {
-        /* geocoding is best-effort */
-      }
-      await casesApi.addAddress(c.id, { line1, city, state, zip, lat, lng, isPrimary: c.addresses.length === 0 });
+      await casesApi.addAddress(c.id, { line1, city, state, zip, isPrimary: c.addresses.length === 0 });
       setLine1(""); setCity(""); setState(""); setZip("");
       setAdding(false);
       ctx.onRefresh();
@@ -456,36 +639,88 @@ export function AddressesMapPanel({ ctx }: { ctx: CasePanelCtx }) {
     );
   }
 
+  const activeId = focusId ?? c.addresses.find((a) => a.isPrimary)?.id ?? c.addresses[0]?.id ?? null;
+
+  const [listOpen, setListOpen] = useState(true);
+
   return (
     <PanelShell
       title="Addresses & map"
       icon={<MapPin size={11} strokeWidth={1.8} />}
-      action={ctx.canEdit && !adding && <button onClick={() => setAdding(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}
+      action={
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => setListOpen(o => !o)}
+            className="flex items-center gap-1 rounded-[0.375rem] border border-[var(--color-line)] px-1.5 py-0.5 font-mono text-[0.5625rem] text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)] transition-colors"
+            title={listOpen ? "Hide addresses" : "Show addresses"}>
+            {listOpen ? "Hide list" : "Show list"}
+          </button>
+          {ctx.canEdit && !adding && <button type="button" onClick={() => setAdding(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}
+        </div>
+      }
     >
-      <div className="flex h-full min-h-0 flex-col gap-3">
-        <div className="flex max-h-[45%] shrink-0 flex-col gap-1.5 overflow-y-auto">
-          {c.addresses.length === 0 && !adding && (
-            <span className="font-mono text-[0.65625rem] text-[var(--color-text-lo)]">No addresses on file.</span>
-          )}
-          {c.addresses.map((a) => (
-            <div key={a.id} className="group flex items-start gap-1.5 rounded-[0.5rem] border border-[var(--color-line)] px-2.5 py-2">
-              <MapPin size={11} className="mt-0.5 shrink-0 text-[var(--color-text-lo)]" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[0.71875rem] text-[var(--color-text-hi)]">{a.line1}</div>
-                <div className="truncate font-mono text-[0.59375rem] text-[var(--color-text-lo)]">
-                  {[a.city, a.state, a.zip].filter(Boolean).join(", ")}
-                </div>
-              </div>
-              {a.isPrimary && <span className="shrink-0 rounded-full bg-[var(--color-accent-soft)] px-1.5 py-0.5 text-[0.53125rem] text-[var(--color-accent-2)]">Primary</span>}
-              {ctx.canEdit && (
-                <button onClick={() => remove(a.id)} className="hidden shrink-0 text-[var(--color-text-lo)] hover:text-[var(--color-neg)] group-hover:block">
-                  <X size={11} />
+      <div className="relative h-full min-h-0 min-w-0">
+        <CaseMap addresses={addressesForMap} focusAddressId={focusId} />
+
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-[500] flex flex-col gap-1.5 p-2">
+          {listOpen && (
+          <div className="pointer-events-auto flex max-h-[42%] flex-wrap content-start gap-1 overflow-y-auto">
+            {c.addresses.length === 0 && !adding && (
+              <span className="rounded-[0.5rem] border border-[var(--color-line)] bg-[var(--color-ink-2)]/92 px-2.5 py-1.5 font-mono text-[0.625rem] text-[var(--color-text-lo)] shadow-lg backdrop-blur">
+                No addresses on file
+              </span>
+            )}
+            {c.addresses.map((a) => {
+              const selected = a.id === activeId;
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setFocusId(a.id)}
+                  title={[a.line1, a.city, a.state, a.zip].filter(Boolean).join(", ")}
+                  className={cn(
+                    "group inline-flex max-w-full items-center gap-1.5 rounded-[0.5rem] border px-2 py-1.5 text-left shadow-lg backdrop-blur transition-colors",
+                    selected
+                      ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
+                      : "border-[var(--color-line)] bg-[var(--color-ink-2)]/92 text-[var(--color-text-mid)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]",
+                  )}
+                >
+                  <MapPin size={11} className="shrink-0 opacity-70" />
+                  <span className="min-w-0 truncate text-[0.65625rem] font-medium">{a.line1}</span>
+                  {a.isPrimary && (
+                    <span className="shrink-0 rounded-full bg-[var(--color-ink-3)] px-1.5 py-0.5 text-[0.5rem] uppercase tracking-wider text-[var(--color-accent-2)]">
+                      Primary
+                    </span>
+                  )}
+                  {ctx.canEdit && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void remove(a.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void remove(a.id);
+                        }
+                      }}
+                      className="hidden shrink-0 text-[var(--color-text-lo)] hover:text-[var(--color-neg)] group-hover:inline-flex"
+                      title="Remove address"
+                      aria-label="Remove address"
+                    >
+                      <X size={11} />
+                    </span>
+                  )}
                 </button>
-              )}
-            </div>
-          ))}
+              );
+            })}
+          </div>
+          )}
+
           {adding && (
-            <div className="flex flex-col gap-1 rounded-[0.5rem] border border-[var(--color-line-2)] p-2">
+            <div className="pointer-events-auto flex max-w-sm flex-col gap-1 rounded-[0.625rem] border border-[var(--color-line)] bg-[var(--color-ink-2)]/95 p-2 shadow-lg backdrop-blur">
               <input autoFocus placeholder="Street" value={line1} onChange={(e) => setLine1(e.target.value)} className="rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1 text-[0.6875rem] text-[var(--color-text-hi)] focus:outline-none" />
               <div className="flex gap-1">
                 <input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} className="w-0 flex-1 rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1 text-[0.6875rem] text-[var(--color-text-hi)] focus:outline-none" />
@@ -493,16 +728,13 @@ export function AddressesMapPanel({ ctx }: { ctx: CasePanelCtx }) {
                 <input placeholder="ZIP" value={zip} onChange={(e) => setZip(e.target.value)} className="w-14 rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2 py-1 text-[0.6875rem] text-[var(--color-text-hi)] focus:outline-none" />
               </div>
               <div className="flex gap-1.5">
-                <button onClick={submit} disabled={busy} className="flex flex-1 items-center justify-center gap-1 rounded-[0.375rem] bg-[var(--color-accent-soft)] py-1 text-[0.625rem] text-[var(--color-text-hi)]">
+                <button type="button" onClick={submit} disabled={busy} className="flex flex-1 items-center justify-center gap-1 rounded-[0.375rem] bg-[var(--color-accent-soft)] py-1 text-[0.625rem] text-[var(--color-text-hi)]">
                   {busy ? <Loader2 size={10} className="animate-spin" /> : "Save"}
                 </button>
-                <button onClick={() => setAdding(false)} className="rounded-[0.375rem] border border-[var(--color-line)] px-2 py-1 text-[0.625rem] text-[var(--color-text-mid)]">Cancel</button>
+                <button type="button" onClick={() => setAdding(false)} className="rounded-[0.375rem] border border-[var(--color-line)] px-2 py-1 text-[0.625rem] text-[var(--color-text-mid)]">Cancel</button>
               </div>
             </div>
           )}
-        </div>
-        <div className="min-h-0 min-w-0 flex-1">
-          <CaseMap addresses={c.addresses} />
         </div>
       </div>
     </PanelShell>
@@ -614,7 +846,8 @@ export function CaseFilesPanel({ ctx }: { ctx: CasePanelCtx }) {
   const ctxLoadBlob = ctx.loadFileBlob;
   const ctxHref = ctx.fileDownloadHref;
   const loadBlob = useCallback(
-    (fileId: string) => (ctxLoadBlob ? ctxLoadBlob(fileId) : casesApi.fileBlob(c.id, fileId)),
+    (fileId: string, signal?: AbortSignal) =>
+      ctxLoadBlob ? ctxLoadBlob(fileId, signal) : casesApi.fileBlob(c.id, fileId, signal),
     [c.id, ctxLoadBlob],
   );
   const downloadUrl = useCallback(
@@ -637,35 +870,51 @@ export function CaseFilesPanel({ ctx }: { ctx: CasePanelCtx }) {
       }
     >
       {files.length === 0 ? (
-        <div className="grid h-full place-items-center">
-          <span className="font-mono text-[0.71875rem] text-[var(--color-text-lo)]">No documents on this case.</span>
+        <div className="grid h-full place-items-center px-4">
+          <div className="text-center">
+            <Paperclip size={18} className="mx-auto text-[var(--color-text-lo)]" strokeWidth={1.6} />
+            <p className="mt-2 font-[family-name:var(--font-display)] text-[1.05rem] italic text-[var(--color-text-mid)]">
+              No documents yet
+            </p>
+            <p className="mt-1 font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+              Attachments appear after ingest
+            </p>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
-          {files.map((file) => (
-            <button
-              key={file.id}
-              type="button"
-              onClick={() => setViewing(file.id)}
-              className="group flex items-center gap-2.5 rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]/40 px-2.5 py-2 text-left transition-colors hover:border-[var(--color-accent)]"
-            >
-              <FileText
-                size={14}
-                strokeWidth={1.8}
-                className={file.storageKey ? "shrink-0 text-[var(--color-text-mid)]" : "shrink-0 text-[var(--color-text-lo)]"}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-mono text-[0.6875rem] text-[var(--color-text-hi)]">{file.filename}</div>
-                <div className="font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-                  {file.storageKey ? `${fmtFileSize(file.sizeBytes)} · ${file.storage}` : "listed, not stored"}
+          {files.map((file) => {
+            const stored = Boolean(file.storageKey);
+            return (
+              <button
+                key={file.id}
+                type="button"
+                onClick={() => setViewing(file.id)}
+                className="group flex items-center gap-2.5 rounded-[var(--radius-tile)] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]/40 px-2.5 py-2 text-left transition-colors hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-soft)]/40"
+              >
+                <span
+                  className={cn(
+                    "grid h-7 w-7 shrink-0 place-items-center rounded-[0.5rem] border",
+                    stored
+                      ? "border-[var(--color-accent)]/30 bg-[var(--color-accent-soft)] text-[var(--color-accent-2)]"
+                      : "border-[var(--color-line-2)] text-[var(--color-text-lo)]",
+                  )}
+                >
+                  <FileText size={13} strokeWidth={1.8} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-mono text-[0.6875rem] text-[var(--color-text-hi)]">{file.filename}</div>
+                  <div className="font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+                    {stored ? `${fmtFileSize(file.sizeBytes)} · ${file.storage}` : "listed, not stored"}
+                  </div>
                 </div>
-              </div>
-              <Eye
-                size={13}
-                className="shrink-0 text-[var(--color-text-lo)] opacity-0 transition-opacity group-hover:opacity-100"
-              />
-            </button>
-          ))}
+                <Eye
+                  size={13}
+                  className="shrink-0 text-[var(--color-text-lo)] opacity-0 transition-opacity group-hover:opacity-100"
+                />
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -732,7 +981,10 @@ export function AssignmentPanel({ ctx }: { ctx: CasePanelCtx }) {
           </div>
         ))}
         {c.assignments.length === 0 && !picking && (
-          <div className="font-mono text-[0.71875rem] text-[var(--color-text-lo)]">No investigators assigned.</div>
+          <div>
+            <div className="font-mono text-[0.71875rem] text-[var(--color-text-lo)]">No investigators on this case yet.</div>
+            <div className="mt-1 font-mono text-[0.625rem] text-[var(--color-text-mid)]">Assign here or schedule them on the board — same roster.</div>
+          </div>
         )}
         {picking && (
           <div className="flex flex-col gap-1.5 rounded-[0.5rem] border border-[var(--color-line-2)] p-2">
@@ -762,7 +1014,9 @@ const ENTRY_ICON: Record<CaseDayEntryType, typeof StickyNote> = {
   qa: ShieldQuestion,
   photo_person: ImagePlus,
   photo_vehicle: Car,
+  photo_home: Home,
   face_match: ScanFace,
+  manager_note: Briefcase,
 };
 
 const ENTRY_LABEL: Record<CaseDayEntryType, string> = {
@@ -770,17 +1024,16 @@ const ENTRY_LABEL: Record<CaseDayEntryType, string> = {
   qa: "Q&A",
   photo_person: "Subject photo",
   photo_vehicle: "Vehicle photo",
+  photo_home: "Home photo",
   face_match: "Face match",
+  manager_note: "Office note",
 };
 
-function EntryCard({ entry, caseId, dayId, canDelete, onDeleted }: { entry: CaseDayEntry; caseId: string; dayId: string; canDelete: boolean; onDeleted: () => void }) {
+function EntryCard({ entry, caseId }: { entry: CaseDayEntry; caseId: string }) {
   const Icon = ENTRY_ICON[entry.type];
-  const isPhoto = entry.type === "photo_person" || entry.type === "photo_vehicle" || entry.type === "face_match";
-
-  const remove = async () => {
-    await casesApi.deleteDayEntry(caseId, dayId, entry.id);
-    onDeleted();
-  };
+  const isPhoto = entry.type === "photo_person" || entry.type === "photo_vehicle" || entry.type === "photo_home" || entry.type === "face_match";
+  const versions = noteVersionsOf(entry);
+  const [showHistory, setShowHistory] = useState(false);
 
   return (
     <div className="group flex gap-2.5 rounded-[0.625rem] border border-[var(--color-line)] p-2.5">
@@ -788,11 +1041,20 @@ function EntryCard({ entry, caseId, dayId, canDelete, onDeleted }: { entry: Case
         <Icon size={13} strokeWidth={1.7} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <span className="font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-lo)]">{ENTRY_LABEL[entry.type]}</span>
           <span className="text-[var(--color-text-lo)]">·</span>
           <span className="font-mono text-[0.59375rem] text-[var(--color-text-lo)]">{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
           {entry.author && <span className="truncate font-mono text-[0.59375rem] text-[var(--color-text-lo)]">· {entry.author.name}</span>}
+          {versions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowHistory((v) => !v)}
+              className="font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]"
+            >
+              Edited · {versions.length} prior
+            </button>
+          )}
         </div>
         {entry.type === "qa" && (
           <div className="mt-1">
@@ -800,7 +1062,22 @@ function EntryCard({ entry, caseId, dayId, canDelete, onDeleted }: { entry: Case
             <div className="mt-0.5 text-[0.75rem] text-[var(--color-text-mid)]">{entry.body}</div>
           </div>
         )}
-        {entry.type === "note" && <p className="mt-1 text-[0.75rem] leading-relaxed text-[var(--color-text-mid)]">{entry.body}</p>}
+        {(entry.type === "note" || entry.type === "manager_note") && (
+          <p className="mt-1 text-[0.75rem] leading-relaxed text-[var(--color-text-mid)]">{entry.body}</p>
+        )}
+        {showHistory && versions.length > 0 && (
+          <div className="mt-1.5 flex flex-col gap-1 border-t border-[var(--color-line)] pt-1.5">
+            {[...versions].reverse().map((v, i) => (
+              <div key={`${v.at}-${i}`} className="rounded-[0.375rem] bg-[var(--color-ink-3)] px-2 py-1">
+                <div className="font-mono text-[0.53125rem] text-[var(--color-text-lo)]">
+                  {new Date(v.at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  {v.authorName ? ` · ${v.authorName}` : ""}
+                </div>
+                <p className="text-[0.6875rem] text-[var(--color-text-mid)]">{v.body}</p>
+              </div>
+            ))}
+          </div>
+        )}
         {isPhoto && (
           <div className="mt-1.5 flex items-center gap-2">
             <img src={entry.photoUrl ?? placeholderPhotoFor(entry.id)} alt="" className="h-12 w-12 shrink-0 rounded-[0.375rem] object-cover" />
@@ -808,11 +1085,6 @@ function EntryCard({ entry, caseId, dayId, canDelete, onDeleted }: { entry: Case
           </div>
         )}
       </div>
-      {canDelete && (
-        <button onClick={remove} className="hidden shrink-0 self-start text-[var(--color-text-lo)] hover:text-[var(--color-neg)] group-hover:block">
-          <Trash2 size={12} />
-        </button>
-      )}
     </div>
   );
 }
@@ -1060,7 +1332,8 @@ function PresurveillanceFolder({ ctx }: { ctx: CasePanelCtx }) {
   const ctxLoadBlob = ctx.loadFileBlob;
   const ctxHref = ctx.fileDownloadHref;
   const loadBlob = useCallback(
-    (fileId: string) => (ctxLoadBlob ? ctxLoadBlob(fileId) : casesApi.fileBlob(c.id, fileId)),
+    (fileId: string, signal?: AbortSignal) =>
+      ctxLoadBlob ? ctxLoadBlob(fileId, signal) : casesApi.fileBlob(c.id, fileId, signal),
     [c.id, ctxLoadBlob],
   );
   const downloadUrl = useCallback(
@@ -1405,9 +1678,6 @@ function DayFolderContent({
             key={entry.id}
             entry={entry}
             caseId={c.id}
-            dayId={day?.id ?? ""}
-            canDelete={!!day && (ctx.canModerateJournal || entry.author?.id === ctx.currentUserId)}
-            onDeleted={ctx.onRefresh}
           />
         ))}
         {entries.length === 0 && (

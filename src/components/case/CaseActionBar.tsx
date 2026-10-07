@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Car, ChevronDown, Folder, Plus, Sparkles, Users } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export type CaseDrawerId = "vehicles" | "people" | "folder";
+export type CaseDrawerId = "vehicles" | "people" | "folder" | "notebook";
 
 const BAR_COLLAPSED_LS_KEY = "accenty.crm.case-action-bar.collapsed";
 

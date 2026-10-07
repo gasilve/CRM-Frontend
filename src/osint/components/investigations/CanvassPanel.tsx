@@ -1272,7 +1272,7 @@ export function CanvassPanel({ inv, meta, isDark, acc, sec, txt, bg1, bg2, bdr, 
       {noteFac && <NoteModal facility={noteFac} onSave={note => saveNote(noteFac, note)} onClose={() => setNoteFac(null)} acc={acc} bdr={bdr} bg1={bg1} bg2={bg2} txt={txt} sec={sec} mut={mut} isDark={isDark} existingNote={results[noteFac.id]?.notes || (noteFac as any).canvass_note || ""} />}
 
       {/* PII strip */}
-      <div style={card}>
+      <div data-canvass-section="subject" style={card}>
         <p style={Lbl}>Subject info — for calling</p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
           {[{ label: "Date of birth", val: dob }, { label: "SSN", val: ssn }].map(({ label, val }) => (
@@ -1614,7 +1614,7 @@ export function CanvassPanel({ inv, meta, isDark, acc, sec, txt, bg1, bg2, bdr, 
       )}
 
       {/* Facility list */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div data-canvass-section="facilities" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {loading && <div style={{ ...card, textAlign: "center", padding: 24, color: sec, fontSize: 13 }}>⏳ Loading facilities…</div>}
         {!loading && facilities.length === 0 && <div style={{ ...card, textAlign: "center", padding: 24 }}><div style={{ fontSize: 32, opacity: 0.15, marginBottom: 8 }}>🏥</div><div style={{ fontSize: 13, color: sec }}>{address ? "No facilities found — try increasing the radius" : "No address set for this case yet"}</div></div>}
 
@@ -1655,6 +1655,7 @@ export function CanvassPanel({ inv, meta, isDark, acc, sec, txt, bg1, bg2, bdr, 
           </div>
         ); })}
 
+        <div data-canvass-section="results">{/* results-wrapper */}{null}</div>
         {!showOnlyNotes && withRecord.map(f => { const note = getFacNote(f); const cfg = TYPE_CFG[f.type] || TYPE_CFG.other; return (
           <div key={f.id} style={{ border: "1px solid #86efac", borderRadius: 8, padding: "10px 12px", background: isDark ? "rgba(22,101,52,0.15)" : "#f0fdf4", display: "flex", alignItems: "flex-start", gap: 10 }}>
             <span style={{ width: 9, height: 9, borderRadius: "50%", background: cfg.dot, flexShrink: 0, marginTop: 4 }} />

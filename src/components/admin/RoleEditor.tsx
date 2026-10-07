@@ -21,6 +21,7 @@ export interface RoleDraft {
   caseScope: CaseScope;
   peopleScope: PeopleScope;
   scheduleScope: ScheduleScope;
+  canWorkCases: boolean;
   permissions: Set<string>;
   fieldRules: Record<string, FieldAccessLevel>;
 }
@@ -32,6 +33,7 @@ export const draftFromRole = (role: RoleDetail): RoleDraft => ({
   caseScope: role.caseScope,
   peopleScope: role.peopleScope,
   scheduleScope: role.scheduleScope,
+  canWorkCases: role.canWorkCases ?? false,
   permissions: new Set(role.permissions),
   fieldRules: { ...role.fieldRules },
 });
@@ -43,6 +45,7 @@ export const emptyDraft = (): RoleDraft => ({
   caseScope: "assigned",
   peopleScope: "self",
   scheduleScope: "own",
+  canWorkCases: false,
   permissions: new Set<string>(),
   fieldRules: {},
 });
@@ -56,6 +59,7 @@ export const draftToPayload = (draft: RoleDraft): RolePayload => ({
   scheduleScope: draft.scheduleScope,
   permissions: [...draft.permissions],
   fieldRules: draft.fieldRules,
+  canWorkCases: draft.canWorkCases,
 });
 
 const sameSet = (a: Set<string>, b: Set<string>): boolean =>

@@ -12,7 +12,6 @@ const ALL_TAGS: InvTag[] = [
 ];
 const PRIORITIES: { value: CasePriority; label: string }[] = [
   { value: "standard", label: "Standard" },
-  { value: "asap", label: "ASAP" },
   { value: "rush", label: "Rush" },
 ];
 
@@ -42,6 +41,7 @@ export function NewCaseModal({
   const [region, setRegion] = useState<Region | "">("");
   const [state, setState] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [imeAt, setImeAt] = useState("");
   const [daysAllotted, setDaysAllotted] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
   const [addressCity, setAddressCity] = useState("");
@@ -67,6 +67,7 @@ export function NewCaseModal({
       setRegion("");
       setState("");
       setDueDate("");
+      setImeAt("");
       setDaysAllotted("");
       setAddressLine1("");
       setAddressCity("");
@@ -109,6 +110,7 @@ export function NewCaseModal({
         region: region || undefined,
         state: state.trim() || undefined,
         dueDate: dueDate || undefined,
+        imeAt: imeAt ? new Date(imeAt).toISOString() : undefined,
         daysAllotted: daysAllotted ? Number(daysAllotted) : undefined,
         address: addressLine1.trim()
           ? { line1: addressLine1.trim(), city: addressCity.trim() || undefined, state: addressState.trim() || undefined, zip: addressZip.trim() || undefined }
@@ -240,6 +242,10 @@ export function NewCaseModal({
             <div>
               <label className={labelClass}>Due date</label>
               <input className={inputClass} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>IME</label>
+              <input className={inputClass} type="datetime-local" value={imeAt} onChange={(e) => setImeAt(e.target.value)} />
             </div>
           </div>
 

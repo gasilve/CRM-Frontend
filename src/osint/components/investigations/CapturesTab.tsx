@@ -1,10 +1,7 @@
 // @ts-nocheck
-
 import { useState, useEffect } from "react";
-import { isGlassTheme } from "@/lib/theme";
 
-const BASE = typeof window !== "undefined" && !["localhost","127.0.0.1"].includes(window.location.hostname)
-  ? "" : "http://localhost:8000";
+const BASE = "/api-proxy";
 
 interface Capture {
   id: number;
@@ -57,14 +54,14 @@ export function CapturesTab({ invId, isGL }: { invId: number; isGL: boolean }) {
   const [newUrl, setNewUrl]       = useState("");
   const [newLabel, setNewLabel]   = useState("");
   const [addingUrl, setAddingUrl] = useState(false);
-  const gl = isGL || isGlassTheme();
+  const gl = true; // always dark mode in CRM
 
-  const bdr = gl ? "rgba(255,255,255,0.12)" : "#e2e8f0";
-  const bg1 = gl ? "rgba(255,255,255,0.05)" : "#f8fafc";
-  const bg2 = gl ? "rgba(255,255,255,0.08)" : "#ffffff";
-  const txt = gl ? "rgba(218,234,255,0.95)" : "#0f172a";
-  const sec = gl ? "rgba(160,185,240,0.70)" : "#64748b";
-  const acc = gl ? "#6a8fff" : "#1e40af";
+  const bdr = "var(--color-line-2)";
+  const bg1 = "var(--color-ink-2)";
+  const bg2 = "var(--color-ink-1)";
+  const txt = "var(--color-text-hi)";
+  const sec = "var(--color-text-mid)";
+  const acc = "var(--color-accent)";
 
   useEffect(() => {
     if (invId && invId > 0) load();

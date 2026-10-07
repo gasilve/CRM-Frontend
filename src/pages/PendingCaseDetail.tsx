@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, FileDown, Inbox, Loader2, Pencil } from "lucide-react";
+import { ArrowLeft, ArrowRight, Inbox, Paperclip, Pencil, Plus, Trash2 } from "lucide-react";
 import { PanelLoader } from "@/components/ui/LoadingState";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePendingIntake } from "@/contexts/PendingIntakeContext";
@@ -11,6 +11,7 @@ import { useGridLayout } from "@/hooks/useGridLayout";
 import { invalidateQueries, useQuery } from "@/lib/query-cache";
 import { proposalToCaseDetail } from "@/lib/pending-case-view";
 import { fieldClass } from "@/components/pending-cases/design-kit";
+import { prodigyCaseDetailFull } from "@/lib/prodigy-api";
 import {
   pendingCasesApi,
   pendingCaseFilePath,
@@ -21,12 +22,16 @@ import {
   type CasePriority,
   type CaseService,
   type PendingCaseDetail as PendingCase,
+  type PendingCaseFile,
+  type PendingCaseFilesStatus,
+  type ProposalVehicle,
   type Region,
 } from "@/lib/crm-api";
 import type { Subject } from "@/lib/mock-data";
 import {
   CASE_DEFAULT_LAYOUT,
   CASE_DEFAULT_PAGES,
+  CASE_DEFAULT_WIDGETS,
   normalizeCaseDocument,
   normalizeCaseLayout,
   type CaseLayoutItem,
@@ -38,7 +43,7 @@ import { CaseDetailPageNav } from "./CaseDetailPageNav";
 import { CasePageArrows } from "@/components/case/CasePageArrows";
 
 const SERVICES: CaseService[] = ["SURV", "WC", "FMLA", "BG", "DOM", "SOC", "DIS", "LOC", "PS", "LIA"];
-const PRIORITIES: CasePriority[] = ["standard", "asap", "rush"];
+const PRIORITIES: CasePriority[] = ["standard", "rush"];
 const REGIONS: Region[] = ["ca", "tristate", "texas"];
 
 const STATUS_PILL: Record<string, { label: string; bg: string; text: string; dot: string }> = {
@@ -50,12 +55,18 @@ const STATUS_PILL: Record<string, { label: string; bg: string; text: string; dot
 /** Empty inputs mean "no value", not an empty string. */
 const clean = (value: string): string | null => (value.trim() ? value.trim() : null);
 
+/** Multi-value proposal fields (addresses, phones) are edited one per line. */
+const splitLines = (value: string): string[] =>
+  value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
 /**
  * Renders an intake proposal through the SAME widget grid as a live case —
- * same house layout, same panels — with a colored "pending review" banner and
- * the review actions (fetch files / edit / reject / accept) on top. Missing
- * proposal data simply shows as blank fields; everything is read-only until
- * the proposal is accepted into a real case.
+ * same house layout, same panels — with a compact pending-review strip beside
+ * the page tabs (Fetch / Edit / Reject / Accept). Missing proposal data simply
+ * shows as blank fields; everything is read-only until accepted into a real case.
  */
 export default function PendingCaseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -64,23 +75,56 @@ export default function PendingCaseDetail() {
   const { refresh: refreshIntakeBadge } = usePendingIntake();
   const canReview = can("intake.view");
 
-  const [busy, setBusy] = useState<"accept" | "reject" | "files" | "save" | null>(null);
+  const [busy, setBusy] = useState<"accept" | "reject" | "save" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [acceptOpen, setAcceptOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [activePageId, setActivePageId] = useState<string>(CASE_DEFAULT_PAGES[0].id);
 
+  // Prodigy cases use numeric IDs; CRM cases use UUIDs
+  const isProdigyCase = !!id && /^\d+$/.test(id);
+
   const query = useQuery(
     id && canReview ? `pending-case:${id}` : null,
-    () =>
-      pendingCasesApi
+    async (): Promise<PendingCase | null> => {
+      if (isProdigyCase) {
+        try {
+          const { case: kaseDetail } = await prodigyCaseDetailFull(id!);
+          return {
+            id: id!,
+            status: "pending_review",
+            subjectName: kaseDetail.subjectName,
+            subjectDob: kaseDetail.subjectDob ?? null,
+            caseNumber: kaseDetail.caseNumber,
+            claimNumber: kaseDetail.claimNumber ?? null,
+            service: kaseDetail.service ?? "surveillance",
+            client: kaseDetail.client ?? null,
+            addresses: kaseDetail.addresses ?? [],
+            assignees: kaseDetail.assignments ?? [],
+            files: [],
+            filesStatus: "idle",
+            vehicles: kaseDetail.vehicles ?? [],
+            people: kaseDetail.people ?? [],
+            capturedUrls: [],
+            intake: null,
+            acceptedCaseId: null,
+            note: null,
+            updatedAt: kaseDetail.updatedAt ?? new Date().toISOString(),
+            createdAt: kaseDetail.createdAt ?? new Date().toISOString(),
+          } as unknown as PendingCase;
+        } catch {
+          return null;
+        }
+      }
+      return pendingCasesApi
         .get(id!)
         .then((res): PendingCase | null => res.pendingCase)
         .catch((err: unknown) => {
           if (err instanceof ApiError && err.status === 404) return null;
           throw err;
-        }),
+        });
+    },
     { enabled: !!id && canReview },
   );
   const pendingCase = query.data ?? null;
@@ -93,6 +137,7 @@ export default function PendingCaseDetail() {
     normalizeDocument: (items, savedPages, savedWidgets, phase) =>
       normalizeCaseDocument(items, savedPages, savedWidgets as CustomCaseWidgetDef[] | null, phase),
     defaultPages: CASE_DEFAULT_PAGES,
+    defaultWidgets: CASE_DEFAULT_WIDGETS,
     editable: false,
   });
   const gridHandleRef = useRef<CaseDetailGridHandle | null>(null);
@@ -102,7 +147,10 @@ export default function PendingCaseDetail() {
 
   const kase = useMemo(() => (pendingCase ? proposalToCaseDetail(pendingCase) : null), [pendingCase]);
 
-  const loadFileBlob = useCallback((fileId: string) => pendingCasesApi.fileBlob(id!, fileId), [id]);
+  const loadFileBlob = useCallback(
+    (fileId: string, signal?: AbortSignal) => pendingCasesApi.fileBlob(id!, fileId, signal),
+    [id],
+  );
   const fileDownloadHref = useCallback((fileId: string) => fileDownloadUrl(pendingCaseFilePath(id!, fileId)), [id]);
 
   const accept = async (payload: AcceptPendingCasePayload) => {
@@ -143,20 +191,6 @@ export default function PendingCaseDetail() {
     }
   };
 
-  const fetchFiles = async () => {
-    if (!pendingCase) return;
-    setBusy("files");
-    setActionError(null);
-    try {
-      const { pendingCase: updated } = await pendingCasesApi.retryFiles(pendingCase.id);
-      query.mutate(updated);
-    } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not fetch the files.");
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const saveEdits = async (edits: ProposalEdits) => {
     if (!pendingCase) return;
     setBusy("save");
@@ -164,16 +198,51 @@ export default function PendingCaseDetail() {
     try {
       const { pendingCase: updated } = await pendingCasesApi.update(pendingCase.id, {
         claimNumber: clean(edits.claimNumber),
+        caseType: clean(edits.caseType),
+        ingestorStatus: clean(edits.ingestorStatus),
         subject: {
-          name: clean(edits.subjectName),
-          dob: clean(edits.subjectDob),
+          name: clean(edits.name),
+          dob: clean(edits.dob),
+          ssnLast4: clean(edits.ssnLast4),
+          addresses: splitLines(edits.addresses),
+          phones: splitLines(edits.phones),
+          vehicle: clean(edits.vehicle),
+          physical: clean(edits.physical),
+          job: clean(edits.job),
+          employer: clean(edits.employer),
+          employerContact: clean(edits.employerContact),
+          employerPhone: clean(edits.employerPhone),
         },
         assignment: {
           insurer: clean(edits.insurer),
           adjusterName: clean(edits.adjusterName),
           adjusterEmail: clean(edits.adjusterEmail),
           adjusterPhone: clean(edits.adjusterPhone),
+          type: clean(edits.type),
+          surveillanceDays: clean(edits.surveillanceDays),
+          reportDueDate: clean(edits.reportDueDate),
+          dateOfLoss: clean(edits.dateOfLoss),
+          typeOfClaim: clean(edits.typeOfClaim),
+          bodyParts: clean(edits.bodyParts),
+          restrictions: clean(edits.restrictions),
+          injuryDescription: clean(edits.injuryDescription),
+          instructions: clean(edits.instructions),
+          suspicion: clean(edits.suspicion),
+          isRepresented: clean(edits.isRepresented),
+          defenseAttorney: clean(edits.defenseAttorney),
+          defenseLawFirm: clean(edits.defenseLawFirm),
+          defensePhone: clean(edits.defensePhone),
         },
+        vehicles: edits.vehicles
+          .filter((v) => Object.values(v).some((value) => (value ?? "").trim()))
+          .map((v) => ({
+            year: clean(v.year),
+            color: clean(v.color),
+            makeModel: clean(v.makeModel),
+            plate: clean(v.plate),
+            registeredOwner: clean(v.registeredOwner),
+            source: clean(v.source),
+          })),
       });
       query.mutate(updated);
       invalidateQueries("pending-cases:list");
@@ -241,7 +310,7 @@ export default function PendingCaseDetail() {
   return (
     <div className="case-detail-page">
       <CaseSubjectHeader
-        className="mb-3 shrink-0"
+        className="mb-4 shrink-0"
         subject={subject}
         claimNumber={kase.claimNumber ?? kase.caseNumber}
         aliases={[]}
@@ -267,62 +336,13 @@ export default function PendingCaseDetail() {
         }
       />
 
-      {/* Review banner — the one loud visual cue that this is not a live case. */}
-      <div
-        className="mb-3 flex shrink-0 flex-wrap items-center gap-3 rounded-[0.875rem] border px-4 py-2.5"
-        style={{
-          borderColor: "rgba(245,158,11,0.35)",
-          background: "linear-gradient(90deg, rgba(245,158,11,0.10), rgba(245,158,11,0.03))",
-        }}
-      >
-        <Inbox size={15} strokeWidth={1.8} style={{ color: "#f59e0b" }} className="shrink-0" />
-        <div className="min-w-0 flex-1">
-          <span className="font-mono text-[0.625rem] uppercase tracking-widest" style={{ color: "#f59e0b" }}>
-            {decided ? `Proposal ${pendingCase.status}` : "Intake proposal — pending review"}
-          </span>
-          <p className="truncate text-[0.71875rem] text-[var(--color-text-mid)]">
-            {decided
-              ? pendingCase.status === "accepted"
-                ? "This proposal was accepted and a case was created from it."
-                : "This proposal was rejected. It stays on record but no case was created."
-              : "Pushed by the case ingestor. Review the details below, then accept it as a case or reject it."}
-          </p>
-        </div>
-
-        {!decided && (
-          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-            <BannerBtn onClick={fetchFiles} disabled={busy !== null}>
-              {busy === "files" ? <Loader2 size={12} className="animate-spin" /> : <FileDown size={12} strokeWidth={1.8} />}
-              Fetch files
-            </BannerBtn>
-            <BannerBtn onClick={() => setEditOpen(true)} disabled={busy !== null}>
-              <Pencil size={12} strokeWidth={1.8} />
-              Edit details
-            </BannerBtn>
-            <BannerBtn onClick={() => setRejectOpen(true)} disabled={busy !== null} tone="danger">
-              Reject
-            </BannerBtn>
-            <BannerBtn onClick={() => setAcceptOpen(true)} disabled={busy !== null} tone="accent">
-              Accept as case
-              <ArrowRight size={12} strokeWidth={1.8} />
-            </BannerBtn>
-          </div>
-        )}
-        {decided && pendingCase.acceptedCaseId && (
-          <BannerBtn onClick={() => navigate(`/cases/${pendingCase.acceptedCaseId}`)} tone="accent">
-            Open the created case
-            <ArrowRight size={12} strokeWidth={1.8} />
-          </BannerBtn>
-        )}
-      </div>
-
       {actionError && (
-        <div className="anim-banner surface mb-3 shrink-0 rounded-[0.875rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-4 py-2.5 text-[0.8125rem] text-[var(--color-neg)]">
+        <div className="anim-banner surface mb-2 shrink-0 rounded-[0.875rem] border border-[rgba(248,113,113,0.25)] bg-[rgba(248,113,113,0.06)] px-4 py-2.5 text-[0.8125rem] text-[var(--color-neg)]">
           {actionError}
         </div>
       )}
 
-      {layout ? (
+      {layout && !isProdigyCase ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <CaseDetailPageNav
             pages={resolvedPages}
@@ -330,6 +350,20 @@ export default function PendingCaseDetail() {
             editable={false}
             onSelect={setActivePageId}
             onRename={() => {}}
+            trailing={
+              <PendingReviewStrip
+                decided={decided}
+                status={pendingCase.status}
+                acceptedCaseId={pendingCase.acceptedCaseId}
+                busy={busy}
+                files={pendingCase.files}
+                filesStatus={pendingCase.filesStatus}
+                onEdit={() => setEditOpen(true)}
+                onReject={() => setRejectOpen(true)}
+                onAccept={() => setAcceptOpen(true)}
+                onOpenCase={(caseId) => navigate(`/cases/${caseId}`)}
+              />
+            }
           />
           <div className="min-h-0 flex-1">
             <CaseDetailGrid
@@ -345,11 +379,50 @@ export default function PendingCaseDetail() {
             />
           </div>
         </div>
+      ) : isProdigyCase ? (
+        <div className="surface flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5 rounded-[0.875rem]">
+          <div className="flex flex-wrap gap-3">
+            {kase.claimNumber && (
+              <div className="flex flex-col gap-0.5">
+                <span className="font-mono text-[0.625rem] uppercase tracking-widest text-[var(--color-text-lo)]">Claim</span>
+                <span className="text-[0.875rem] text-[var(--color-text-hi)]">{kase.claimNumber}</span>
+              </div>
+            )}
+            {kase.client && (
+              <div className="flex flex-col gap-0.5">
+                <span className="font-mono text-[0.625rem] uppercase tracking-widest text-[var(--color-text-lo)]">Client</span>
+                <span className="text-[0.875rem] text-[var(--color-text-hi)]">{kase.client.company}</span>
+              </div>
+            )}
+            {kase.subjectDob && (
+              <div className="flex flex-col gap-0.5">
+                <span className="font-mono text-[0.625rem] uppercase tracking-widest text-[var(--color-text-lo)]">DOB</span>
+                <span className="text-[0.875rem] text-[var(--color-text-hi)]">{kase.subjectDob.slice(0, 10)}</span>
+              </div>
+            )}
+          </div>
+          {kase.addresses.length > 0 && (
+            <div className="flex flex-col gap-0.5">
+              <span className="font-mono text-[0.625rem] uppercase tracking-widest text-[var(--color-text-lo)]">Address</span>
+              <span className="text-[0.875rem] text-[var(--color-text-hi)]">{kase.addresses[0]?.line1}</span>
+            </div>
+          )}
+          <div className="mt-auto pt-4">
+            <a
+              href={"https://proti.ai/investigations/" + pendingCase.id}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="eyebrow text-[var(--color-accent)] hover:underline"
+            >
+              Open in Prodigy →
+            </a>
+          </div>
+        </div>
       ) : (
         <PanelLoader message="Loading layout" />
       )}
 
-      {layout && <CasePageArrows pages={resolvedPages} activePageId={activePageId} onSelect={setActivePageId} />}
+      {layout && !isProdigyCase && <CasePageArrows pages={resolvedPages} activePageId={activePageId} onSelect={setActivePageId} />}
 
       {acceptOpen && (
         <AcceptModal
@@ -388,46 +461,202 @@ export default function PendingCaseDetail() {
   );
 }
 
-function BannerBtn({
+function PendingReviewStrip({
+  decided,
+  status,
+  acceptedCaseId,
+  busy,
+  files,
+  filesStatus,
+  onEdit,
+  onReject,
+  onAccept,
+  onOpenCase,
+}: {
+  decided: boolean;
+  status: string;
+  acceptedCaseId: string | null;
+  busy: "accept" | "reject" | "save" | null;
+  files: PendingCaseFile[];
+  filesStatus: PendingCaseFilesStatus;
+  onEdit: () => void;
+  onReject: () => void;
+  onAccept: () => void;
+  onOpenCase: (caseId: string) => void;
+}) {
+  return (
+    <div
+      className="flex h-8 shrink-0 items-center gap-1.5 rounded-[0.625rem] border px-1.5 pl-2.5"
+      style={{
+        borderColor: "rgba(245,158,11,0.4)",
+        background: "rgba(245,158,11,0.10)",
+      }}
+      title={
+        decided
+          ? status === "accepted"
+            ? "This proposal was accepted and a case was created from it."
+            : "This proposal was rejected. It stays on record but no case was created."
+          : "Intake proposal — review, then accept as a case or reject it."
+      }
+    >
+      <Inbox size={12} strokeWidth={1.8} style={{ color: "#f59e0b" }} className="shrink-0" />
+      <span className="whitespace-nowrap font-mono text-[0.5625rem] uppercase tracking-wider" style={{ color: "#f59e0b" }}>
+        {decided ? status.replace("_", " ") : "Pending review"}
+      </span>
+      <span className="mx-0.5 h-3.5 w-px shrink-0" style={{ background: "rgba(245,158,11,0.35)" }} />
+      <FilesChip files={files} filesStatus={filesStatus} />
+      {!decided ? (
+        <>
+          <StripBtn onClick={onEdit} disabled={busy !== null} title="Edit proposal details">
+            <Pencil size={11} strokeWidth={1.8} />
+            Edit
+          </StripBtn>
+          <StripBtn onClick={onReject} disabled={busy !== null} tone="danger" title="Reject">
+            Reject
+          </StripBtn>
+          <StripBtn onClick={onAccept} disabled={busy !== null} tone="accent" title="Accept as case">
+            Accept
+            <ArrowRight size={11} strokeWidth={1.8} />
+          </StripBtn>
+        </>
+      ) : acceptedCaseId ? (
+        <StripBtn onClick={() => onOpenCase(acceptedCaseId)} tone="accent" title="Open the created case">
+          Open case
+          <ArrowRight size={11} strokeWidth={1.8} />
+        </StripBtn>
+      ) : null}
+    </div>
+  );
+}
+
+/** Read-only badge: whether this proposal actually carries documents. */
+function FilesChip({ files, filesStatus }: { files: PendingCaseFile[]; filesStatus: PendingCaseFilesStatus }) {
+  const stored = files.filter((f) => f.storageKey).length;
+  const label =
+    files.length === 0
+      ? filesStatus === "pending"
+        ? "Files pending"
+        : "No files"
+      : stored === files.length
+        ? `${files.length} file${files.length === 1 ? "" : "s"}`
+        : `${stored}/${files.length} files`;
+  const muted = files.length === 0;
+
+  return (
+    <span
+      title={
+        files.length === 0
+          ? "The ingestor sent no documents with this proposal."
+          : `${stored} of ${files.length} document(s) stored — open the Files widget to preview them.`
+      }
+      className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-[0.4375rem] px-2 text-[0.625rem] font-medium ${
+        muted ? "text-[var(--color-text-lo)]" : "text-[var(--color-text-mid)]"
+      }`}
+    >
+      <Paperclip size={11} strokeWidth={1.8} />
+      {label}
+    </span>
+  );
+}
+
+function StripBtn({
   children,
   onClick,
   disabled,
   tone = "plain",
+  title,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   tone?: "plain" | "danger" | "accent";
+  title?: string;
 }) {
   const toneClass =
     tone === "accent"
-      ? "border-[rgba(74,127,255,0.4)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)] hover:shadow-[0_0_0_0.1875rem_var(--color-accent-soft)]"
+      ? "border-[rgba(74,127,255,0.4)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
       : tone === "danger"
-        ? "border-[rgba(248,113,113,0.35)] text-[#f87171] hover:bg-[rgba(248,113,113,0.08)]"
-        : "border-[var(--color-line)] text-[var(--color-text-mid)] hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]";
+        ? "border-transparent text-[#f87171] hover:bg-[rgba(248,113,113,0.12)]"
+        : "border-transparent text-[var(--color-text-mid)] hover:bg-white/[0.06] hover:text-[var(--color-text-hi)]";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-1.5 rounded-[0.625rem] border px-3 py-1.5 text-[0.71875rem] transition-all disabled:opacity-50 ${toneClass}`}
+      title={title}
+      className={`inline-flex h-6 items-center gap-1 rounded-[0.4375rem] border px-2 text-[0.625rem] font-medium transition-colors disabled:opacity-50 ${toneClass}`}
     >
       {children}
     </button>
   );
 }
 
-// ─── Edit proposal (the fields that matter before accepting) ─────────────────
+// ─── Edit proposal — every normalised field the ingestor sends ───────────────
+
+type VehicleEdits = {
+  year: string;
+  color: string;
+  makeModel: string;
+  plate: string;
+  registeredOwner: string;
+  source: string;
+};
 
 type ProposalEdits = {
   claimNumber: string;
-  subjectName: string;
-  subjectDob: string;
+  caseType: string;
+  ingestorStatus: string;
+  // Subject
+  name: string;
+  dob: string;
+  ssnLast4: string;
+  addresses: string;
+  phones: string;
+  vehicle: string;
+  physical: string;
+  job: string;
+  employer: string;
+  employerContact: string;
+  employerPhone: string;
+  // Assignment
   insurer: string;
   adjusterName: string;
   adjusterEmail: string;
   adjusterPhone: string;
+  type: string;
+  surveillanceDays: string;
+  reportDueDate: string;
+  dateOfLoss: string;
+  typeOfClaim: string;
+  bodyParts: string;
+  restrictions: string;
+  injuryDescription: string;
+  instructions: string;
+  suspicion: string;
+  isRepresented: string;
+  defenseAttorney: string;
+  defenseLawFirm: string;
+  defensePhone: string;
+  vehicles: VehicleEdits[];
 };
+
+const EMPTY_VEHICLE: VehicleEdits = {
+  year: "",
+  color: "",
+  makeModel: "",
+  plate: "",
+  registeredOwner: "",
+  source: "",
+};
+
+const vehicleEdits = (v: ProposalVehicle): VehicleEdits => ({
+  year: v.year ?? "",
+  color: v.color ?? "",
+  makeModel: v.makeModel ?? "",
+  plate: v.plate ?? "",
+  registeredOwner: v.registeredOwner ?? "",
+  source: v.source ?? "",
+});
 
 function EditProposalModal({
   pendingCase,
@@ -440,46 +669,209 @@ function EditProposalModal({
   onCancel: () => void;
   onSave: (edits: ProposalEdits) => void;
 }) {
-  const [edits, setEdits] = useState<ProposalEdits>({
-    claimNumber: pendingCase.proposal.claimNumber ?? "",
-    subjectName: pendingCase.proposal.subject.name ?? "",
-    subjectDob: pendingCase.proposal.subject.dob ?? "",
-    insurer: pendingCase.proposal.assignment.insurer ?? "",
-    adjusterName: pendingCase.proposal.assignment.adjusterName ?? "",
-    adjusterEmail: pendingCase.proposal.assignment.adjusterEmail ?? "",
-    adjusterPhone: pendingCase.proposal.assignment.adjusterPhone ?? "",
-  });
+  const { proposal } = pendingCase;
+  const [edits, setEdits] = useState<ProposalEdits>(() => ({
+    claimNumber: proposal.claimNumber ?? "",
+    caseType: proposal.caseType ?? "",
+    ingestorStatus: proposal.ingestorStatus ?? "",
+    name: proposal.subject.name ?? "",
+    dob: proposal.subject.dob ?? "",
+    ssnLast4: proposal.subject.ssnLast4 ?? "",
+    addresses: proposal.subject.addresses.join("\n"),
+    phones: proposal.subject.phones.join("\n"),
+    vehicle: proposal.subject.vehicle ?? "",
+    physical: proposal.subject.physical ?? "",
+    job: proposal.subject.job ?? "",
+    employer: proposal.subject.employer ?? "",
+    employerContact: proposal.subject.employerContact ?? "",
+    employerPhone: proposal.subject.employerPhone ?? "",
+    insurer: proposal.assignment.insurer ?? "",
+    adjusterName: proposal.assignment.adjusterName ?? "",
+    adjusterEmail: proposal.assignment.adjusterEmail ?? "",
+    adjusterPhone: proposal.assignment.adjusterPhone ?? "",
+    type: proposal.assignment.type ?? "",
+    surveillanceDays: proposal.assignment.surveillanceDays ?? "",
+    reportDueDate: proposal.assignment.reportDueDate ?? "",
+    dateOfLoss: proposal.assignment.dateOfLoss ?? "",
+    typeOfClaim: proposal.assignment.typeOfClaim ?? "",
+    bodyParts: proposal.assignment.bodyParts ?? "",
+    restrictions: proposal.assignment.restrictions ?? "",
+    injuryDescription: proposal.assignment.injuryDescription ?? "",
+    instructions: proposal.assignment.instructions ?? "",
+    suspicion: proposal.assignment.suspicion ?? "",
+    isRepresented: proposal.assignment.isRepresented ?? "",
+    defenseAttorney: proposal.assignment.defenseAttorney ?? "",
+    defenseLawFirm: proposal.assignment.defenseLawFirm ?? "",
+    defensePhone: proposal.assignment.defensePhone ?? "",
+    vehicles: proposal.vehicles.map(vehicleEdits),
+  }));
 
-  const set = (key: keyof ProposalEdits) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  type TextKey = Exclude<keyof ProposalEdits, "vehicles">;
+
+  const set = (key: TextKey) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setEdits((prev) => ({ ...prev, [key]: e.target.value }));
 
-  const field = (label: string, key: keyof ProposalEdits, placeholder?: string) => (
+  const field = (label: string, key: TextKey, placeholder?: string) => (
     <label className="block">
       <span className="eyebrow mb-1 block">{label}</span>
       <input value={edits[key]} onChange={set(key)} placeholder={placeholder} className={fieldClass} />
     </label>
   );
 
+  const area = (label: string, key: TextKey, placeholder?: string, rows = 3) => (
+    <label className="block">
+      <span className="eyebrow mb-1 block">{label}</span>
+      <textarea
+        value={edits[key]}
+        onChange={set(key)}
+        placeholder={placeholder}
+        rows={rows}
+        className={`${fieldClass} resize-y leading-relaxed`}
+      />
+    </label>
+  );
+
+  const setVehicle = (index: number, key: keyof VehicleEdits, value: string) =>
+    setEdits((prev) => ({
+      ...prev,
+      vehicles: prev.vehicles.map((v, i) => (i === index ? { ...v, [key]: value } : v)),
+    }));
+
   return (
     <div className="dashboard-modal-backdrop" role="presentation" onClick={onCancel}>
-      <div className="dashboard-modal surface" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="dashboard-modal dashboard-modal--wide surface"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="dashboard-modal__title">Edit proposal details</h2>
+        <p className="dashboard-modal__text mt-1">
+          Corrects what the ingestor parsed. The raw email payload it sent stays untouched.
+        </p>
         <div className="hairline my-5" />
 
-        <div className="dashboard-modal__body flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-3">
-            {field("Subject name", "subjectName", "Required to accept")}
-            {field("Date of birth", "subjectDob", "YYYY-MM-DD")}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {field("Claim number", "claimNumber")}
-            {field("Insurer", "insurer")}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {field("Adjuster", "adjusterName")}
-            {field("Adjuster phone", "adjusterPhone")}
-          </div>
-          {field("Adjuster email", "adjusterEmail")}
+        <div className="dashboard-modal__body flex max-h-[62vh] flex-col gap-6 overflow-y-auto pr-1">
+          <Section title="Case">
+            <div className="grid grid-cols-3 gap-3">
+              {field("Claim number", "claimNumber")}
+              {field("Case type", "caseType", "e.g. Surveillance")}
+              {field("Ingestor status", "ingestorStatus")}
+            </div>
+          </Section>
+
+          <Section title="Subject">
+            <div className="grid grid-cols-3 gap-3">
+              {field("Full name", "name", "Required to accept")}
+              {field("Date of birth", "dob", "YYYY-MM-DD")}
+              {field("SSN (last 4)", "ssnLast4")}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {area("Addresses", "addresses", "One address per line", 2)}
+              {area("Phones", "phones", "One number per line", 2)}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {field("Job title", "job")}
+              {field("Employer", "employer")}
+              {field("Employer phone", "employerPhone")}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {field("Employer contact", "employerContact")}
+              {field("Vehicle (as reported)", "vehicle")}
+            </div>
+            {area("Physical description", "physical", undefined, 2)}
+          </Section>
+
+          <Section title="Client & adjuster">
+            <div className="grid grid-cols-2 gap-3">
+              {field("Insurer / client", "insurer")}
+              {field("Adjuster", "adjusterName")}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {field("Adjuster email", "adjusterEmail")}
+              {field("Adjuster phone", "adjusterPhone")}
+            </div>
+          </Section>
+
+          <Section title="Assignment">
+            <div className="grid grid-cols-3 gap-3">
+              {field("Assignment type", "type")}
+              {field("Surveillance days", "surveillanceDays")}
+              {field("Report due", "reportDueDate", "YYYY-MM-DD")}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {field("Date of loss", "dateOfLoss", "YYYY-MM-DD")}
+              {field("Type of claim", "typeOfClaim")}
+              {field("Body parts", "bodyParts")}
+            </div>
+            {area("Injury description", "injuryDescription")}
+            {area("Restrictions", "restrictions", undefined, 2)}
+            {area("Special instructions", "instructions")}
+            {area("Reason for suspicion", "suspicion", undefined, 2)}
+          </Section>
+
+          <Section title="Representation">
+            <div className="grid grid-cols-2 gap-3">
+              {field("Represented?", "isRepresented", "yes / no")}
+              {field("Defense attorney", "defenseAttorney")}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {field("Defense law firm", "defenseLawFirm")}
+              {field("Defense phone", "defensePhone")}
+            </div>
+          </Section>
+
+          <Section
+            title="Vehicles"
+            action={
+              <button
+                type="button"
+                onClick={() => setEdits((prev) => ({ ...prev, vehicles: [...prev.vehicles, { ...EMPTY_VEHICLE }] }))}
+                className="inline-flex items-center gap-1 rounded-[0.4375rem] border border-[var(--color-line)] px-2 py-1 text-[0.6875rem] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+              >
+                <Plus size={11} strokeWidth={2} />
+                Add vehicle
+              </button>
+            }
+          >
+            {edits.vehicles.length === 0 ? (
+              <p className="text-[0.8125rem] text-[var(--color-text-lo)]">No vehicles on this proposal.</p>
+            ) : (
+              edits.vehicles.map((v, index) => (
+                <div key={index} className="rounded-[0.625rem] border border-[var(--color-line)] p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="eyebrow">Vehicle {index + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEdits((prev) => ({ ...prev, vehicles: prev.vehicles.filter((_, i) => i !== index) }))
+                      }
+                      title="Remove this vehicle"
+                      className="rounded-[0.375rem] p-1 text-[var(--color-text-lo)] transition-colors hover:bg-[rgba(248,113,113,0.12)] hover:text-[#f87171]"
+                    >
+                      <Trash2 size={12} strokeWidth={1.8} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <VehicleField label="Year" value={v.year} onChange={(val) => setVehicle(index, "year", val)} />
+                    <VehicleField label="Color" value={v.color} onChange={(val) => setVehicle(index, "color", val)} />
+                    <VehicleField
+                      label="Make / model"
+                      value={v.makeModel}
+                      onChange={(val) => setVehicle(index, "makeModel", val)}
+                    />
+                    <VehicleField label="Plate" value={v.plate} onChange={(val) => setVehicle(index, "plate", val)} />
+                    <VehicleField
+                      label="Registered owner"
+                      value={v.registeredOwner}
+                      onChange={(val) => setVehicle(index, "registeredOwner", val)}
+                    />
+                    <VehicleField label="Source" value={v.source} onChange={(val) => setVehicle(index, "source", val)} />
+                  </div>
+                </div>
+              ))
+            )}
+          </Section>
         </div>
 
         <div className="dashboard-modal__actions">
@@ -492,6 +884,43 @@ function EditProposalModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="eyebrow text-[var(--color-text-mid)]">{title}</span>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function VehicleField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="eyebrow mb-1 block">{label}</span>
+      <input value={value} onChange={(e) => onChange(e.target.value)} className={fieldClass} />
+    </label>
   );
 }
 

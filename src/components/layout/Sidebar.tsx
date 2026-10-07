@@ -30,6 +30,7 @@ import {
   HeartPulse,
   Crosshair,
   FlaskConical,
+  Mic,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -112,6 +113,7 @@ const DEFAULT_GROUPS: Group[] = [
       { to: "/osint/globe",          label: "Globe / Gods Eye", icon: Globe,         permissions: ["osint.view"] },
       { to: "/osint/reverse-search", label: "Reverse Image",   icon: Crosshair,     permissions: ["osint.view"] },
       { to: "/osint/video-custody",  label: "Video Custody",   icon: Film,          permissions: ["osint.view"] },
+      { to: "/osint/audio-tools",    label: "Audio Tools",    icon: Mic,           permissions: ["osint.view"] },
       { to: "/osint/medical-canvass",label: "Medical Canvass", icon: HeartPulse,    permissions: ["osint.view"] },
     ],
   },

@@ -38,9 +38,17 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
-    strictPort: false,
+    port: 5176,
+    strictPort: true,
     open: false,
+    proxy: {
+      '/api-proxy': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.slice('/api-proxy'.length),
+
+      },
+    },
   },
   build: {
     rollupOptions: {

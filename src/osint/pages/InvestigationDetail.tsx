@@ -783,14 +783,14 @@ export default function InvestigationDetail() {
   const [savedLayout, setSavedLayout] = useState<any[] | null>(null);
 
   // Load layout config from DB on mount
-  useEffect(() => {
+  useEffect(() => { (async () => {
     const base = typeof window !== "undefined" && !["localhost","127.0.0.1"].includes(window.location.hostname) ? "" : "http://localhost:8000";
     fetch(`${base}/api/layout/all`, { credentials:"include" })
       .then(r => r.json())
-      .then(d => {
+      .then(async d => {
         if (d.tabs && d.tabs.length) {
           // Convert DB tab format to LayoutEditor TabLayout format
-          const { DEFAULT_LAYOUT } = require("@/osint/components/investigations/LayoutEditor");
+          const { DEFAULT_LAYOUT } = await import("@/osint/components/investigations/LayoutEditor");
           const dbTabs = d.tabs.filter((t: any) => t.visible).sort((a: any,b: any) => a.sort_order - b.sort_order);
           const merged = dbTabs.map((dbTab: any) => {
             const def = DEFAULT_LAYOUT.find((dl: any) => dl.id === dbTab.id);
@@ -800,7 +800,7 @@ export default function InvestigationDetail() {
         }
       })
       .catch(() => {});
-  }, []);
+  })(); }, []);
 
 
   // Load session user from Microsoft auth for report

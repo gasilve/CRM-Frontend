@@ -48,6 +48,14 @@ export type ThemeMeta = {
   accent: string;
 };
 
+/** Off = solid. Frosted = blur HUD. Tinted = translucent + wash. Dark = flat translucent. */
+export type GlassMode = "off" | "frosted" | "tinted" | "dark";
+
+/** Tinted/dark ignore the opacity slider and always paint at full density. */
+export function glassOpacityLocked(mode: GlassMode): boolean {
+  return mode === "tinted" || mode === "dark";
+}
+
 export const THEMES: ThemeMeta[] = [
   { id: "dark-5",  name: "True Cognition",  mode: "dark",  bg: "#0a0a0a", accent: "#00adef" },
   { id: "dark-1",  name: "Midnight", mode: "dark",  bg: "#0d1220", accent: "#4a7fff" },
@@ -82,16 +90,17 @@ export const THEMES: ThemeMeta[] = [
 ];
 
 export const THEME_LS_KEY = "accenty.crm.theme.v2";
+/** Stores GlassMode: off | frosted | tinted | dark (legacy 1/0/true/false still read). */
 export const GLASS_LS_KEY = "accenty.crm.glass.v1";
 export const GLASS_OPACITY_LS_KEY = "accenty.crm.glass-opacity.v1";
 export const GLASS_BLUR_LS_KEY = "accenty.crm.glass-blur.v1";
-/** Marks that first-enable Tsunami + Night Grid has already been applied. */
+/** Marks that first-enable Tsunami + Ranges has already been applied. */
 export const GLASS_PRIMED_LS_KEY = "accenty.crm.glass-primed.v2";
-const DEFAULT_THEME: ThemeId = "light-10";
-const DEFAULT_GLASS = false;
-/** Applied the first time glass is turned on. */
+const DEFAULT_THEME: ThemeId = "dark-16"; // Tsunami
+const DEFAULT_GLASS_MODE: GlassMode = "dark";
+/** Applied the first time glass is turned on from Off. */
 export const GLASS_FIRST_THEME: ThemeId = "dark-16"; // Tsunami
-export const GLASS_FIRST_BACKGROUND = "cities-traffic"; // Night Grid
+export const GLASS_FIRST_BACKGROUND = "aerial-ranges"; // Ranges
 
 /** Lower = more of the scene shows through (matches the open/transparent look). */
 export const DEFAULT_GLASS_OPACITY = 23;
@@ -102,16 +111,37 @@ export const DEFAULT_GLASS_BLUR = 13;
 export const GLASS_BLUR_MIN = 0;
 export const GLASS_BLUR_MAX = 60;
 
+/** DOM attribute for CSS. Frosted stays `"true"` so existing frosted rules keep working. */
+export function glassModeToAttr(
+  mode: GlassMode,
+): "false" | "true" | "tinted" | "dark" {
+  if (mode === "frosted") return "true";
+  if (mode === "tinted") return "tinted";
+  if (mode === "dark") return "dark";
+  return "false";
+}
+
+export function parseGlassMode(raw: string | null | undefined): GlassMode {
+  if (raw === "tinted") return "tinted";
+  if (raw === "dark") return "dark";
+  if (raw === "frosted" || raw === "1" || raw === "true") return "frosted";
+  return "off";
+}
+
 type ThemeCtx = {
   themeId: ThemeId;
   themeMeta: ThemeMeta;
   setTheme: (id: ThemeId) => void;
+  /** True when any non-off glass mode is active (scene / translucent panels). */
   glass: boolean;
+  glassMode: GlassMode;
+  setGlassMode: (mode: GlassMode) => void;
+  /** @deprecated Prefer setGlassMode. true → frosted, false → off. */
   setGlass: (on: boolean) => void;
   /** Panel fill density 0–100. Lower = more transparent. */
   glassOpacity: number;
   setGlassOpacity: (value: number) => void;
-  /** Frost blur in px (0–60). */
+  /** Frost blur in px (0–60). Only applied in frosted mode. */
   glassBlur: number;
   setGlassBlur: (value: number) => void;
 };
@@ -123,7 +153,9 @@ const ThemeContext = createContext<ThemeCtx>({
   themeId: DEFAULT_THEME,
   themeMeta: defaultThemeMeta,
   setTheme: () => {},
-  glass: DEFAULT_GLASS,
+  glass: true,
+  glassMode: DEFAULT_GLASS_MODE,
+  setGlassMode: () => {},
   setGlass: () => {},
   glassOpacity: DEFAULT_GLASS_OPACITY,
   setGlassOpacity: () => {},
@@ -149,15 +181,15 @@ function readStoredTheme(): ThemeId {
   return DEFAULT_THEME;
 }
 
-function readStoredGlass(): boolean {
+function readStoredGlassMode(): GlassMode {
   try {
-    const stored = localStorage.getItem(GLASS_LS_KEY);
-    if (stored === "1" || stored === "true") return true;
-    if (stored === "0" || stored === "false") return false;
+    const raw = localStorage.getItem(GLASS_LS_KEY);
+    if (raw == null) return DEFAULT_GLASS_MODE;
+    return parseGlassMode(raw);
   } catch {
     /* ignore */
   }
-  return DEFAULT_GLASS;
+  return DEFAULT_GLASS_MODE;
 }
 
 function readStoredGlassOpacity(): number {
@@ -200,9 +232,11 @@ export function consumeGlassFirstEnable(): boolean {
   }
 }
 
-function applyGlassOpacityCss(opacity: number) {
+function applyGlassOpacityCss(opacity: number, mode: GlassMode) {
   const root = document.documentElement;
-  const t = opacity / GLASS_OPACITY_MAX;
+  // Tinted/dark are fixed at slider-equivalent 100% (dense translucent panels).
+  const effective = glassOpacityLocked(mode) ? GLASS_OPACITY_MAX : opacity;
+  const t = effective / GLASS_OPACITY_MAX;
 
   // True alpha — not color-mix with transparent (that only darkens).
   const alpha = 0.04 + t * 0.5;
@@ -216,24 +250,24 @@ function applyGlassOpacityCss(opacity: number) {
   root.style.setProperty("--glass-shine-alpha", shineAlpha.toFixed(3));
 }
 
-function applyGlassBlurCss(blurPx: number) {
+function applyGlassBlurCss(blurPx: number, mode: GlassMode) {
   const root = document.documentElement;
-  const blur = clampGlassBlur(blurPx);
+  // Tinted never frosts — force zero blur even if the slider still holds a value.
+  const blur = mode === "frosted" ? clampGlassBlur(blurPx) : 0;
   const blurSm = Math.max(0, Math.round(blur * 0.7));
-  // Design blur values are authored as px @ 16px root; emit rem so they scale.
   root.style.setProperty("--glass-blur", `${blur / 16}rem`);
   root.style.setProperty("--glass-blur-sm", `${blurSm / 16}rem`);
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [themeId, setThemeId] = useState<ThemeId>(readStoredTheme);
-  const [glass, setGlassState] = useState<boolean>(readStoredGlass);
+  const [glassMode, setGlassModeState] = useState<GlassMode>(readStoredGlassMode);
   const [glassOpacity, setGlassOpacityState] = useState<number>(readStoredGlassOpacity);
   const [glassBlur, setGlassBlurState] = useState<number>(readStoredGlassBlur);
 
-  // Already-on glass from a prior session: never force Tsunami/Night Grid later.
+  // Already-on glass from a prior session: never force Tsunami/Ranges later.
   useLayoutEffect(() => {
-    if (!glass) return;
+    if (glassMode === "off") return;
     try {
       localStorage.setItem(GLASS_PRIMED_LS_KEY, "1");
     } catch {
@@ -243,16 +277,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const themeMeta = THEMES.find((t) => t.id === themeId) ?? THEMES[0];
+  const glass = glassMode !== "off";
 
   // Keep vars on <html> during render so the first painted frame already has blur
   // (boot script covers pre-JS; this covers React mount without waiting an effect).
   if (typeof document !== "undefined") {
     document.documentElement.setAttribute("data-theme", themeId);
-    document.documentElement.setAttribute("data-glass", glass ? "true" : "false");
+    document.documentElement.setAttribute("data-glass", glassModeToAttr(glassMode));
     document.documentElement.style.setProperty("--boot-bg", themeMeta.bg);
     document.documentElement.style.setProperty("--boot-accent", themeMeta.accent);
-    applyGlassOpacityCss(glassOpacity);
-    applyGlassBlurCss(glassBlur);
+    applyGlassOpacityCss(glassOpacity, glassMode);
+    applyGlassBlurCss(glassBlur, glassMode);
   }
 
   // Persist after commit
@@ -266,11 +301,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useLayoutEffect(() => {
     try {
-      localStorage.setItem(GLASS_LS_KEY, glass ? "1" : "0");
+      localStorage.setItem(GLASS_LS_KEY, glassMode);
     } catch {
       /* ignore */
     }
-  }, [glass]);
+  }, [glassMode]);
 
   useLayoutEffect(() => {
     try {
@@ -288,6 +323,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [glassBlur]);
 
+  const setGlassMode = (mode: GlassMode) => setGlassModeState(mode);
+  const setGlass = (on: boolean) => setGlassModeState(on ? "frosted" : "off");
+
   return (
     <ThemeContext.Provider
       value={{
@@ -295,7 +333,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         themeMeta,
         setTheme: setThemeId,
         glass,
-        setGlass: setGlassState,
+        glassMode,
+        setGlassMode,
+        setGlass,
         glassOpacity,
         setGlassOpacity: (value: number) =>
           setGlassOpacityState(clampGlassOpacity(value)),

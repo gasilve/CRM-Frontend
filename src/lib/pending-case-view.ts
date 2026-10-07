@@ -45,6 +45,8 @@ const toCaseVehicle = (v: ProposalVehicle, index: number): CaseVehicle => ({
   notes: v.source ? `Source: ${v.source}` : null,
   registeredOwner: v.registeredOwner,
   personLinks: [],
+  seatCount: 5,
+  kind: "unknown",
 });
 
 const composeDescription = (p: PendingCaseDetail): string | null => {
@@ -127,5 +129,14 @@ export function proposalToCaseDetail(p: PendingCaseDetail): CaseDetail {
     createdBy: null,
     createdAt: p.receivedAt,
     updatedAt: p.updatedAt,
+    earliestActiveAt: null,
+    imeAt: null,
+    subjectTransport: null,
+    subjectSetting: null,
+    todos: [],
+    scheduleBlocks: [],
+    openDays: [],
+    specialDates: [],
+    patterns: [],
   };
 }

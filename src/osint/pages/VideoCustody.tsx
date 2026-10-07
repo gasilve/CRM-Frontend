@@ -1,10 +1,10 @@
 // @ts-nocheck
 
 import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 
-const BASE = typeof window !== "undefined"
-  ? (!["localhost","127.0.0.1"].includes(window.location.hostname) ? "" : "http://localhost:8000")
-  : "";
+const BASE = "/api-proxy";
+const cv = (n: string) => `var(${n})`;
 
 function useTheme() {
   const [dark, setDark] = useState(true);
@@ -23,13 +23,13 @@ function useTheme() {
 
 function getC(dark: boolean) {
   return {
-    bdr: dark ? "#5c3019" : "#e2e8f0",
-    bg1: dark ? "#2e1a0e" : "#f8fafc",
-    bg2: dark ? "#1a0f08" : "#ffffff",
-    txt: dark ? "#f5ede6" : "#1e293b",
-    sec: dark ? "#c4956a" : "#64748b",
-    mut: dark ? "#7a5030" : "#94a3b8",
-    acc: dark ? "#ff6a1a" : "#6366f1",
+    bdr: "var(--color-line-2)",
+    bg1: "var(--color-ink-2)",
+    bg2: "var(--color-ink-1)",
+    txt: "var(--color-text-hi)",
+    sec: "var(--color-text-mid)",
+    mut: "var(--color-text-lo)",
+    acc: "var(--color-accent)",
     grn: "#10b981", yel: "#f59e0b", red: "#ef4444",
   };
 }
@@ -206,19 +206,19 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
     n===1 ? true : n===2 ? !!r.sha256_final :
     n===3 ? !!r.wasabi_pub_key : !!(r.sent_to_attorney_at);
 
-  const stepColor = (n: number) => stepDone(n) ? c.grn : step===n ? c.acc : c.mut;
+  const stepColor = (n: number) => stepDone(n) ? "#10b981" : step===n ? "var(--color-accent)" : "var(--color-text-lo)";
   const inp = { width:"100%", boxSizing:"border-box" as any, padding:"6px 9px",
-    fontSize:12, border:`1px solid ${c.bdr}`, borderRadius:5, background:c.bg2, color:c.txt, outline:"none" };
-  const lbl = { fontSize:10, color:c.sec, margin:"0 0 3px", display:"block" as any };
+    fontSize:12, border:"1px solid var(--color-line-2)", borderRadius:5, background:"var(--color-ink-1)", color:"var(--color-text-hi)", outline:"none" };
+  const lbl = { fontSize:10, color:"var(--color-text-mid)", margin:"0 0 3px", display:"block" as any };
   const sec = { fontSize:9, textTransform:"uppercase" as any, letterSpacing:"0.07em",
-    color:c.mut, fontWeight:700, margin:"0 0 10px" };
+    color:"var(--color-text-lo)", fontWeight:700, margin:"0 0 10px" };
 
   return (
-    <div style={{ border:`1px solid ${c.acc}`, borderTop:"none",
-      borderRadius:"0 0 8px 8px", background:c.bg1, overflow:"hidden" }}>
+    <div style={{ border:"1px solid var(--color-accent)", borderTop:"none",
+      borderRadius:"0 0 8px 8px", background:"var(--color-ink-2)", overflow:"hidden" }}>
 
       {/* Step tabs */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", borderBottom:`1px solid ${c.bdr}` }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", borderBottom:"1px solid var(--color-line-2)" }}>
         {([
           [1,"📤 Upload",  r.upload_method==="platform"?"Authenticated":"Folder watch"],
           [2,"🎬 Process", r.sha256_final?"Done":"Pending"],
@@ -227,16 +227,16 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
         ] as [number,string,string][]).map(([n,label,sub])=>(
           <button key={n} onClick={()=>setStep(n as any)}
             style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px",
-              background: step===n ? `${c.acc}15` : "transparent",
-              border:"none", borderRight:`1px solid ${c.bdr}`, cursor:"pointer", textAlign:"left" }}>
+              background: step===n ? "rgba(99,102,241,0.09)" : "transparent",
+              border:"none", borderRight:"1px solid var(--color-line-2)", cursor:"pointer", textAlign:"left" }}>
             <div style={{ width:24,height:24,borderRadius:"50%",flexShrink:0,
               display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,
               background:`${stepColor(n)}22`,border:`2px solid ${stepColor(n)}`,color:stepColor(n) }}>
               {stepDone(n)?"✓":n}
             </div>
             <div>
-              <p style={{ fontSize:11,fontWeight:700,color:step===n?c.acc:c.txt,margin:0 }}>{label}</p>
-              <p style={{ fontSize:10,color:c.sec,margin:0 }}>{sub}</p>
+              <p style={{ fontSize:11,fontWeight:700,color:step===n?"var(--color-accent)":"var(--color-text-hi)",margin:0 }}>{label}</p>
+              <p style={{ fontSize:10,color:"var(--color-text-mid)",margin:0 }}>{sub}</p>
             </div>
           </button>
         ))}
@@ -262,24 +262,24 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
           ].map((s,i)=>(
             <div key={i} style={{ display:"flex",gap:10,marginBottom:10,position:"relative" }}>
               {i<5 && <div style={{ position:"absolute",left:12,top:26,bottom:-10,width:1,
-                background:s.done?c.acc:c.bdr,zIndex:0 }}/>}
+                background:s.done?"var(--color-accent)":"var(--color-line-2)",zIndex:0 }}/>}
               <div style={{ width:24,height:24,borderRadius:"50%",zIndex:1,flexShrink:0,
                 display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,
-                background:s.done?`${c.acc}22`:c.bg1,border:`2px solid ${s.done?c.acc:c.bdr}` }}>
+                background:s.done?"rgba(99,102,241,0.13)":"var(--color-ink-2)",border:(s.done?"2px solid var(--color-accent)":"2px solid var(--color-line-2)") }}>
                 {s.icon}
               </div>
               <div style={{ paddingTop:2 }}>
-                <p style={{ fontSize:12,fontWeight:600,color:c.txt,margin:0 }}>{s.label}</p>
-                <p style={{ fontSize:11,color:c.sec,margin:0 }}>{s.detail}</p>
+                <p style={{ fontSize:12,fontWeight:600,color:"var(--color-text-hi)",margin:0 }}>{s.label}</p>
+                <p style={{ fontSize:11,color:"var(--color-text-mid)",margin:0 }}>{s.detail}</p>
               </div>
             </div>
           ))}
-          <div style={{ marginTop:10,padding:"8px 10px",background:c.bg2,borderRadius:6,border:`1px solid ${c.bdr}` }}>
+          <div style={{ marginTop:10,padding:"8px 10px",background:"var(--color-ink-1)",borderRadius:6,border:"1px solid var(--color-line-2)" }}>
             <p style={sec}>SHA-256 chain</p>
             {[["Raw",r.sha256_raw],["Stamped",r.sha256_timestamped],["Final",r.sha256_final],["Published",r.sha256_published]].map(([l,v])=>(
               <div key={l} style={{ marginBottom:5 }}>
-                <p style={{ fontSize:9,textTransform:"uppercase",color:c.mut,margin:"0 0 1px",fontWeight:700 }}>{l}</p>
-                <p style={{ fontSize:10,fontFamily:"monospace",color:v?c.acc:c.mut,margin:0,wordBreak:"break-all" }}>{v||"—"}</p>
+                <p style={{ fontSize:9,textTransform:"uppercase",color:"var(--color-text-lo)",margin:"0 0 1px",fontWeight:700 }}>{l}</p>
+                <p style={{ fontSize:10,fontFamily:"monospace",color:v?"var(--color-accent)":"var(--color-text-lo)",margin:0,wordBreak:"break-all" }}>{v||"—"}</p>
               </div>
             ))}
           </div>
@@ -306,26 +306,26 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
           <p style={{ ...sec,marginTop:6 }}>Timestamp overlay</p>
           {/* ── Video preview panel ── */}
           <div style={{ marginBottom:12,borderRadius:8,overflow:"hidden",
-            border:`1px solid ${c.bdr}`,background:"#000" }}>
+            border:"1px solid var(--color-line-2)",background:"#000" }}>
 
             {/* Header bar */}
             <div style={{ display:"flex",gap:6,padding:"7px 10px",
-              background:c.bg2,borderBottom:previewOpen?`1px solid ${c.bdr}`:"none",
+              background:"var(--color-ink-1)",borderBottom:previewOpen?`1px solid var(--color-line-2)`:"none",
               flexWrap:"wrap" }}>
               <button onClick={()=>fetchFrame()}
                 disabled={previewLoading}
                 style={{ padding:"4px 11px",fontSize:11,fontWeight:600,cursor:"pointer",
-                  background:videoMode==="frame"&&previewOpen?c.acc:"transparent",
-                  color:videoMode==="frame"&&previewOpen?"white":c.sec,
-                  border:`1px solid ${videoMode==="frame"&&previewOpen?c.acc:c.bdr}`,borderRadius:5 }}>
+                  background:videoMode==="frame"&&previewOpen?"var(--color-accent)":"transparent",
+                  color:videoMode==="frame"&&previewOpen?"white":"var(--color-text-mid)",
+                  border:(videoMode==="frame"&&previewOpen?"1px solid var(--color-accent)":"1px solid var(--color-line-2)"),borderRadius:5 }}>
                 {previewLoading&&videoMode==="frame" ? "⏳ Loading…" : "🖼 Frame preview"}
               </button>
               <button onClick={()=>openFullVideo("raw")}
                 disabled={videoLoading}
                 style={{ padding:"4px 11px",fontSize:11,fontWeight:600,cursor:"pointer",
                   background:videoMode==="full"&&previewOpen&&!videoSrc?.includes("download")?"#7c3aed":"transparent",
-                  color:videoMode==="full"&&previewOpen&&!videoSrc?.includes("download")?"white":c.sec,
-                  border:`1px solid ${videoMode==="full"&&previewOpen&&!videoSrc?.includes("download")?"#7c3aed":c.bdr}`,borderRadius:5 }}>
+                  color:videoMode==="full"&&previewOpen&&!videoSrc?.includes("download")?"white":"var(--color-text-mid)",
+                  border:(videoMode==="full"&&previewOpen&&!videoSrc?.includes("download")?"1px solid #7c3aed":"1px solid var(--color-line-2)"),borderRadius:5 }}>
                 {videoLoading&&videoMode==="full"&&!videoSrc?.includes("download") ? "⏳ Loading…" : "▶ Play raw video"}
               </button>
               {r.sha256_final && (
@@ -333,16 +333,16 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                   disabled={videoLoading}
                   style={{ padding:"4px 11px",fontSize:11,fontWeight:600,cursor:"pointer",
                     background:videoMode==="full"&&previewOpen&&videoSrc?.includes("download")?"#10b981":"transparent",
-                    color:videoMode==="full"&&previewOpen&&videoSrc?.includes("download")?"white":c.sec,
-                    border:`1px solid ${videoMode==="full"&&previewOpen&&videoSrc?.includes("download")?"#10b981":c.bdr}`,borderRadius:5 }}>
+                    color:videoMode==="full"&&previewOpen&&videoSrc?.includes("download")?"white":"var(--color-text-mid)",
+                    border:(videoMode==="full"&&previewOpen&&videoSrc?.includes("download")?"1px solid #10b981":"1px solid var(--color-line-2)"),borderRadius:5 }}>
                   {videoLoading&&videoSrc?.includes("download") ? "⏳ Loading…" : "▶ Play processed"}
                 </button>
               )}
               {previewOpen && (
                 <button onClick={()=>{setPreviewOpen(false);setVideoSrc(null);}}
                   style={{ marginLeft:"auto",padding:"4px 10px",fontSize:11,cursor:"pointer",
-                    background:"transparent",border:`1px solid ${c.bdr}`,
-                    borderRadius:5,color:c.mut }}>
+                    background:"transparent",border:"1px solid var(--color-line-2)",
+                    borderRadius:5,color:"var(--color-text-lo)" }}>
                   ✕ Close
                 </button>
               )}
@@ -366,7 +366,7 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                       <div style={{ height:180,display:"flex",flexDirection:"column",
                         alignItems:"center",justifyContent:"center",
                         gap:10,padding:"0 30px",background:"#111" }}>
-                        <p style={{ fontSize:12,color:c.sec,margin:0,textAlign:"center" }}>
+                        <p style={{ fontSize:12,color:"var(--color-text-mid)",margin:0,textAlign:"center" }}>
                           {videoLoadMsg||"⏳ Loading…"}
                         </p>
                         {videoProgress >= 0 ? (
@@ -375,15 +375,15 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                             <div style={{ height:"100%",borderRadius:3,
                               width:`${Math.max(3,videoProgress)}%`,
                               transition:"width 0.2s",
-                              background:`linear-gradient(90deg,${c.acc},#a855f7)` }}/>
+                              background:"linear-gradient(90deg,var(--color-accent),#a855f7)" }}/>
                           </div>
                         ) : (
                           <div style={{ width:26,height:26,borderRadius:"50%",
-                            border:`3px solid #333`,borderTopColor:c.acc,
+                            border:`3px solid #333`,borderTopColor:"var(--color-accent)",
                             animation:"vcSpin 0.8s linear infinite" }}/>
                         )}
                         {videoProgress > 0 && videoProgress < 100 && (
-                          <p style={{ fontSize:10,color:c.mut,margin:0 }}>{videoProgress}%</p>
+                          <p style={{ fontSize:10,color:"var(--color-text-lo)",margin:0 }}>{videoProgress}%</p>
                         )}
                         <style>{`@keyframes vcSpin{to{transform:rotate(360deg)}}`}</style>
                       </div>
@@ -396,7 +396,7 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                   <div style={{ position:"relative" }}>
                     {previewLoading ? (
                       <div style={{ height:160,display:"flex",alignItems:"center",
-                        justifyContent:"center",color:c.mut,fontSize:12,background:"#111" }}>
+                        justifyContent:"center",color:"var(--color-text-lo)",fontSize:12,background:"#111" }}>
                         ⏳ Extracting frame…
                       </div>
                     ) : previewFrame ? (
@@ -408,8 +408,8 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                             <button key={m} onClick={()=>setPreviewMode(m)}
                               style={{ padding:"3px 9px",fontSize:10,fontWeight:700,cursor:"pointer",
                                 background:previewMode===m?"rgba(0,0,0,0.8)":"rgba(0,0,0,0.4)",
-                                color:previewMode===m?c.acc:"rgba(255,255,255,0.6)",
-                                border:`1px solid ${previewMode===m?c.acc:"rgba(255,255,255,0.2)"}`,
+                                color:previewMode===m?"var(--color-accent)":"rgba(255,255,255,0.6)",
+                                border:(previewMode===m?"1px solid var(--color-accent)":"1px solid rgba(255,255,255,0.2)"),
                                 borderRadius:4 }}>
                               {m==="raw"?"Original":"✨ Enhanced"}
                             </button>
@@ -464,12 +464,12 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                             onChange={e=>setPreviewSeek(Number(e.target.value))}
                             onMouseUp={e=>fetchFrame(Number((e.target as HTMLInputElement).value))}
                             onTouchEnd={e=>fetchFrame(Number((e.target as HTMLInputElement).value))}
-                            style={{ flex:1,accentColor:c.acc }}/>
+                            style={{ flex:1,accentColor:"var(--color-accent)" }}/>
                         </div>
                       </div>
                     ) : (
                       <div style={{ height:120,display:"flex",alignItems:"center",
-                        justifyContent:"center",color:c.mut,fontSize:12,background:"#111" }}>
+                        justifyContent:"center",color:"var(--color-text-lo)",fontSize:12,background:"#111" }}>
                         Click "Frame preview" to load
                       </div>
                     )}
@@ -478,23 +478,23 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
 
                 {/* Trailer strip at bottom */}
                 {trailerPreview?.thumbnail_b64 && (
-                  <div style={{ padding:"8px 10px",background:c.bg2,
-                    borderTop:`1px solid ${c.bdr}`,display:"flex",gap:10,alignItems:"center" }}>
+                  <div style={{ padding:"8px 10px",background:"var(--color-ink-1)",
+                    borderTop:"1px solid var(--color-line-2)",display:"flex",gap:10,alignItems:"center" }}>
                     <img src={`data:image/jpeg;base64,${trailerPreview.thumbnail_b64}`}
                       alt="trailer" style={{ width:90,borderRadius:4,flexShrink:0,
-                        border:`1px solid ${c.bdr}` }}/>
+                        border:"1px solid var(--color-line-2)" }}/>
                     <div style={{ flex:1 }}>
-                      <p style={{ fontSize:11,fontWeight:700,color:c.txt,margin:"0 0 2px" }}>
+                      <p style={{ fontSize:11,fontWeight:700,color:"var(--color-text-hi)",margin:"0 0 2px" }}>
                         🎬 {trailerPreview.state_name}
                         <span style={{ fontSize:10,fontWeight:400,color:
-                          trailerPreview.trailer_match==="exact"?c.grn:"#f59e0b",marginLeft:6 }}>
+                          trailerPreview.trailer_match==="exact"?"#10b981":"#f59e0b",marginLeft:6 }}>
                           {trailerPreview.trailer_match==="exact"?"✓ exact match":"⚠ fallback"}
                         </span>
                       </p>
-                      <p style={{ fontSize:10,color:c.mut,margin:"0 0 4px",wordBreak:"break-all" }}>
+                      <p style={{ fontSize:10,color:"var(--color-text-lo)",margin:"0 0 4px",wordBreak:"break-all" }}>
                         {trailerPreview.trailer_filename}
                       </p>
-                      <p style={{ fontSize:10,color:c.sec,margin:0 }}>
+                      <p style={{ fontSize:10,color:"var(--color-text-mid)",margin:0 }}>
                         Final = trailer (13.9s) + processed footage
                       </p>
                     </div>
@@ -506,7 +506,7 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
 
           {/* Live preview (timestamp position mock) */}
           <div style={{ position:"relative",width:"100%",height:58,background:"#0f0f1a",
-            borderRadius:6,marginBottom:10,overflow:"hidden",border:`1px solid ${c.bdr}` }}>
+            borderRadius:6,marginBottom:10,overflow:"hidden",border:"1px solid var(--color-line-2)" }}>
             <p style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",
               justifyContent:"center",color:"rgba(255,255,255,0.1)",fontSize:11,margin:0 }}>
               Video preview
@@ -539,13 +539,13 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
             <div><label style={lbl}>Text color</label>
               <div style={{ display:"flex",gap:6,alignItems:"center" }}>
                 <input type="color" value={tsColor} onChange={e=>setTsColor(e.target.value)}
-                  style={{ width:36,height:28,border:`1px solid ${c.bdr}`,borderRadius:4,cursor:"pointer",padding:2 }}/>
-                <span style={{ fontSize:11,color:c.sec,fontFamily:"monospace" }}>{tsColor}</span>
+                  style={{ width:36,height:28,border:"1px solid var(--color-line-2)",borderRadius:4,cursor:"pointer",padding:2 }}/>
+                <span style={{ fontSize:11,color:"var(--color-text-mid)",fontFamily:"monospace" }}>{tsColor}</span>
               </div></div>
-            <div><label style={lbl}>Box opacity: <strong style={{color:c.txt}}>{Math.round(tsOpacity*100)}%</strong></label>
+            <div><label style={lbl}>Box opacity: <strong style={{color:"var(--color-text-hi)"}}>{Math.round(tsOpacity*100)}%</strong></label>
               <input type="range" min={0} max={1} step={0.05} value={tsOpacity}
                 onChange={e=>setTsOpacity(Number(e.target.value))} style={{ width:"100%",marginTop:6 }}/></div>
-            <div><label style={lbl}>Font scale: <strong style={{color:c.txt}}>{tsFontScale}</strong></label>
+            <div><label style={lbl}>Font scale: <strong style={{color:"var(--color-text-hi)"}}>{tsFontScale}</strong></label>
               <input type="range" min={0.5} max={2.5} step={0.1} value={tsFontScale}
                 onChange={e=>setTsFontScale(Number(e.target.value))} style={{ width:"100%",marginTop:6 }}/></div>
             <div><label style={lbl}>Date/time format</label>
@@ -558,7 +558,7 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
             <label style={lbl}>Extra overlay fields</label>
             <div style={{ display:"flex",gap:12 }}>
               {(["investigator","claim"] as string[]).map(ex=>(
-                <label key={ex} style={{ display:"flex",alignItems:"center",gap:5,fontSize:12,color:c.txt,cursor:"pointer" }}>
+                <label key={ex} style={{ display:"flex",alignItems:"center",gap:5,fontSize:12,color:"var(--color-text-hi)",cursor:"pointer" }}>
                   <input type="checkbox" checked={tsExtras.includes(ex)}
                     onChange={e=>setTsExtras(p=>e.target.checked?[...p,ex]:p.filter(x=>x!==ex))}/>
                   {ex==="investigator"?"Investigator name":"Claim #"}
@@ -573,7 +573,7 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                 {fonts.length>0?fonts.map((f:any)=><option key={f.filename} value={f.filename}>{f.name}</option>)
                   :<option value="biondi.ttf">Biondi (default)</option>}
               </select></div>
-            <div><label style={lbl}>Font size: <strong style={{color:c.txt}}>{fontSize}px</strong></label>
+            <div><label style={lbl}>Font size: <strong style={{color:"var(--color-text-hi)"}}>{fontSize}px</strong></label>
               <input type="range" min={28} max={80} value={fontSize}
                 onChange={e=>setFontSize(Number(e.target.value))} style={{ width:"100%",marginTop:6 }}/></div>
           </div>
@@ -587,24 +587,24 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
 
           {/* Trailer preview */}
           <div style={{ marginBottom:12,borderRadius:7,overflow:"hidden",
-            border:`1px solid ${c.bdr}` }}>
+            border:"1px solid var(--color-line-2)" }}>
 
             {/* Header */}
-            <div style={{ padding:"7px 12px",background:c.bg2,
-              borderBottom:`1px solid ${c.bdr}`,
+            <div style={{ padding:"7px 12px",background:"var(--color-ink-1)",
+              borderBottom:"1px solid var(--color-line-2)",
               display:"flex",alignItems:"center",justifyContent:"space-between" }}>
               <span style={{ fontSize:10,fontWeight:700,letterSpacing:"0.07em",
-                textTransform:"uppercase",color:c.mut }}>Trailer</span>
+                textTransform:"uppercase",color:"var(--color-text-lo)" }}>Trailer</span>
               <button onClick={()=>fetchTrailerPreview(stateOverride||undefined)}
                 style={{ fontSize:11,padding:"2px 8px",cursor:"pointer",
-                  background:"transparent",border:`1px solid ${c.bdr}`,
-                  borderRadius:4,color:c.sec }}>
+                  background:"transparent",border:"1px solid var(--color-line-2)",
+                  borderRadius:4,color:"var(--color-text-mid)" }}>
                 {trailerLoading ? "⏳" : "↻ Refresh"}
               </button>
             </div>
 
             {/* Content */}
-            <div style={{ padding:"10px 12px",background:c.bg1 }}>
+            <div style={{ padding:"10px 12px",background:"var(--color-ink-2)" }}>
               {trailerPreview ? (
                 <div style={{ display:"flex",gap:10,alignItems:"flex-start" }}>
                   {/* Thumbnail */}
@@ -612,22 +612,22 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                     <img src={`data:image/jpeg;base64,${trailerPreview.thumbnail_b64}`}
                       alt="trailer"
                       style={{ width:110,borderRadius:5,flexShrink:0,
-                        border:`1px solid ${c.bdr}`,display:"block" }}/>
+                        border:"1px solid var(--color-line-2)",display:"block" }}/>
                   )}
                   <div style={{ flex:1,minWidth:0 }}>
                     {/* Match badge */}
                     <div style={{ display:"inline-flex",alignItems:"center",gap:6,
                       padding:"3px 9px",borderRadius:20,marginBottom:6,
                       background: trailerPreview.trailer_match==="exact"
-                        ? `${c.grn}20` : "#f59e0b20",
+                        ? `${"#10b981"}20` : "#f59e0b20",
                       border:`1px solid ${trailerPreview.trailer_match==="exact"
-                        ? c.grn : "#f59e0b"}` }}>
+                        ? "#10b981" : "#f59e0b"}` }}>
                       <span style={{ fontSize:11,fontWeight:700,
-                        color: trailerPreview.trailer_match==="exact" ? c.grn : "#f59e0b" }}>
+                        color: trailerPreview.trailer_match==="exact" ? "#10b981" : "#f59e0b" }}>
                         {trailerPreview.trailer_match==="exact" ? "✓" : "⚠"}
                       </span>
                       <span style={{ fontSize:11,fontWeight:600,
-                        color: trailerPreview.trailer_match==="exact" ? c.grn : "#f59e0b" }}>
+                        color: trailerPreview.trailer_match==="exact" ? "#10b981" : "#f59e0b" }}>
                         {trailerPreview.state_name}
                       </span>
                       {trailerPreview.trailer_match!=="exact" && (
@@ -635,12 +635,12 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                       )}
                     </div>
                     {/* Filename */}
-                    <p style={{ fontSize:10,color:c.mut,margin:"0 0 8px",
+                    <p style={{ fontSize:10,color:"var(--color-text-lo)",margin:"0 0 8px",
                       wordBreak:"break-all",lineHeight:1.4 }}>
                       {trailerPreview.trailer_filename}
                     </p>
                     {/* Override — botones por estado en lugar de select */}
-                    <p style={{ fontSize:10,color:c.sec,margin:"0 0 6px",fontWeight:600 }}>
+                    <p style={{ fontSize:10,color:"var(--color-text-mid)",margin:"0 0 6px",fontWeight:600 }}>
                       Override state:
                     </p>
                     <div style={{ display:"flex",flexWrap:"wrap",gap:4 }}>
@@ -649,9 +649,9 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                         onClick={()=>{ setStateOverride(""); fetchTrailerPreview(undefined); }}
                         style={{
                           padding:"3px 9px",fontSize:10,fontWeight:600,cursor:"pointer",
-                          borderRadius:4,border:`1px solid ${!stateOverride ? c.acc : c.bdr}`,
-                          background: !stateOverride ? `${c.acc}22` : "transparent",
-                          color: !stateOverride ? c.acc : c.sec,
+                          borderRadius:4,border:(!stateOverride?"1px solid var(--color-accent)":"1px solid var(--color-line-2)"),
+                          background: !stateOverride ? "rgba(99,102,241,0.13)" : "transparent",
+                          color: !stateOverride ? "var(--color-accent)" : "var(--color-text-mid)",
                         }}>
                         Auto
                       </button>
@@ -663,14 +663,14 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                             padding:"3px 8px",fontSize:10,fontWeight:600,cursor:"pointer",
                             borderRadius:4,
                             border:`1px solid ${stateOverride===s.abbr
-                              ? c.acc
-                              : s.has_trailer ? c.bdr : "transparent"}`,
+                              ? "var(--color-accent)"
+                              : s.has_trailer ? "var(--color-line-2)" : "transparent"}`,
                             background: stateOverride===s.abbr
-                              ? `${c.acc}22`
+                              ? "rgba(99,102,241,0.13)"
                               : s.has_trailer ? "transparent" : "transparent",
                             color: stateOverride===s.abbr
-                              ? c.acc
-                              : s.has_trailer ? c.txt : c.mut,
+                              ? "var(--color-accent)"
+                              : s.has_trailer ? "var(--color-text-hi)" : "var(--color-text-lo)",
                             opacity: s.has_trailer ? 1 : 0.45,
                           }}>
                           {s.abbr}
@@ -678,7 +678,7 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                       ))}
                     </div>
                     {stateOverride && (
-                      <p style={{ fontSize:10,color:c.acc,margin:"6px 0 0" }}>
+                      <p style={{ fontSize:10,color:"var(--color-accent)",margin:"6px 0 0" }}>
                         Using: <strong>{
                           trailerPreview.available_states?.find((s:any)=>s.abbr===stateOverride)?.name
                           || stateOverride
@@ -688,7 +688,7 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                   </div>
                 </div>
               ) : (
-                <p style={{ fontSize:11,color:c.mut,margin:0,textAlign:"center",padding:"8px 0" }}>
+                <p style={{ fontSize:11,color:"var(--color-text-lo)",margin:0,textAlign:"center",padding:"8px 0" }}>
                   {trailerLoading ? "⏳ Loading trailer info…" : "No trailer info — click Refresh"}
                 </p>
               )}
@@ -697,10 +697,10 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
 
           {/* ── Color Enhancement ── */}
           <div style={{ marginBottom:12,padding:"10px 12px",borderRadius:6,
-            background:c.bg2,border:`1px solid ${c.bdr}` }}>
+            background:"var(--color-ink-1)",border:"1px solid var(--color-line-2)" }}>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:ceEnabled?10:0 }}>
               <p style={{ ...sec,margin:0 }}>🎨 Color enhancement</p>
-              <label style={{ display:"flex",alignItems:"center",gap:6,fontSize:11,color:c.txt,cursor:"pointer" }}>
+              <label style={{ display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--color-text-hi)",cursor:"pointer" }}>
                 <input type="checkbox" checked={ceEnabled} onChange={e=>setCeEnabled(e.target.checked)}/>
                 {ceEnabled ? "Enabled" : "Disabled"}
               </label>
@@ -717,17 +717,17 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                   ([label, val, setter, min, max, step, def]) => (
                   <div key={label}>
                     <label style={lbl}>
-                      {label}: <strong style={{color:c.txt}}>{val.toFixed(2)}</strong>
+                      {label}: <strong style={{color:"var(--color-text-hi)"}}>{val.toFixed(2)}</strong>
                       {val !== def && (
                         <span onClick={()=>setter(def)}
-                          style={{ marginLeft:6,fontSize:9,color:c.acc,cursor:"pointer",textDecoration:"underline" }}>
+                          style={{ marginLeft:6,fontSize:9,color:"var(--color-accent)",cursor:"pointer",textDecoration:"underline" }}>
                           reset
                         </span>
                       )}
                     </label>
                     <input type="range" min={min} max={max} step={step} value={val}
                       onChange={e=>setter(Number(e.target.value))}
-                      style={{ width:"100%",marginTop:4,accentColor:c.acc }}/>
+                      style={{ width:"100%",marginTop:4,accentColor:"var(--color-accent)" }}/>
                   </div>
                 ))}
               </div>
@@ -771,21 +771,21 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
               }finally{setProcessing(false);}
             }}
             style={{ width:"100%",padding:"11px",fontSize:13,fontWeight:600,cursor:"pointer",
-              background:processing?c.mut:"linear-gradient(135deg,#7c3aed,#5b21b6)",
+              background:processing?"var(--color-text-lo)":"linear-gradient(135deg,#7c3aed,#5b21b6)",
               color:"white",border:"none",borderRadius:7,opacity:processing?0.7:1 }}>
               {processing?"⏳ Processing…":"🎬 Process — Burn timestamp + title card + trailer"}
             </button>
           ) : (
             <div>
-              <div style={{ padding:"10px 14px",borderRadius:7,background:`${c.grn}18`,
-                border:`1px solid ${c.grn}`,marginBottom:10 }}>
-                <p style={{ fontSize:12,fontWeight:700,color:c.grn,margin:"0 0 6px" }}>
+              <div style={{ padding:"10px 14px",borderRadius:7,background:`${"#10b981"}18`,
+                border:`1px solid ${"#10b981"}`,marginBottom:10 }}>
+                <p style={{ fontSize:12,fontWeight:700,color:"#10b981",margin:"0 0 6px" }}>
                   ✅ Processed — {r.output_filename}
                 </p>
-                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,fontSize:10,color:c.sec,marginBottom:8 }}>
-                  <span>SHA-256 raw:<br/><code style={{color:c.txt,fontSize:9}}>{(r.sha256_raw||"").slice(0,16)}…</code></span>
-                  <span>SHA-256 final:<br/><code style={{color:c.txt,fontSize:9}}>{(r.sha256_final||"").slice(0,16)}…</code></span>
-                  <span>Color enhanced:<br/><code style={{color:c.txt,fontSize:9}}>{r.color_enhanced?"Yes":"—"}</code></span>
+                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,fontSize:10,color:"var(--color-text-mid)",marginBottom:8 }}>
+                  <span>SHA-256 raw:<br/><code style={{color:"var(--color-text-hi)",fontSize:9}}>{(r.sha256_raw||"").slice(0,16)}…</code></span>
+                  <span>SHA-256 final:<br/><code style={{color:"var(--color-text-hi)",fontSize:9}}>{(r.sha256_final||"").slice(0,16)}…</code></span>
+                  <span>Color enhanced:<br/><code style={{color:"var(--color-text-hi)",fontSize:9}}>{r.color_enhanced?"Yes":"—"}</code></span>
                 </div>
                 <div style={{ display:"flex",gap:6 }}>
                   <a href={`${BASE}/api/video-custody/${r.id}/download`}
@@ -796,7 +796,7 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                   </a>
                   <a href={`${BASE}/api/video-custody/${r.id}/report`}
                     style={{ flex:1,padding:"8px",fontSize:12,fontWeight:600,textAlign:"center",
-                      background:c.bg2,color:c.txt,border:`1px solid ${c.bdr}`,
+                      background:"var(--color-ink-1)",color:"var(--color-text-hi)",border:"1px solid var(--color-line-2)",
                       borderRadius:6,textDecoration:"none",
                       display:"flex",alignItems:"center",justifyContent:"center",gap:4 }}>
                     📄 Chain of custody report
@@ -819,31 +819,31 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
         <div style={{ padding:"14px 16px" }}>
           <p style={sec}>Upload to Wasabi pub-video bucket</p>
           {!r.sha256_final ? (
-            <div style={{ padding:"20px",textAlign:"center",color:c.mut,fontSize:13 }}>
+            <div style={{ padding:"20px",textAlign:"center",color:"var(--color-text-lo)",fontSize:13 }}>
               🔒 Complete Step 2 (Process) first
             </div>
           ) : r.wasabi_pub_key ? (
             <div>
-              <div style={{ padding:"10px 12px",borderRadius:7,background:`${c.grn}18`,
-                border:`1px solid ${c.grn}`,marginBottom:12 }}>
-                <p style={{ fontSize:12,fontWeight:700,color:c.grn,margin:"0 0 6px" }}>✅ Published to Wasabi</p>
-                <p style={{ fontSize:11,color:c.sec,margin:"0 0 3px" }}>Bucket: <code style={{color:c.txt}}>{r.wasabi_pub_bucket}</code></p>
-                <p style={{ fontSize:11,color:c.sec,margin:"0 0 3px" }}>Key: <code style={{color:c.txt,wordBreak:"break-all"}}>{r.wasabi_pub_key}</code></p>
-                <p style={{ fontSize:11,color:c.sec,margin:0 }}>SHA-256: <code style={{color:c.txt}}>{(r.sha256_published||"").slice(0,32)}…</code></p>
+              <div style={{ padding:"10px 12px",borderRadius:7,background:`${"#10b981"}18`,
+                border:`1px solid ${"#10b981"}`,marginBottom:12 }}>
+                <p style={{ fontSize:12,fontWeight:700,color:"#10b981",margin:"0 0 6px" }}>✅ Published to Wasabi</p>
+                <p style={{ fontSize:11,color:"var(--color-text-mid)",margin:"0 0 3px" }}>Bucket: <code style={{color:"var(--color-text-hi)"}}>{r.wasabi_pub_bucket}</code></p>
+                <p style={{ fontSize:11,color:"var(--color-text-mid)",margin:"0 0 3px" }}>Key: <code style={{color:"var(--color-text-hi)",wordBreak:"break-all"}}>{r.wasabi_pub_key}</code></p>
+                <p style={{ fontSize:11,color:"var(--color-text-mid)",margin:0 }}>SHA-256: <code style={{color:"var(--color-text-hi)"}}>{(r.sha256_published||"").slice(0,32)}…</code></p>
               </div>
               <button onClick={()=>setStep(4)}
                 style={{ width:"100%",padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",
-                  background:c.acc,color:"white",border:"none",borderRadius:7 }}>
+                  background:"var(--color-accent)",color:"white",border:"none",borderRadius:7 }}>
                 Next → Deliver to client 📨
               </button>
             </div>
           ) : (
             <div>
-              <div style={{ padding:"10px 12px",borderRadius:6,background:c.bg2,
-                border:`1px solid ${c.bdr}`,marginBottom:12,fontSize:12,color:c.sec }}>
-                <p style={{ margin:"0 0 4px",fontWeight:600,color:c.txt }}>📹 {r.output_filename}</p>
+              <div style={{ padding:"10px 12px",borderRadius:6,background:"var(--color-ink-1)",
+                border:"1px solid var(--color-line-2)",marginBottom:12,fontSize:12,color:"var(--color-text-mid)" }}>
+                <p style={{ margin:"0 0 4px",fontWeight:600,color:"var(--color-text-hi)" }}>📹 {r.output_filename}</p>
                 <p style={{ margin:0 }}>Uploads the processed video to the secure
-                  <strong style={{color:c.acc}}> pub-video</strong> bucket with chain of custody tracking.
+                  <strong style={{color:"var(--color-accent)"}}> pub-video</strong> bucket with chain of custody tracking.
                   SHA-256 will be computed and recorded.</p>
               </div>
               <button disabled={publishing} onClick={async()=>{
@@ -856,7 +856,7 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                 }finally{setPublishing(false);}
               }}
               style={{ width:"100%",padding:"11px",fontSize:13,fontWeight:600,cursor:"pointer",
-                background:publishing?c.mut:"linear-gradient(135deg,#0ea5e9,#0284c7)",
+                background:publishing?"var(--color-text-lo)":"linear-gradient(135deg,#0ea5e9,#0284c7)",
                 color:"white",border:"none",borderRadius:7,opacity:publishing?0.7:1 }}>
                 {publishing?"⏳ Uploading to Wasabi…":"☁️ Publish to Wasabi"}
               </button>
@@ -870,29 +870,29 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
         <div style={{ padding:"14px 16px" }}>
           <p style={sec}>Send secure link to client</p>
           {!r.wasabi_pub_key ? (
-            <div style={{ padding:"20px",textAlign:"center",color:c.mut,fontSize:13 }}>
+            <div style={{ padding:"20px",textAlign:"center",color:"var(--color-text-lo)",fontSize:13 }}>
               🔒 Complete Step 3 (Publish) first
             </div>
           ) : (
             <div>
               {delivLink && (
-                <div style={{ padding:"10px 12px",borderRadius:7,background:`${c.grn}18`,
-                  border:`1px solid ${c.grn}`,marginBottom:12 }}>
-                  <p style={{ fontSize:12,fontWeight:700,color:c.grn,margin:"0 0 4px" }}>
+                <div style={{ padding:"10px 12px",borderRadius:7,background:`${"#10b981"}18`,
+                  border:`1px solid ${"#10b981"}`,marginBottom:12 }}>
+                  <p style={{ fontSize:12,fontWeight:700,color:"#10b981",margin:"0 0 4px" }}>
                     ✅ Link delivered to {r.deliver_recipient||r.sent_to_attorney_email}
                   </p>
-                  <p style={{ fontSize:11,color:c.sec,margin:"0 0 6px" }}>
+                  <p style={{ fontSize:11,color:"var(--color-text-mid)",margin:"0 0 6px" }}>
                     Expires: {r.deliver_expires_at?new Date(r.deliver_expires_at).toLocaleDateString():"—"}
                   </p>
                   <div style={{ display:"flex",gap:6 }}>
                     <button onClick={()=>navigator.clipboard.writeText(delivLink)}
                       style={{ flex:1,padding:"6px",fontSize:11,fontWeight:600,cursor:"pointer",
-                        background:c.acc,color:"white",border:"none",borderRadius:5 }}>
+                        background:"var(--color-accent)",color:"white",border:"none",borderRadius:5 }}>
                       📋 Copy link
                     </button>
                     <a href={delivLink} target="_blank" rel="noreferrer"
                       style={{ flex:1,padding:"6px",fontSize:11,fontWeight:600,
-                        background:c.bg2,color:c.txt,border:`1px solid ${c.bdr}`,
+                        background:"var(--color-ink-1)",color:"var(--color-text-hi)",border:"1px solid var(--color-line-2)",
                         borderRadius:5,textDecoration:"none",textAlign:"center" }}>
                       🔗 Open link
                     </a>
@@ -913,8 +913,8 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                   {[3,7,14,30,90].map(d=>(
                     <button key={d} onClick={()=>setDelivDays(d)}
                       style={{ flex:1,padding:"6px",fontSize:11,fontWeight:600,cursor:"pointer",
-                        background:delivDays===d?c.acc:c.bg2,color:delivDays===d?"white":c.txt,
-                        border:`1px solid ${delivDays===d?c.acc:c.bdr}`,borderRadius:5 }}>
+                        background:delivDays===d?"var(--color-accent)":"var(--color-ink-1)",color:delivDays===d?"white":"var(--color-text-hi)",
+                        border:(delivDays===d?"1px solid var(--color-accent)":"1px solid var(--color-line-2)"),borderRadius:5 }}>
                       {d}d
                     </button>
                   ))}
@@ -940,7 +940,7 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
                 }finally{setDelivering(false);}
               }}
               style={{ width:"100%",padding:"11px",fontSize:13,fontWeight:600,cursor:"pointer",
-                background:delivering||!delivEmail?c.mut:"linear-gradient(135deg,#10b981,#059669)",
+                background:delivering||!delivEmail?"var(--color-text-lo)":"linear-gradient(135deg,#10b981,#059669)",
                 color:"white",border:"none",borderRadius:7,opacity:delivering||!delivEmail?0.6:1 }}>
                 {delivering?"⏳ Generating secure link…":"📨 Generate secure link & record delivery"}
               </button>
@@ -956,6 +956,8 @@ function ExpandedRecord({ r, c, BASE, selCase, fontFile, setFontFile, fontSize, 
 export default function VideoCustodyPage() {
   const dark = useTheme();
   const c = getC(dark);
+  const [searchParams] = useSearchParams();
+  const preselectedInvId = searchParams.get("inv_id") ? Number(searchParams.get("inv_id")) : null;
 
   // Cases from email pipeline
   const [cases, setCases]       = useState<any[]>([]);
@@ -1015,6 +1017,13 @@ export default function VideoCustodyPage() {
     loadRecords();
     loadPrefs();
   }, []);
+
+  // Auto-select case from URL param once cases are loaded
+  useEffect(() => {
+    if (!preselectedInvId || !cases.length || selCase) return;
+    const found = cases.find((c: any) => c.id === preselectedInvId);
+    if (found) setSelCase(found);
+  }, [preselectedInvId, cases.length]);
 
   // When case is selected, filter records
   useEffect(() => {
@@ -1144,27 +1153,20 @@ export default function VideoCustodyPage() {
   const unconfirmed = records.filter(r => r.upload_method === "folder_watch" && !r.confirmed_at);
 
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", minHeight:"100vh", background:c.bg2, color:c.txt }}>
+    <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", height:"100%", minHeight:0, background:"var(--color-ink-1)", color:"var(--color-text-hi)" }}>
 
       {/* ── LEFT SIDEBAR ── */}
-      <div style={{ borderRight:`1px solid ${c.bdr}`, background:c.bg1, display:"flex", flexDirection:"column" }}>
+      <div className="surface flex flex-col border-r border-[var(--color-line)] overflow-hidden">
 
         {/* Header */}
-        <div style={{ padding:"16px 14px 10px", borderBottom:`1px solid ${c.bdr}` }}>
-          <p style={{ fontSize:10, textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:700, color:c.sec, margin:"0 0 2px" }}>
-            Filter by case
-          </p>
-          <p style={{ fontSize:11, color:c.mut, margin:0 }}>Select a case to upload videos</p>
+        <div className="widget-shell-header eyebrow shrink-0 border-b border-[var(--color-line)] px-4 py-2.5">
+          Video Custody
         </div>
 
         {/* All */}
-        <div style={{ padding:"8px 10px", borderBottom:`1px solid ${c.bdr}` }}>
+        <div style={{ padding:"8px 10px", borderBottom:"1px solid var(--color-line-2)" }}>
           <button onClick={() => { setSelCase(null); loadRecords(); }}
-            style={{ width:"100%", textAlign:"left", padding:"7px 10px", borderRadius:7,
-              background: !selCase ? `${c.acc}22` : "transparent",
-              border:`1px solid ${!selCase ? c.acc : "transparent"}`,
-              cursor:"pointer", fontSize:12,
-              color: !selCase ? c.acc : c.sec, fontWeight: !selCase ? 600 : 400 }}>
+            className={`w-full text-left px-3 py-2 rounded-[0.5rem] text-[0.75rem] font-medium transition-colors ${!selCase ? "bg-[var(--color-accent-soft)] text-[var(--color-accent)] border border-[var(--color-accent)]/30" : "text-[var(--color-text-mid)] border border-transparent hover:text-[var(--color-text-hi)]"}`}>
             📋 All videos ({records.length})
           </button>
         </div>
@@ -1175,16 +1177,14 @@ export default function VideoCustodyPage() {
             value={caseSearch}
             onChange={e => setCaseSearch(e.target.value)}
             placeholder="🔍 Search cases..."
-            style={{ width:"100%", boxSizing:"border-box", padding:"6px 8px",
-              borderRadius:6, border:`1px solid ${c.bdr}`,
-              background:c.bg2, color:c.txt, fontSize:11, outline:"none" }}
+            className="w-full rounded-[0.375rem] border border-[var(--color-line-2)] bg-[var(--color-ink-1)] px-2 py-1.5 text-[0.75rem] text-[var(--color-text-hi)] focus:outline-none focus:border-[var(--color-accent)]"
           />
         </div>
 
         {/* Cases list */}
         <div style={{ flex:1, overflowY:"auto", padding:"6px 8px" }}>
           {cases.length === 0 ? (
-            <p style={{ fontSize:12, color:c.mut, textAlign:"center", marginTop:16 }}>
+            <p style={{ fontSize:12, color:"var(--color-text-lo)", textAlign:"center", marginTop:16 }}>
               No cases yet.<br/>Cases are created<br/>from incoming emails.
             </p>
           ) : cases.filter(cas => {
@@ -1198,17 +1198,14 @@ export default function VideoCustodyPage() {
             const hasReady = casVids.some(r => r.status === "ready");
             return (
               <button key={cas.id} onClick={() => setSelCase(isSelected ? null : cas)}
-                style={{ width:"100%", textAlign:"left", padding:"10px 10px", borderRadius:8, marginBottom:4,
-                  background: isSelected ? `${c.acc}22` : c.bg2,
-                  border:`1px solid ${isSelected ? c.acc : c.bdr}`,
-                  cursor:"pointer" }}>
+                className={`w-full text-left p-2.5 rounded-[0.5rem] mb-1 border transition-colors ${isSelected ? "bg-[var(--color-accent-soft)] border-[var(--color-accent)]/40" : "bg-[var(--color-ink-1)] border-[var(--color-line)] hover:border-[var(--color-line-2)]"}`}>
                 {/* Status dot + name */}
                 <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
                   <div style={{ width:7, height:7, borderRadius:"50%", flexShrink:0,
-                    background: cas.status === "completed" ? c.grn :
-                                cas.status === "active"    ? "#3b82f6" : c.mut }} />
+                    background: cas.status === "completed" ? "#10b981" :
+                                cas.status === "active"    ? "#3b82f6" : "var(--color-text-lo)" }} />
                   <p style={{ fontSize:12, fontWeight:600, margin:0,
-                    color: isSelected ? c.acc : c.txt,
+                    color: isSelected ? "var(--color-accent)" : "var(--color-text-hi)",
                     overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                     {cas.subject_name}
                   </p>
@@ -1216,13 +1213,13 @@ export default function VideoCustodyPage() {
                 {/* Claim + state */}
                 <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                   {cas.claim_number && (
-                    <span style={{ fontSize:10, color:c.sec, fontFamily:"monospace" }}>
+                    <span style={{ fontSize:10, color:"var(--color-text-mid)", fontFamily:"monospace" }}>
                       {cas.claim_number}
                     </span>
                   )}
                   {cas.state && (
                     <span style={{ fontSize:9, padding:"1px 5px", borderRadius:10,
-                      background:`${c.mut}33`, color:c.sec }}>
+                      background:`var(--color-text-lo)33`, color:"var(--color-text-mid)" }}>
                       {cas.state}
                     </span>
                   )}
@@ -1234,7 +1231,7 @@ export default function VideoCustodyPage() {
                 {/* Video count */}
                 {cas.video_count > 0 && (
                   <div style={{ display:"flex", gap:3, marginTop:4 }}>
-                    <span style={{ fontSize:10, color: hasReady ? c.grn : c.mut }}>
+                    <span style={{ fontSize:10, color: hasReady ? "#10b981" : "var(--color-text-lo)" }}>
                       🎬 {cas.video_count} video{cas.video_count > 1 ? "s" : ""}
                       {hasReady ? " ✓" : ""}
                     </span>
@@ -1246,14 +1243,14 @@ export default function VideoCustodyPage() {
         </div>
 
         {/* Upload button */}
-        <div style={{ padding:"10px 12px", borderTop:`1px solid ${c.bdr}` }}>
+        <div style={{ padding:"10px 12px", borderTop:"1px solid var(--color-line-2)" }}>
           {selCase && (
-            <div style={{ border:`1px solid ${c.acc}`, borderRadius:7, padding:"7px 10px",
-              background:`${c.acc}11`, marginBottom:8 }}>
-              <p style={{ fontSize:11, fontWeight:600, color:c.acc, margin:"0 0 1px" }}>
+            <div style={{ border:"1px solid var(--color-accent)", borderRadius:7, padding:"7px 10px",
+              background:"var(--color-accent-soft)", marginBottom:8 }}>
+              <p style={{ fontSize:11, fontWeight:600, color:"var(--color-accent)", margin:"0 0 1px" }}>
                 {selCase.subject_name}
               </p>
-              <p style={{ fontSize:10, color:c.sec, margin:0 }}>
+              <p style={{ fontSize:10, color:"var(--color-text-mid)", margin:0 }}>
                 {selCase.claim_number} {selCase.state ? `· ${selCase.state}` : ""}
               </p>
             </div>
@@ -1262,7 +1259,7 @@ export default function VideoCustodyPage() {
             disabled={uploading}
             style={{ width:"100%", padding:"10px", fontSize:12, fontWeight:600,
               cursor: uploading ? "wait" : "pointer",
-              background: uploading ? c.mut : c.acc,
+              background: uploading ? "var(--color-text-lo)" : "var(--color-accent)",
               color:"white", border:"none", borderRadius:7 }}>
             {uploading ? "⏳ Uploading..." : selCase ? `📤 Upload for ${selCase.subject_name.split(" ")[0]}` : "📤 Upload video"}
           </button>
@@ -1274,43 +1271,43 @@ export default function VideoCustodyPage() {
       </div>
 
       {/* ── MAIN CONTENT ── */}
-      <div style={{ overflow:"auto", padding:"24px 28px" }}>
+      <div className="overflow-auto p-6">
 
         {/* Header */}
-        <div style={{ display:"flex", alignItems:"flex-start", gap:16, marginBottom:20 }}>
+        <div className="flex items-start gap-4 mb-5">
           <div style={{ flex:1 }}>
-            <h1 style={{ fontSize:20, fontWeight:700, margin:"0 0 3px", color:c.txt }}>
+            <h1 className="text-[1.25rem] font-bold m-0 mb-1 text-[var(--color-text-hi)]">
               🔐 Video Chain of Custody
-              {selCase && <span style={{ fontSize:14, fontWeight:400, color:c.sec, marginLeft:10 }}>
+              {selCase && <span style={{ fontSize:14, fontWeight:400, color:"var(--color-text-mid)", marginLeft:10 }}>
                 — {selCase.subject_name} ({selCase.claim_number})
               </span>}
             </h1>
-            <p style={{ fontSize:12, color:c.sec, margin:0 }}>
+            <p style={{ fontSize:12, color:"var(--color-text-mid)", margin:0 }}>
               SHA-256 verified at every step · Immutable audit trail
             </p>
           </div>
           <button onClick={() => loadRecords(selCase?.id)}
             style={{ padding:"7px 12px", fontSize:12, cursor:"pointer",
-              background:c.bg1, border:`1px solid ${c.bdr}`, borderRadius:7, color:c.sec }}>
+              background:"var(--color-ink-2)", border:"1px solid var(--color-line-2)", borderRadius:7, color:"var(--color-text-mid)" }}>
             ↺ Refresh
           </button>
         </div>
 
         {/* Unconfirmed banner */}
         {unconfirmed.length > 0 && (
-          <div style={{ border:`1px solid ${c.yel}`, borderRadius:10, padding:"12px 16px",
+          <div style={{ border:`1px solid ${"#f59e0b"}`, borderRadius:10, padding:"12px 16px",
             background: dark ? "rgba(245,158,11,0.1)" : "#fffbeb", marginBottom:20 }}>
             <p style={{ fontSize:13, fontWeight:600, color:"#92400e", margin:"0 0 8px" }}>
               ⚠️ {unconfirmed.length} video{unconfirmed.length > 1?"s":""} need authorship confirmation
             </p>
             {unconfirmed.map(r => (
               <div key={r.id} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:5,
-                padding:"7px 10px", background:c.bg2, borderRadius:6, border:`1px solid ${c.bdr}` }}>
-                <span style={{ fontSize:12, flex:1, color:c.txt }}>📹 {r.original_filename}</span>
-                <span style={{ fontSize:11, color:c.sec }}>{fmtDate(r.uploaded_at)}</span>
+                padding:"7px 10px", background:"var(--color-ink-1)", borderRadius:6, border:"1px solid var(--color-line-2)" }}>
+                <span style={{ fontSize:12, flex:1, color:"var(--color-text-hi)" }}>📹 {r.original_filename}</span>
+                <span style={{ fontSize:11, color:"var(--color-text-mid)" }}>{fmtDate(r.uploaded_at)}</span>
                 <button onClick={() => setConfirming(r)}
                   style={{ fontSize:12, fontWeight:600, padding:"5px 14px", cursor:"pointer",
-                    background:c.acc, color:"white", border:"none", borderRadius:6 }}>
+                    background:"var(--color-accent)", color:"white", border:"none", borderRadius:6 }}>
                   ✅ Confirm
                 </button>
               </div>
@@ -1320,10 +1317,10 @@ export default function VideoCustodyPage() {
 
         {/* Upload results */}
         {uploadMsg.length > 0 && (
-          <div style={{ border:`1px solid ${c.bdr}`, borderRadius:8, padding:"10px 14px",
-            background:c.bg1, marginBottom:14 }}>
+          <div style={{ border:"1px solid var(--color-line-2)", borderRadius:8, padding:"10px 14px",
+            background:"var(--color-ink-2)", marginBottom:14 }}>
             {uploadMsg.map((r,i) => (
-              <p key={i} style={{ fontSize:12, color:r.ok?c.grn:c.red, margin:"3px 0" }}>
+              <p key={i} style={{ fontSize:12, color:r.ok?"#10b981":"#ef4444", margin:"3px 0" }}>
                 {r.ok?"✅":"❌"} <strong>{r.name}</strong> — {r.msg}
               </p>
             ))}
@@ -1335,15 +1332,15 @@ export default function VideoCustodyPage() {
           <div onDragOver={e=>e.preventDefault()}
             onDrop={e=>{e.preventDefault();handleUpload(e.dataTransfer.files);}}
             onClick={() => fileRef.current?.click()}
-            style={{ border:`2px dashed ${c.bdr}`, borderRadius:12, padding:"48px 24px",
-              textAlign:"center", cursor:"pointer", background:c.bg1 }}>
+            style={{ border:`2px dashed var(--color-line-2)`, borderRadius:12, padding:"48px 24px",
+              textAlign:"center", cursor:"pointer", background:"var(--color-ink-2)" }}>
             <p style={{ fontSize:40, margin:"0 0 10px" }}>📹</p>
-            <p style={{ fontSize:14, fontWeight:600, color:c.txt, margin:"0 0 6px" }}>
+            <p style={{ fontSize:14, fontWeight:600, color:"var(--color-text-hi)", margin:"0 0 6px" }}>
               {selCase
                 ? `Drop videos for ${selCase.subject_name} here`
                 : "Select a case on the left, then upload videos"}
             </p>
-            <p style={{ fontSize:12, color:c.sec, margin:0 }}>
+            <p style={{ fontSize:12, color:"var(--color-text-mid)", margin:0 }}>
               MP4, MOV, MTS — SHA-256 + camera metadata automatically extracted
             </p>
           </div>
@@ -1355,43 +1352,43 @@ export default function VideoCustodyPage() {
             <div key={r.id}>
               {/* Card */}
               <div onClick={() => setSel(sel?.id === r.id ? null : r)}
-                style={{ border:`1px solid ${sel?.id===r.id ? c.acc : c.bdr}`,
-                  borderLeft:`3px solid ${SC[r.status]||c.bdr}`,
-                  borderRadius:8, padding:"12px 14px", background:c.bg2, cursor:"pointer" }}>
+                style={{ border:`1px solid ${sel?.id===r.id ? "var(--color-accent)" : "var(--color-line-2)"}`,
+                  borderLeft:`3px solid ${SC[r.status]||"var(--color-line-2)"}`,
+                  borderRadius:8, padding:"12px 14px", background:"var(--color-ink-1)", cursor:"pointer" }}>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 100px 130px 120px 90px", gap:10, alignItems:"center" }}>
                   <div>
-                    <p style={{ fontSize:13, fontWeight:600, margin:"0 0 2px", color:c.txt }}>
+                    <p style={{ fontSize:13, fontWeight:600, margin:"0 0 2px", color:"var(--color-text-hi)" }}>
                       📹 {r.original_filename}
                     </p>
-                    <p style={{ fontSize:10, fontFamily:"monospace", color:c.mut, margin:0 }}>
+                    <p style={{ fontSize:10, fontFamily:"monospace", color:"var(--color-text-lo)", margin:0 }}>
                       {r.sha256_raw?.substring(0,28)}...
                     </p>
                   </div>
                   <div>
-                    <p style={{ fontSize:12, color:c.txt, margin:"0 0 1px" }}>{fmtBytes(r.file_size_bytes)}</p>
-                    <p style={{ fontSize:11, color:c.sec, margin:0 }}>{fmtDur(r.duration_seconds)}</p>
+                    <p style={{ fontSize:12, color:"var(--color-text-hi)", margin:"0 0 1px" }}>{fmtBytes(r.file_size_bytes)}</p>
+                    <p style={{ fontSize:11, color:"var(--color-text-mid)", margin:0 }}>{fmtDur(r.duration_seconds)}</p>
                   </div>
                   <div>
-                    <p style={{ fontSize:10, color:c.mut, margin:"0 0 1px", textTransform:"uppercase", letterSpacing:"0.04em" }}>Camera</p>
+                    <p style={{ fontSize:10, color:"var(--color-text-lo)", margin:"0 0 1px", textTransform:"uppercase", letterSpacing:"0.04em" }}>Camera</p>
                     {r.media_created_at ? (
                       <>
-                        <p style={{ fontSize:12, color:c.txt, margin:0 }}>
+                        <p style={{ fontSize:12, color:"var(--color-text-hi)", margin:0 }}>
                           {new Date(r.media_created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"2-digit"})}
                         </p>
-                        <p style={{ fontSize:11, color:c.sec, margin:0 }}>
+                        <p style={{ fontSize:11, color:"var(--color-text-mid)", margin:0 }}>
                           {new Date(r.media_created_at).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}
                         </p>
                       </>
                     ) : (
-                      <p style={{ fontSize:11, color:c.yel, margin:0, fontWeight:600 }}>⚠️ No metadata</p>
+                      <p style={{ fontSize:11, color:"#f59e0b", margin:0, fontWeight:600 }}>⚠️ No metadata</p>
                     )}
                   </div>
                   <div>
-                    <p style={{ fontSize:12, color:c.txt, margin:"0 0 1px" }}>{r.uploaded_by_name?.split(" ")[0]}</p>
-                    <p style={{ fontSize:11, color:c.sec, margin:0 }}>{fmtDate(r.uploaded_at)}</p>
+                    <p style={{ fontSize:12, color:"var(--color-text-hi)", margin:"0 0 1px" }}>{r.uploaded_by_name?.split(" ")[0]}</p>
+                    <p style={{ fontSize:11, color:"var(--color-text-mid)", margin:0 }}>{fmtDate(r.uploaded_at)}</p>
                   </div>
                   <span style={{ fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:20,
-                    textAlign:"center", background:`${SC[r.status]||c.sec}22`, color:SC[r.status]||c.sec }}>
+                    textAlign:"center", background:`${SC[r.status]||"#64748b"}22`, color:SC[r.status]||"var(--color-text-mid)" }}>
                     {r.status}
                   </span>
                 </div>
@@ -1425,28 +1422,28 @@ export default function VideoCustodyPage() {
       {confirming && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999,
           display:"flex", alignItems:"center", justifyContent:"center" }}>
-          <div style={{ background:c.bg2, border:`1px solid ${c.bdr}`, borderRadius:12,
+          <div style={{ background:"var(--color-ink-1)", border:"1px solid var(--color-line-2)", borderRadius:12,
             padding:28, width:460, boxShadow:"0 24px 80px rgba(0,0,0,0.5)" }}>
-            <h3 style={{ fontSize:16, fontWeight:700, color:c.txt, margin:"0 0 12px" }}>
+            <h3 style={{ fontSize:16, fontWeight:700, color:"var(--color-text-hi)", margin:"0 0 12px" }}>
               ✅ Confirm video authorship
             </h3>
-            <p style={{ fontSize:13, color:c.sec, margin:"0 0 16px", lineHeight:1.6 }}>
-              Confirm that <strong style={{color:c.txt}}>{confirming.original_filename}</strong> was
+            <p style={{ fontSize:13, color:"var(--color-text-mid)", margin:"0 0 16px", lineHeight:1.6 }}>
+              Confirm that <strong style={{color:"var(--color-text-hi)"}}>{confirming.original_filename}</strong> was
               recorded and uploaded by you.
             </p>
-            <p style={{ fontSize:11, fontFamily:"monospace", color:c.mut, margin:"0 0 16px",
-              background:c.bg1, padding:"6px 10px", borderRadius:5 }}>
+            <p style={{ fontSize:11, fontFamily:"monospace", color:"var(--color-text-lo)", margin:"0 0 16px",
+              background:"var(--color-ink-2)", padding:"6px 10px", borderRadius:5 }}>
               SHA-256: {confirming.sha256_raw?.substring(0,32)}...
             </p>
             <div style={{ display:"flex", gap:8 }}>
               <button onClick={() => handleConfirm(confirming)}
                 style={{ flex:1, padding:"10px", fontSize:13, fontWeight:600, cursor:"pointer",
-                  background:c.acc, color:"white", border:"none", borderRadius:7 }}>
+                  background:"var(--color-accent)", color:"white", border:"none", borderRadius:7 }}>
                 Yes — I recorded and uploaded this
               </button>
               <button onClick={() => setConfirming(null)}
                 style={{ padding:"10px 16px", fontSize:13, cursor:"pointer",
-                  background:c.bg1, color:c.sec, border:`1px solid ${c.bdr}`, borderRadius:7 }}>
+                  background:"var(--color-ink-2)", color:"var(--color-text-mid)", border:"1px solid var(--color-line-2)", borderRadius:7 }}>
                 Cancel
               </button>
             </div>

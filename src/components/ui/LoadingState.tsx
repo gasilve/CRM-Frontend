@@ -27,13 +27,14 @@ export function PanelLoader({ message = "Loading" }: { message?: string }) {
 
 type TableSkeletonProps = {
   colClass: string;
+  colStyle?: React.CSSProperties;
   headers: string[];
   rows?: number;
   widths?: string[];
 };
 
 /** Table-shaped skeleton — keeps layout stable while data fetches. */
-export function TableSkeleton({ colClass, headers, rows = 8, widths }: TableSkeletonProps) {
+export function TableSkeleton({ colClass, colStyle, headers, rows = 8, widths }: TableSkeletonProps) {
   const bar = (index: number) => widths?.[index] ?? (index === 2 ? "88%" : index === 0 ? "72%" : "64%");
 
   return (

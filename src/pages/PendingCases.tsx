@@ -6,6 +6,9 @@ import { pendingCasesApi } from "@/lib/crm-api";
 import { PendingCasesTable } from "@/components/cases/PendingCasesTable";
 import { TableSkeleton } from "@/components/ui/LoadingState";
 import { useQuery } from "@/lib/query-cache";
+import { prodigyPendingCases } from "@/lib/prodigy-api";
+
+const USE_PRODIGY = import.meta.env.VITE_USE_PRODIGY_BACKEND === "true";
 import { usePendingIntake } from "@/contexts/PendingIntakeContext";
 
 const PER_PAGE = 8;
@@ -34,7 +37,9 @@ export default function PendingCases() {
   }, [location.state]);
 
   const query = useQuery(`pending-cases:list:${search}:${page}`, () =>
-    pendingCasesApi.list({ status: "pending_review", search: search || undefined, page, pageSize: PER_PAGE }),
+    USE_PRODIGY
+      ? prodigyPendingCases({ page, pageSize: PER_PAGE, search: search || undefined })
+      : pendingCasesApi.list({ status: "pending_review", search: search || undefined, page, pageSize: PER_PAGE }),
   );
 
   const items = query.data?.pendingCases ?? null;
@@ -48,7 +53,7 @@ export default function PendingCases() {
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-hidden">
+    <div className="flex h-full flex-col gap-4 overflow-hidden" style={{background: "var(--color-ink-0)"}}>
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">Pending cases</h1>

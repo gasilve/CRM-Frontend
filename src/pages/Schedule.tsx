@@ -164,7 +164,7 @@ interface PositionedBlock {
 function layoutDay(blocks: ScheduleBlock[]): PositionedBlock[] {
   const items = blocks
     .map((block) => {
-      const startMin = clampToGrid(toMinutes(block.startTime));
+      const startMin = clampToGrid(toMinutes(block.startTime ?? "00:00"));
       const rawEnd = block.endTime ? toMinutes(block.endTime) : startMin + DEFAULT_DURATION_MIN;
       return {
         block,
@@ -424,7 +424,7 @@ export default function Schedule() {
     // Same investigator, same case, overlapping time → refuse the duplicate.
     const duplicate = weekAllBlocks.some((b) => {
       if (b.userId !== userId || b.caseId !== kase.id || b.date.slice(0, 10) !== dateIso) return false;
-      const s = toMinutes(b.startTime);
+      const s = toMinutes(b.startTime ?? "00:00");
       const e = b.endTime ? toMinutes(b.endTime) : s + DEFAULT_DURATION_MIN;
       return startMin < e && endMin > s;
     });
@@ -461,7 +461,7 @@ export default function Schedule() {
           },
           user: { id: inv.id, name: inv.name, email: inv.email, region: inv.region },
           createdBy: null,
-        },
+        } as ScheduleBlock,
       ]);
     }
 
@@ -481,7 +481,7 @@ export default function Schedule() {
 
   /** Drag a block elsewhere → move it, preserving its duration. */
   const dropBlock = async (block: ScheduleBlock, dateIso: string, startMin: number) => {
-    const oldStart = toMinutes(block.startTime);
+    const oldStart = toMinutes(block.startTime ?? "00:00");
     const duration = block.endTime ? toMinutes(block.endTime) - oldStart : null;
     const startTime = toHHMM(startMin);
     const endTime = duration != null ? toHHMM(Math.min(startMin + duration, GRID_END_MIN)) : null;
@@ -564,7 +564,7 @@ export default function Schedule() {
 
   const ghostDuration =
     drag?.kind === "block" && drag.block.endTime
-      ? toMinutes(drag.block.endTime) - toMinutes(drag.block.startTime)
+      ? toMinutes(drag.block.endTime) - toMinutes(drag.block.startTime ?? "00:00")
       : DEFAULT_DURATION_MIN;
 
   // ── Shared per-day render data ──────────────────────────────────────────────
@@ -1531,7 +1531,7 @@ function EditBlockModal({
               </label>
               <input
                 type="time"
-                value={startTime}
+                value={startTime ?? ""}
                 onChange={(e) => setStartTime(e.target.value)}
                 className="w-full rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-3 py-2 text-[0.8125rem] text-[var(--color-text-hi)] focus:outline-none focus:border-[var(--color-accent)]"
               />

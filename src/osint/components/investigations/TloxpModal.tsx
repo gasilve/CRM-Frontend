@@ -1,5 +1,4 @@
 // @ts-nocheck
-
 import { useRef, useState } from "react";
 import { Upload, Check, AlertTriangle, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -148,8 +147,7 @@ export function TloxpModal({
     formData.append("file", file);
 
     try {
-      const base = typeof window !== "undefined" && !["localhost","127.0.0.1"].includes(window.location.hostname)
-        ? "" : "http://localhost:8000";
+      const base = "/api-proxy";
       const res = await fetch(`${base}/api/tloxp/parse`, { method: "POST", body: formData });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));

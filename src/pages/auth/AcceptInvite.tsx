@@ -7,6 +7,7 @@ import { errorBannerClass, inputClass, labelClass, primaryButtonClass } from "@/
 import { authClient, INVITE_TOKEN_HEADER } from "@/lib/auth-client";
 import { invitationsApi, type InvitationPreview, ApiError } from "@/lib/crm-api";
 import { useAuth } from "@/contexts/AuthContext";
+import { isMfaRequired } from "@/lib/mfa";
 
 
 export default function AcceptInvite() {
@@ -102,7 +103,11 @@ export default function AcceptInvite() {
         return;
       }
       auth.refresh();
-      navigate("/mfa-setup", { replace: true, state: { password } });
+      if (isMfaRequired()) {
+        navigate("/mfa-setup", { replace: true, state: { password } });
+        return;
+      }
+      navigate("/", { replace: true });
     } catch {
       setError("Could not create your account. Try again.");
     } finally {

@@ -7,8 +7,21 @@ import {
   type BackgroundCategoryId,
   type BackgroundId,
   type BackgroundMeta,
+  type ProceduralKind,
 } from "@/contexts/BackgroundContext";
-import { useTheme } from "@/contexts/ThemeContext";
+
+const PLATE_PREVIEW: Record<ProceduralKind, string> = {
+  ripple:
+    "radial-gradient(ellipse 40% 28% at 40% 45%, transparent 40%, color-mix(in srgb, var(--color-accent) 35%, transparent) 41%, transparent 55%), radial-gradient(ellipse 25% 18% at 70% 30%, transparent 45%, color-mix(in srgb, var(--color-accent) 25%, transparent) 46%, transparent 60%), var(--color-ink-0)",
+  neural:
+    "radial-gradient(circle at 30% 40%, color-mix(in srgb, var(--color-accent) 55%, transparent), transparent 45%), radial-gradient(circle at 70% 60%, color-mix(in srgb, var(--color-accent-2) 35%, transparent), transparent 40%), var(--color-ink-0)",
+  aurora:
+    "linear-gradient(180deg, transparent, color-mix(in srgb, var(--color-accent) 35%, transparent) 40%, transparent 70%), var(--color-ink-0)",
+  lattice:
+    "repeating-linear-gradient(0deg, transparent, transparent 11px, color-mix(in srgb, var(--color-accent) 22%, transparent) 12px), repeating-linear-gradient(90deg, transparent, transparent 11px, color-mix(in srgb, var(--color-accent) 18%, transparent) 12px), var(--color-ink-0)",
+  bloom:
+    "radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--color-accent) 45%, transparent), transparent 55%), var(--color-ink-0)",
+};
 
 type Props = {
   open: boolean;
@@ -20,7 +33,6 @@ type Props = {
 
 export function BackgroundPicker({ open, onClose, triggerRef, align = "bottom-end" }: Props) {
   const { backgroundId, backgroundMeta, setBackground } = useBackground();
-  const { glass } = useTheme();
   const panelRef = useRef<HTMLDivElement>(null);
   const [category, setCategory] = useState<BackgroundCategoryId>(() =>
     backgroundMeta.category === "still" ? "cities" : backgroundMeta.category,
@@ -45,15 +57,6 @@ export function BackgroundPicker({ open, onClose, triggerRef, align = "bottom-en
     return () => document.removeEventListener("mousedown", handler);
   }, [open, onClose, triggerRef]);
 
-  const still = useMemo((): BackgroundMeta => {
-    const base = BACKGROUNDS.find((b) => b.id === "static")!;
-    if (glass) return base;
-    return {
-      ...base,
-      subtitle: "Theme backdrop",
-      thumb: "",
-    };
-  }, [glass]);
   const inCategory = useMemo(
     () => BACKGROUNDS.filter((b) => b.category === category),
     [category],
@@ -125,17 +128,7 @@ export function BackgroundPicker({ open, onClose, triggerRef, align = "bottom-en
         </div>
       </div>
 
-      <div className="px-3 pt-3">
-        <BgSwatch
-          bg={still}
-          active={backgroundId === still.id}
-          onSelect={() => pick(still.id)}
-          wide
-          themePlate={!glass}
-        />
-      </div>
-
-      <div className="px-3 pb-1 pt-2">
+      <div className="px-3 pb-1 pt-3">
         <div
           className="mb-2 text-[0.5625rem] font-medium uppercase tracking-[0.2em] text-[var(--color-text-lo)]"
           style={{ fontFamily: "var(--font-sans)" }}
@@ -165,7 +158,7 @@ export function BackgroundPicker({ open, onClose, triggerRef, align = "bottom-en
   );
 }
 
-function BgSwatch({
+export function BgSwatch({
   bg,
   active,
   onSelect,
@@ -220,6 +213,21 @@ function BgSwatch({
               e.currentTarget.pause();
               e.currentTarget.currentTime = 0;
             }}
+          />
+        ) : bg.orbs ? (
+          <div
+            aria-hidden
+            className="h-full w-full"
+            style={{
+              background:
+                "radial-gradient(circle at 20% 20%, #1f7a8c, transparent 42%), radial-gradient(circle at 80% 30%, #5b3fbf, transparent 40%), radial-gradient(circle at 50% 90%, #b4581f, transparent 45%), #0a0d16",
+            }}
+          />
+        ) : bg.procedural ? (
+          <div
+            aria-hidden
+            className="h-full w-full"
+            style={{ background: PLATE_PREVIEW[bg.procedural] }}
           />
         ) : themePlate ? (
           <div

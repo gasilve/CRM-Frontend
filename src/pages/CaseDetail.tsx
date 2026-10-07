@@ -1,12 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarPlus, Car, Folder, Users } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ArrowLeft, CalendarPlus, Car, Folder, NotebookPen, Users } from "lucide-react";
 import { CaseDetailSkeleton, PanelLoader } from "@/components/ui/LoadingState";
-import { casesApi, investigatorsApi, ApiError, type CaseDetail as CaseDetailType, type CaseStatus } from "@/lib/crm-api";
+import { casesApi, investigatorsApi, ApiError, type CaseStatus } from "@/lib/crm-api";
+import { prodigyCaseDetailFull } from "@/lib/prodigy-api";
+
+const USE_PRODIGY = import.meta.env.VITE_USE_PRODIGY_BACKEND === "true";
 import { invalidateQueries, useQuery } from "@/lib/query-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGridLayout } from "@/hooks/useGridLayout";
+import { WidgetBridgeSync } from "@/lib/widget-bridge";
 import { CaseSubjectHeader } from "@/components/case/CaseSubjectHeader";
+import { WidgetErrorBoundary } from "@/components/widgets/WidgetErrorBoundary";
+import { CanvassTabContent } from "@/pages/panels/CanvassTabContent";
+import { TloxpModal } from "@/osint/components/investigations/TloxpModal";
+import { AutoTloxpModal } from "@/osint/components/investigations/AutoTloxpModal";
+import { CapturesTab } from "@/osint/components/investigations/CapturesTab";
+import { IntelGrid } from "@/osint/intel/IntelGrid";
+import { PhotosGrid } from "@/osint/photos/PhotosGrid";
+import { VideoCaseGrid } from "@/osint/video/VideoCaseGrid";
 import { CaseActionBar, type CaseDrawerId } from "@/components/case/CaseActionBar";
 import { CasePageArrows } from "@/components/case/CasePageArrows";
 import { CaseDrawer } from "@/components/case/CaseDrawer";
@@ -18,7 +30,9 @@ import { ConfirmModal } from "@/components/dashboard/ConfirmModal";
 import type { Subject } from "@/lib/mock-data";
 import {
   CASE_DEFAULT_LAYOUT,
+  CASE_PAGE_OVERVIEW,
   CASE_DEFAULT_PAGES,
+  CASE_DEFAULT_WIDGETS,
   CASE_LEGACY_LS_KEY,
   CASE_PAGE_ROWS,
   RESERVED_WIDGET_TITLE,
@@ -36,6 +50,7 @@ import {
 import { CaseDetailGrid, type CaseDetailGridHandle } from "./CaseDetailGrid";
 import { CaseDetailPageNav } from "./CaseDetailPageNav";
 import { CustomWidgetBuilderModal } from "./CustomCaseWidget";
+import { CustomFieldsNotebook } from "./CustomFieldsNotebookModal";
 import CaseWidgetDock from "./CaseWidgetDock";
 import { caseWidgetDebug, resolveDragDropTarget, type DragDropTarget } from "@/lib/case-widget-debug";
 
@@ -49,6 +64,7 @@ const DRAWER_META: Record<CaseDrawerId, { title: string; icon: React.ReactNode }
   vehicles: { title: "Vehicles", icon: <Car size={16} strokeWidth={1.8} /> },
   people: { title: "People", icon: <Users size={16} strokeWidth={1.8} /> },
   folder: { title: "Case folder", icon: <Folder size={16} strokeWidth={1.8} /> },
+  notebook: { title: "Field notebook", icon: <NotebookPen size={16} strokeWidth={1.8} /> },
 };
 
 export default function CaseDetail() {
@@ -64,7 +80,9 @@ export default function CaseDetail() {
 
   const [activeDrawer, setActiveDrawer] = useState<CaseDrawerId | null>(null);
   const [dockOpen, setDockOpen] = useState(false);
-  const [dockPlacing, setDockPlacing] = useState(false);
+  const [dockPlacingWidgetId, setDockPlacingWidgetId] = useState<string | null>(null);
+  const dockPlacing = dockPlacingWidgetId !== null;
+  const dockPlacingCustom = dockPlacingWidgetId !== null && isCustomWidgetId(dockPlacingWidgetId);
   const [draggingWidgetId, setDraggingWidgetId] = useState<string | null>(null);
   const [builderWidgetId, setBuilderWidgetId] = useState<string | null>(null);
   const trashHoveredRef = useRef(false);
@@ -95,6 +113,7 @@ export default function CaseDetail() {
     normalizeDocument: (items, savedPages, savedWidgets, phase) =>
       normalizeCaseDocument(items, savedPages, savedWidgets as CustomCaseWidgetDef[] | null, phase),
     defaultPages: CASE_DEFAULT_PAGES,
+    defaultWidgets: CASE_DEFAULT_WIDGETS,
     legacyStorageKey: CASE_LEGACY_LS_KEY,
     editable: canEditLayout,
   });
@@ -107,6 +126,7 @@ export default function CaseDetail() {
   widgetsRef.current = widgets;
 
   const resolvedPages = pages ?? CASE_DEFAULT_PAGES;
+
 
   useEffect(() => {
     if (!pages?.length) return;
@@ -523,18 +543,80 @@ export default function CaseDetail() {
   // background request brings it up to date. `null` marks a confirmed 404.
 
   const caseQuery = useQuery(
-    id ? `case:${id}` : null,
+    id ? `case-detail:${id}` : null,
     () =>
-      casesApi
-        .get(id!)
-        .then((res): CaseDetailType | null => res.case)
+      (USE_PRODIGY ? prodigyCaseDetailFull(id!) : casesApi.get(id!))
+        .then((res) => res)
         .catch((err: unknown) => {
-          if (err instanceof ApiError && err.status === 404) return null;
+          if ((err instanceof ApiError && err.status === 404) || (err as {status?:number}).status === 404) return null;
           throw err;
         }),
     { enabled: !!id },
   );
-  const kase = caseQuery.data ?? null;
+  // Shared cache key with My Day / CaseWorkMode — always `{ case }` (or `null` for 404).
+  const kase = caseQuery.data?.case ?? null;
+  const prodigyCaseTypes: string[] = (kase as any)?._prodigy_case_types ?? ((kase as any)?._prodigy_type ? [(kase as any)._prodigy_type] : []);
+  // ── TLO/XP import handler ──────────────────────────────────────────────────
+  const handleTloxpImport = useCallback(async (data: Record<string, any>) => {
+    if (!kase) return;
+    const patch: Record<string, any> = {};
+    if (data.subject_name)           patch.subject_name      = data.subject_name;
+    if (data.subject_dob) {
+      const dob = data.subject_dob;
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dob)) {
+        const [m, d, y] = dob.split("/");
+        patch.subject_dob = `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+      } else patch.subject_dob = dob;
+    }
+    if (data.subject_ssn_last4)      patch.subject_ssn_last4 = data.subject_ssn_last4;
+    if (data.subject_ssn)            patch.subject_ssn       = data.subject_ssn;
+    if (data.subject_aliases?.length) patch.subject_aliases  = data.subject_aliases;
+    if (data.subject_phones?.length)  patch.subject_phones   = data.subject_phones;
+    if (data.subject_emails?.length)  patch.subject_emails   = data.subject_emails;
+    if (data.subject_addresses?.length) patch.subject_addresses = data.subject_addresses;
+    const tloExtra: Record<string, any> = {};
+    if (data.primary_address)              tloExtra.primary_address       = data.primary_address;
+    if (data.tlo_vehicles?.length)         tloExtra.tlo_vehicles          = data.tlo_vehicles;
+    if (data.tlo_criminal_records?.length) tloExtra.tlo_criminal_records  = data.tlo_criminal_records;
+    if (data.tlo_employers?.length)        tloExtra.tlo_employers         = data.tlo_employers;
+    if (data.subject_relatives?.length)    tloExtra.subject_relatives     = data.subject_relatives;
+    if (data.tlo_bankruptcies)             tloExtra.tlo_bankruptcies      = data.tlo_bankruptcies;
+    if (data.tlo_judgments)                tloExtra.tlo_judgments         = data.tlo_judgments;
+    if ((data as any).raw_phones?.length) {
+      const phoneMeta: Record<string, number> = {};
+      (data as any).raw_phones.forEach((p: any) => { phoneMeta[p.phone] = p.confidence; });
+      tloExtra.subject_phones_meta = phoneMeta;
+    }
+    if (Object.keys(tloExtra).length) {
+      patch.extra_metadata = { ...((kase as any)._prodigy_meta ?? {}), ...tloExtra };
+    }
+    if (!Object.keys(patch).length) return;
+    // In Prodigy mode — PATCH the investigation
+    if (import.meta.env.VITE_USE_PRODIGY_BACKEND === "true") {
+      await fetch(`/api-proxy/api/investigations/${kase.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      // Invalidate the case detail query so it reloads
+      invalidateQueries(`case-detail:${kase.id}`);
+    }
+    setShowTloxp(false);
+    setShowAutoTloxp(false);
+  }, [kase]);
+
+  // ── TLO/XP import handler
+
+  const isMedicalCanvass = prodigyCaseTypes.includes('medical_canvass');
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'overview' | 'canvass' | 'video' | 'captures' | 'intel' | 'photos'>(
+    (searchParams.get('tab') as 'overview' | 'canvass' | 'video' | 'captures' | 'intel' | 'photos') ?? 'overview'
+  );
+  const [showTloxp,     setShowTloxp]     = useState(false);
+  const [showAutoTloxp, setShowAutoTloxp] = useState(false);
+
+
+
   const notFound = caseQuery.data === null;
   const error = caseQuery.error;
 
@@ -578,7 +660,8 @@ export default function CaseDetail() {
   }
 
   const cfg = STATUS_CONFIG[kase.status];
-  const primaryAddress = kase.addresses.find((a) => a.isPrimary) ?? kase.addresses[0];
+  const addresses = kase.addresses ?? [];
+  const primaryAddress = addresses.find((a) => a.isPrimary) ?? addresses[0];
   const subject: Subject = {
     name: kase.subjectName,
     dob: kase.subjectDob ? kase.subjectDob.slice(0, 10) : undefined,
@@ -612,6 +695,8 @@ export default function CaseDetail() {
   const drawerMeta = activeDrawer ? DRAWER_META[activeDrawer] : null;
 
   return (
+    <>
+    <WidgetBridgeSync />
     <div className="case-detail-page">
       <CaseSubjectHeader
         className="mb-4 shrink-0"
@@ -627,7 +712,38 @@ export default function CaseDetail() {
               className="inline-flex items-center gap-1.5 rounded-[0.625rem] border border-[var(--color-line)] px-3 py-1.5 text-[0.71875rem] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
             >
               <ArrowLeft size={13} strokeWidth={1.8} />
-              Cases
+              Back to cases
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/cases/${kase.id}/skyview`)}
+              className="inline-flex items-center gap-1.5 rounded-[0.625rem] border border-[var(--color-line)] px-3 py-1.5 text-[0.71875rem] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+            >
+              Sky View
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowTloxp(true)}
+              className="inline-flex items-center gap-1.5 rounded-[0.625rem] border border-[var(--color-line)] px-3 py-1.5 text-[0.71875rem] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+              title="Import TLO/XP PDF report"
+            >
+              TLO/XP
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAutoTloxp(true)}
+              className="inline-flex items-center gap-1.5 rounded-[0.625rem] border border-[#7c3aed]/40 bg-[rgba(124,58,237,0.08)] px-3 py-1.5 text-[0.71875rem] font-semibold text-[#7c3aed] transition-colors hover:border-[#7c3aed]/70"
+              title="Auto TLOxp — query TLO API directly"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              Auto TLOxp
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("video")}
+              className="inline-flex items-center gap-1.5 rounded-[0.625rem] border border-[var(--color-line)] px-3 py-1.5 text-[0.71875rem] text-[var(--color-text-mid)] transition-colors hover:border-[var(--color-line-2)] hover:text-[var(--color-text-hi)]"
+            >
+              Video
             </button>
             {can("schedule.manage") && (
               <button
@@ -652,15 +768,102 @@ export default function CaseDetail() {
 
       {layout ? (
         <div className="flex min-h-0 flex-1 flex-col">
-          <CaseDetailPageNav
-            pages={resolvedPages}
-            activePageId={activePageId}
-            editable={canEditLayout}
-            onSelect={setActivePageId}
-            onRename={renamePage}
-            onAddPage={canEditLayout ? addPage : undefined}
-            onDeletePage={canEditLayout ? deletePage : undefined}
-          />
+          {/* Tab strip: Overview pages + Medical Canvass tab */}
+          <div className="flex shrink-0 items-center border-b border-[var(--color-line-2)]">
+            <button
+              type="button"
+              onClick={() => setActiveTab('overview')}
+              className={'px-4 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors ' + (activeTab === 'overview' ? 'border-[var(--color-accent)] text-[var(--color-accent)]' : 'border-transparent text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]')}
+            >Overview</button>
+            {isMedicalCanvass && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('canvass')}
+                className={'px-4 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors ' + (activeTab === 'canvass' ? 'border-[var(--color-accent)] text-[var(--color-accent)]' : 'border-transparent text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]')}
+              >Medical Canvass</button>
+            )}
+            <button
+              type="button"
+              onClick={() => setActiveTab('video')}
+              className={'px-4 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors ' + (activeTab === 'video' ? 'border-[var(--color-accent)] text-[var(--color-accent)]' : 'border-transparent text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]')}
+            >Video Custody</button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('captures')}
+              className={'px-4 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors ' + (activeTab === 'captures' ? 'border-[var(--color-accent)] text-[var(--color-accent)]' : 'border-transparent text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]')}
+            >🌐 Web Captures</button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('intel')}
+              className={'px-4 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors ' + (activeTab === 'intel' ? 'border-[var(--color-accent)] text-[var(--color-accent)]' : 'border-transparent text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]')}
+            >🔎 Intel</button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('photos')}
+              className={'px-4 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors ' + (activeTab === 'photos' ? 'border-[var(--color-accent)] text-[var(--color-accent)]' : 'border-transparent text-[var(--color-text-mid)] hover:text-[var(--color-text-hi)]')}
+            >📷 Photos</button>
+            {activeTab === 'overview' && (
+              <div className="ml-2 flex-1">
+                <CaseDetailPageNav
+                  pages={resolvedPages}
+                  activePageId={activePageId}
+                  editable={canEditLayout}
+                  onSelect={setActivePageId}
+                  onRename={renamePage}
+                  onAddPage={canEditLayout ? addPage : undefined}
+                  onDeletePage={canEditLayout ? deletePage : undefined}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Medical Canvass full-panel */}
+          {activeTab === 'canvass' && isMedicalCanvass && (
+            <div className="min-h-0 flex-1">
+              <WidgetErrorBoundary name="canvass">
+                <CanvassTabContent kase={kase} ctx={panelCtx} />
+              </WidgetErrorBoundary>
+            </div>
+          )}
+
+          {/* Video Custody full-panel */}
+          {activeTab === 'video' && (
+            <div className="min-h-0 flex-1">
+              <WidgetErrorBoundary name="video">
+                <VideoCaseGrid kase={kase} ctx={panelCtx} />
+              </WidgetErrorBoundary>
+            </div>
+          )}
+
+          {/* Web Captures full-panel */}
+          {activeTab === 'captures' && (
+            <div className="min-h-0 flex-1 overflow-auto p-4">
+              <WidgetErrorBoundary name="captures">
+                <CapturesTab invId={Number(kase.id)} isGL={false} />
+              </WidgetErrorBoundary>
+            </div>
+          )}
+
+          {/* Intel full-panel */}
+          {activeTab === 'intel' && (
+            <div className="min-h-0 flex-1">
+              <WidgetErrorBoundary name="intel">
+                <IntelGrid kase={kase} />
+              </WidgetErrorBoundary>
+            </div>
+          )}
+
+          {/* Photos full-panel */}
+          {activeTab === 'photos' && (
+            <div className="min-h-0 flex-1">
+              <WidgetErrorBoundary name="photos">
+                <PhotosGrid kase={kase} />
+              </WidgetErrorBoundary>
+            </div>
+          )}
+
+          {/* Overview grid */}
+          {activeTab === 'overview' && (
           <div className="min-h-0 flex-1">
             <CaseDetailGrid
               pages={resolvedPages}
@@ -677,6 +880,7 @@ export default function CaseDetail() {
               onCreateCustomWidget={canEditLayout ? handleCreateCustomWidget : undefined}
             />
           </div>
+          )}
         </div>
       ) : (
         <PanelLoader message="Loading layout" />
@@ -684,6 +888,23 @@ export default function CaseDetail() {
 
       {layout && (
         <CasePageArrows pages={resolvedPages} activePageId={activePageId} onSelect={setActivePageId} />
+      )}
+
+      {/* TLO modals */}
+      {showTloxp && (
+        <TloxpModal
+          onImport={handleTloxpImport}
+          onClose={() => setShowTloxp(false)}
+        />
+      )}
+      {showAutoTloxp && kase && (
+        <AutoTloxpModal
+          invSubjectName={kase.subjectName}
+          invSubjectDob={kase.subjectDob ?? undefined}
+          invSubjectState={kase.state ?? undefined}
+          onImport={handleTloxpImport}
+          onClose={() => setShowAutoTloxp(false)}
+        />
       )}
 
       <CaseActionBar
@@ -710,6 +931,7 @@ export default function CaseDetail() {
           {activeDrawer === "vehicles" && <CaseVehiclesDrawer ctx={panelCtx} />}
           {activeDrawer === "people" && <CasePeopleDrawer ctx={panelCtx} />}
           {activeDrawer === "folder" && <CaseFolderDrawer ctx={panelCtx} />}
+          {activeDrawer === "notebook" && <CustomFieldsNotebook canEdit={canEditLayout} />}
         </CaseDrawer>
       )}
 
@@ -723,7 +945,7 @@ export default function CaseDetail() {
             gridRef={gridHandleRef}
             gridMountKey={`${layoutRevision}:${gridToken}:${activePageId}`}
             onClose={() => setDockOpen(false)}
-            onPlacingChange={setDockPlacing}
+            onPlacingChange={(placing) => { if (!placing) setDockPlacingWidgetId(null); }}
           />
 
           <DragDock
@@ -733,7 +955,7 @@ export default function CaseDetail() {
               trashHoveredRef.current = hovered;
               setTrashHovered(hovered);
             }}
-            showUnsave={draggingCustomDef?.persisted === true || dockPlacing}
+            showUnsave={draggingCustomDef?.persisted === true || dockPlacingCustom}
             unsaveHovered={unsaveHovered}
             onUnsaveHoverChange={(hovered) => {
               unsaveHoveredRef.current = hovered;
@@ -754,6 +976,7 @@ export default function CaseDetail() {
           <CustomWidgetBuilderModal
             open={builderWidgetId !== null}
             def={builderDef}
+            caseDetail={kase}
             canSee={canSee}
             onChange={handleWidgetDefChange}
             onClose={() => setBuilderWidgetId(null)}
@@ -800,5 +1023,6 @@ export default function CaseDetail() {
         </>
       )}
     </div>
+    </>
   );
 }
