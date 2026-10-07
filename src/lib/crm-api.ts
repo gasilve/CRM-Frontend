@@ -1521,6 +1521,8 @@ export interface PendingCaseDetail extends PendingCaseListItem {
   deletedAt: string | null;
   updatedAt: string;
   files: PendingCaseFile[];
+  /** First stored image of the subject, when the proposal has one. */
+  subjectPhotoFileId?: string | null;
 }
 
 export interface PendingCaseSummary {

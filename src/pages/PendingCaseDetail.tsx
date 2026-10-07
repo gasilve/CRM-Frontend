@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Inbox, Paperclip, Pencil, Plus, Trash2 } from "lucide-react";
 import { PanelLoader } from "@/components/ui/LoadingState";
@@ -10,6 +10,7 @@ import { CaseSubjectHeader } from "@/components/case/CaseSubjectHeader";
 import { useGridLayout } from "@/hooks/useGridLayout";
 import { invalidateQueries, useQuery } from "@/lib/query-cache";
 import { proposalToCaseDetail } from "@/lib/pending-case-view";
+import { chooseSubjectPhoto } from "@/lib/subject-photo";
 import { KindPill, LanePill } from "@/components/cases/PendingCasePills";
 import {
   pendingCasesApi,
@@ -115,7 +116,41 @@ export default function PendingCaseDetail() {
   widgetsRef.current = widgets;
   const resolvedPages = pages ?? CASE_DEFAULT_PAGES;
 
-  const kase = useMemo(() => (pendingCase ? proposalToCaseDetail(pendingCase) : null), [pendingCase]);
+  const portraitFileId = useMemo(() => {
+    if (!pendingCase) return null;
+    if (pendingCase.subjectPhotoFileId) return pendingCase.subjectPhotoFileId;
+    const files = [...pendingCase.files].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return chooseSubjectPhoto(files)?.id ?? null;
+  }, [pendingCase]);
+  const [portraitUrl, setPortraitUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!id || !portraitFileId) {
+      setPortraitUrl(null);
+      return;
+    }
+    let revoke: string | null = null;
+    let cancelled = false;
+    pendingCasesApi
+      .fileBlob(id, portraitFileId)
+      .then((blob) => {
+        if (cancelled) return;
+        revoke = URL.createObjectURL(blob);
+        setPortraitUrl(revoke);
+      })
+      .catch(() => {
+        if (!cancelled) setPortraitUrl(null);
+      });
+    return () => {
+      cancelled = true;
+      if (revoke) URL.revokeObjectURL(revoke);
+    };
+  }, [id, portraitFileId]);
+
+  const kase = useMemo(() => {
+    if (!pendingCase) return null;
+    const detail = proposalToCaseDetail(pendingCase);
+    return portraitUrl ? { ...detail, subjectPhotoUrl: portraitUrl } : detail;
+  }, [pendingCase, portraitUrl]);
 
   const loadFileBlob = useCallback(
     (fileId: string, signal?: AbortSignal) => pendingCasesApi.fileBlob(id!, fileId, signal),
