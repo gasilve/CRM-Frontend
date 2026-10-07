@@ -177,12 +177,14 @@ export function CasePeopleDrawer({ ctx }: { ctx: CasePanelCtx }) {
             alt=""
             className="h-10 w-10 shrink-0 rounded-full border border-[var(--color-line-2)]"
           />
-        ) : (
+        ) : c.subjectPhotoUrl || c.caseNumber !== "PENDING" ? (
           <img
             src={c.subjectPhotoUrl || placeholderPhotoFor(c.id)}
             alt=""
             className="h-10 w-10 shrink-0 rounded-full border border-[var(--color-line-2)] object-cover"
           />
+        ) : (
+          <div className="h-10 w-10 shrink-0 rounded-full border border-[var(--color-line-2)] bg-[var(--color-ink-3)]" />
         )}
         <div className="min-w-0">
           <div className="truncate text-[0.78125rem] font-medium text-[var(--color-text-hi)]">

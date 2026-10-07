@@ -22,6 +22,7 @@ import {
 } from "@/lib/crm-api";
 import { ImageComparisonModal } from "@/components/case/ImageComparisonModal";
 import { CasePhoto } from "@/components/case/EntityModal";
+import { chooseSubjectPhoto } from "@/lib/subject-photo";
 import { FileViewerModal } from "@/components/case/FileViewerModal";
 import { CaseMap } from "@/components/case/CaseMap";
 import type { CasePanelCtx } from "./case-detail-widgets";
@@ -123,18 +124,22 @@ const PHOTO_TABS: { id: PhotoTab; label: string; icon: typeof User }[] = [
   { id: "cohabitant", label: "Cohabitant", icon: Users2 },
 ];
 
-function photosForTab(c: CaseDetail, tab: PhotoTab): PanelPhoto[] {
+function photosForTab(c: CaseDetail, tab: PhotoTab, animalPlaceholder: boolean): PanelPhoto[] {
   if (tab === "subject") {
     const entries = c.days.flatMap((d) => d.entries.filter((e) => e.type === "photo_person"));
+    const url = c.subjectPhotoUrl ?? (animalPlaceholder ? placeholderPhotoFor(c.id) : null);
+    const primary: PanelPhoto[] = url
+      ? [{
+          id: `${c.id}-primary`,
+          caseId: c.id,
+          url,
+          label: "Subject primary",
+          kind: "primary",
+          capturedAt: c.dateOpened,
+        }]
+      : [];
     return [
-      {
-        id: `${c.id}-primary`,
-        caseId: c.id,
-        url: c.subjectPhotoUrl ?? placeholderPhotoFor(c.id),
-        label: "Subject primary",
-        kind: "primary",
-        capturedAt: c.dateOpened,
-      },
+      ...primary,
       ...entries.map((e) => ({
         id: e.id,
         caseId: c.id,
@@ -201,13 +206,44 @@ function PanelPhotoImg({ photo }: { photo: PanelPhoto }) {
 
 export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
   const c = ctx.case;
+  const pending = c.caseNumber === "PENDING";
   const { pxWidth, pxHeight } = useWidgetSize();
   const [tab, setTab] = useState<PhotoTab>("subject");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const [uploadedId, setUploadedId] = useState<string | undefined>();
+  const portraitFileId = useMemo(() => {
+    if (c.subjectPhotoUrl) return null;
+    const files = [...(c.files ?? [])].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return chooseSubjectPhoto(files)?.id ?? null;
+  }, [c.subjectPhotoUrl, c.files]);
+  const [portraitUrl, setPortraitUrl] = useState<string | null>(null);
+  const loadBlob = ctx.loadFileBlob;
+  useEffect(() => {
+    if (!portraitFileId) {
+      setPortraitUrl(null);
+      return;
+    }
+    let revoke: string | null = null;
+    let cancelled = false;
+    const load = loadBlob ? loadBlob(portraitFileId) : casesApi.fileBlob(c.id, portraitFileId);
+    load
+      .then((blob) => {
+        if (cancelled) return;
+        revoke = URL.createObjectURL(blob);
+        setPortraitUrl(revoke);
+      })
+      .catch(() => {
+        if (!cancelled) setPortraitUrl(null);
+      });
+    return () => {
+      cancelled = true;
+      if (revoke) URL.revokeObjectURL(revoke);
+    };
+  }, [portraitFileId, c.id, loadBlob]);
 
-  const photos = useMemo(() => photosForTab(c, tab), [c, tab]);
+  const shown = portraitUrl ? { ...c, subjectPhotoUrl: portraitUrl } : c;
+  const photos = useMemo(() => photosForTab(shown, tab, !pending), [shown, tab, pending]);
 
   useEffect(() => {
     setActiveId(photos[0]?.id ?? null);
