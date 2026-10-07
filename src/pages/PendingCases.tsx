@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { pendingCasesApi } from "@/lib/crm-api";
+import { intakeApi, pendingCasesApi } from "@/lib/crm-api";
 import { PendingCasesTable } from "@/components/cases/PendingCasesTable";
 import { TableSkeleton } from "@/components/ui/LoadingState";
 import { useQuery } from "@/lib/query-cache";
@@ -13,7 +13,40 @@ const PER_PAGE = 8;
 const PENDING_COLS =
   "grid grid-cols-[5.5rem_minmax(8rem,0.95fr)_minmax(9.5rem,1.3fr)_minmax(8.5rem,1.05fr)_minmax(6.5rem,0.8fr)_5.5rem_minmax(5.5rem,0.7fr)_5.25rem] items-center gap-x-2 px-5";
 
-/** Intake inbox — proposals pushed by the case ingestor, awaiting review. */
+const minutesAgo = (iso: string | null): string => {
+  if (!iso) return "never";
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`;
+};
+
+/** Tells staff the mailbox job is alive, so an empty inbox can be trusted. */
+function MailboxStatus() {
+  const status = useQuery("intake:status", () => intakeApi.status(), { staleMs: 30_000 });
+  const data = status.data;
+  if (!data) return null;
+
+  const healthy = data.configured && !data.lastError;
+  const text = !data.configured
+    ? "Mailbox not connected"
+    : data.lastError
+      ? `Mailbox check failing since ${minutesAgo(data.lastOkAt)}`
+      : `Mailbox checked ${minutesAgo(data.lastOkAt)}`;
+
+  return (
+    <span
+      className="mt-2 inline-flex items-center gap-1.5 font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]"
+      title={data.lastError ?? "The case mailbox is read automatically every few minutes."}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: healthy ? "#4ade80" : "#f87171" }} />
+      {text}
+    </span>
+  );
+}
+
+/** Intake inbox — referrals read from the case mailbox, awaiting review. */
 export default function PendingCases() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -56,9 +89,8 @@ export default function PendingCases() {
             {items ? `${total} proposal${total === 1 ? "" : "s"} pending review` : "Loading proposals…"}
           </p>
         </div>
-        <span className="mt-2 font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-          Pushed by the case ingestor
-        </span>
+        <MailboxStatus />
+
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -97,7 +129,7 @@ export default function PendingCases() {
           {query.loading ? (
             <TableSkeleton
               colClass={PENDING_COLS}
-              headers={["Received", "Claim", "Subject", "Insurer / Adjuster", "Type", "Payload", "Files", "Due"]}
+              headers={["Received", "Claim", "Subject", "Insurer / Adjuster", "Type", "Contents", "Files", "Due"]}
             />
           ) : (
             /* Keyed on the page so paging replays the row stagger. */

@@ -32,15 +32,16 @@ export function CaseSubjectHeader({
       )}
     >
       <div className="min-w-0">
-        <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">
-          {subject.name}
-        </h1>
-
-        {aliases && aliases.length > 0 && (
-          <div className="mt-1 text-[0.75rem] text-[var(--color-text-lo)]">
-            AKA: {aliases.join(" · ")}
-          </div>
-        )}
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+          <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">
+            {subject.name}
+          </h1>
+          {aliases && aliases.length > 0 && (
+            <span className="text-[0.8125rem] text-[var(--color-text-lo)]">
+              AKA: {aliases.join(" · ")}
+            </span>
+          )}
+        </div>
 
         {hasAddress && (
           <div className="mt-2.5 flex items-start gap-1.5 text-[0.8125rem] text-[var(--color-text-mid)]">

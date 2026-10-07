@@ -216,6 +216,18 @@ function CaseDetailGridInner({
     if (!shellEl) return;
     let cancelled = false;
 
+    /** Shrink the rows so the whole page stays on screen when banners sit above it. */
+    const fittedCellHeight = () => {
+      const designed = designPx(CASE_CELL_HEIGHT);
+      const margin = designPx(CASE_GRID_MARGIN);
+      const available = shellRef.current?.clientHeight ?? 0;
+      if (available < 160) return CASE_CELL_HEIGHT;
+      const fitted = Math.min(designed, (available - margin - 4) / CASE_PAGE_ROWS - margin);
+      const px = Math.max(designPx(52), fitted);
+      const root = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      return (px / root) * 16;
+    };
+
     unmountAll();
 
     const unsubBridge = subscribeWidgetBridge(() => {
@@ -555,7 +567,7 @@ function CaseDetailGridInner({
           grid.engine.maxRow = CASE_PAGE_ROWS;
         }
       }
-      settleGridMetrics(grid, CASE_CELL_HEIGHT, CASE_GRID_MARGIN);
+      settleGridMetrics(grid, fittedCellHeight(), CASE_GRID_MARGIN);
 
       // Attach change/added/removed listeners only after settle — grid.load
       // fires those events, and syncing mid-load can persist an empty layout.
@@ -576,11 +588,15 @@ function CaseDetailGridInner({
     }
 
     const onResize = () => {
+      const cell = fittedCellHeight();
       for (const grid of gridsRef.current.values()) {
-        settleGridMetrics(grid, CASE_CELL_HEIGHT, CASE_GRID_MARGIN);
+        settleGridMetrics(grid, cell, CASE_GRID_MARGIN);
       }
     };
     window.addEventListener("resize", onResize);
+    // Banners above the grid change its height without a window resize.
+    const observer = new ResizeObserver(onResize);
+    if (shellRef.current) observer.observe(shellRef.current);
 
     gridRef.current = {
       getGrid: () => gridsRef.current.get(activePageIdRef.current) ?? null,
@@ -597,6 +613,7 @@ function CaseDetailGridInner({
       document.body.classList.remove("dashboard-widget-dragging");
       resetDrag();
       window.removeEventListener("resize", onResize);
+      observer.disconnect();
       initPageRef.current = null;
       for (const grid of gridsRef.current.values()) {
         detachGridEvents(grid);

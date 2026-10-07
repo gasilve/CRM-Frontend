@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
-import { ChevronLeft, ChevronRight, Loader2, MapPin } from "lucide-react";
-import { CaseGlanceCard, glanceFromListItem } from "@/components/cases/CaseGlanceCard";
+import { ChevronLeft, ChevronRight, Loader2, MapPin, User } from "lucide-react";
+import { CaseGlanceCard, glanceFromListItem, type CaseGlance } from "@/components/cases/CaseGlanceCard";
 import { weatherIcon, weatherColor, conditionLabel } from "@/components/cases/WeatherStrip";
 import { cn } from "@/lib/cn";
 import {
@@ -21,7 +21,6 @@ import {
   CaseAssignmentBand,
   EmptyAssignSlot,
   InvestigatorAssignmentBand,
-  InvestigatorBoardColumn,
   InvestigatorRowLabel,
 } from "./CalendarDayRow";
 import { priorKey } from "./AssignEntityModal";
@@ -32,6 +31,7 @@ import {
 
 const DAY_LS_KEY = "accenty.crm.schedule.calendar.day";
 const REGION_OPTIONS: (Region | "all")[] = ["all", "tristate", "ca", "texas"];
+const REGION_SHORT: Record<Region, string> = { ca: "CA", tristate: "TR", texas: "TX" };
 
 export type CalendarAxis = "investigators" | "cases";
 
@@ -39,6 +39,49 @@ type DayDrag =
   | { kind: "case"; caseId: string }
   | { kind: "investigator"; userId: string }
   | { kind: "block"; block: ScheduleBlock };
+
+function glanceForAssignment(block: ScheduleBlock, listed: CaseListItem | undefined): CaseGlance {
+  const base = listed ? glanceFromListItem(listed) : null;
+  if (base) return base;
+  const primary = block.case.addresses.find((a) => a.isPrimary) ?? block.case.addresses[0] ?? null;
+  const address = primary ? [primary.line1, primary.city, primary.state, primary.zip].filter(Boolean).join(", ") : null;
+  return {
+    id: block.case.id,
+    caseNumber: block.case.caseNumber,
+    subjectName: block.case.subjectName,
+    subjectPhotoUrl: null,
+    subjectTransport: null,
+    service: block.case.service,
+    priority: block.case.priority,
+    region: block.case.region,
+    state: primary?.state ?? null,
+    dueDate: block.case.dueDate,
+    claimNumber: block.case.claimNumber,
+    earliestActiveAt: block.case.earliestActiveAt,
+    situationSummary: null,
+    subjectWorkStatus: null,
+    clientName: block.case.client?.company ?? null,
+    address: address || null,
+    peopleCount: 0,
+    vehicleCount: 0,
+    investigators: [block.user.name],
+    recentNotes: [],
+    scheduleLabel: null,
+    daysWorked: null,
+  };
+}
+
+function dayHasPassed(dateIso: string, region: Region | null | undefined): boolean {
+  const zone =
+    region === "texas" ? "America/Chicago" : region === "tristate" ? "America/New_York" : "America/Los_Angeles";
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: zone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  return dateIso.slice(0, 10) < today;
+}
 
 const isoOf = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -317,6 +360,11 @@ export function NewCalendarView({
   };
 
   const assignViaDrop = async (caseId: string, userId: string, dateIso = day) => {
+    const kase = cases.find((c) => c.id === caseId);
+    if (dayHasPassed(dateIso, kase?.region)) {
+      onToast("That day has already passed.");
+      return;
+    }
     if (dateIso === day && bookedUserIds.has(userId)) {
       const label = investigators.find((i) => i.id === userId)?.name ?? "That investigator";
       onToast(`${label} already has an assignment that day.`);
@@ -353,6 +401,10 @@ export function NewCalendarView({
 
   const moveBlockToDay = async (block: ScheduleBlock, dateIso: string) => {
     if (block.date.slice(0, 10) === dateIso) return;
+    if (dayHasPassed(dateIso, block.case.region)) {
+      onToast("That day has already passed.");
+      return;
+    }
     setSaving(true);
     try {
       await scheduleApi.update(block.id, { date: dateIso });
@@ -370,6 +422,11 @@ export function NewCalendarView({
     const userId = next.userId ?? block.userId;
     const caseId = next.caseId ?? block.caseId;
     if (userId === block.userId && caseId === block.caseId) return;
+    const region = cases.find((c) => c.id === caseId)?.region ?? block.case.region;
+    if (dayHasPassed(day, region)) {
+      onToast("That day has already passed.");
+      return;
+    }
     if (userId !== block.userId && bookedUserIds.has(userId)) {
       const label = investigators.find((i) => i.id === userId)?.name ?? "That investigator";
       onToast(`${label} already has an assignment that day.`);
@@ -442,6 +499,10 @@ export function NewCalendarView({
   const openPickCase = (userId: string) => {
     const inv = regionInvestigators.find((i) => i.id === userId);
     if (!inv) return;
+    if (dayHasPassed(day, null)) {
+      onToast("That day has already passed.");
+      return;
+    }
     setFlow({
       kind: "assign-case",
       step: "pick",
@@ -456,6 +517,10 @@ export function NewCalendarView({
   const openPickInvestigator = (caseId: string) => {
     const kase = regionCases.find((c) => c.id === caseId);
     if (!kase) return;
+    if (dayHasPassed(day, kase.region)) {
+      onToast("That day has already passed.");
+      return;
+    }
     setFlow({
       kind: "assign-investigator",
       step: "pick",
@@ -479,8 +544,9 @@ export function NewCalendarView({
 
   return (
     <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
-      <div className="flex w-[16rem] shrink-0 flex-col gap-2 overflow-y-auto">
+      <div className="flex w-[16rem] shrink-0 flex-col gap-2 overflow-hidden">
         <MiniMonthCalendar
+          className="shrink-0"
           selectedIso={day}
           onSelect={pickDay}
           coveredIsos={coveredIsos}
@@ -494,7 +560,7 @@ export function NewCalendarView({
             void moveBlockToDay(block, iso);
           }}
         />
-        <div className="flex flex-wrap gap-1.5 px-0.5">
+        <div className="flex shrink-0 flex-wrap gap-1.5 px-0.5">
           {REGION_OPTIONS.map((r) => (
             <button
               key={r}
@@ -512,9 +578,50 @@ export function NewCalendarView({
             </button>
           ))}
         </div>
+        {axis === "cases" && <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden pt-1">
+          <span className="eyebrow px-0.5">Investigators</span>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {regionInvestigators.length === 0 ? (
+              <p className="px-1 py-2 text-[0.75rem] text-[var(--color-text-lo)]">None in this region.</p>
+            ) : (
+              regionInvestigators.map((inv) => {
+                const booked = bookedUserIds.has(inv.id);
+                return (
+                  <div
+                    key={inv.id}
+                    draggable={canManage}
+                    onDragStart={(e) => {
+                      if (!canManage) return;
+                      e.dataTransfer.effectAllowed = "copy";
+                      e.dataTransfer.setData("text/plain", inv.name);
+                      setDrag({ kind: "investigator", userId: inv.id });
+                    }}
+                    onDragEnd={clearDrag}
+                    title={booked ? `${inv.name} already has a case this day` : `Drag ${inv.name} onto a case`}
+                    className={cn(
+                      "flex items-center gap-2 rounded-[0.5rem] px-1.5 py-1.5 text-[0.75rem] text-[var(--color-text-hi)]",
+                      canManage && "cursor-grab active:cursor-grabbing",
+                      booked && "opacity-45",
+                    )}
+                  >
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--color-accent)] text-white">
+                      <User size={12} strokeWidth={1.8} />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{inv.name}</span>
+                    {inv.region && (
+                      <span className="shrink-0 font-mono text-[0.5625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
+                        {REGION_SHORT[inv.region]}
+                      </span>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>}
       </div>
 
-      <div className="surface flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+      <div className="surface flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--color-line)] px-3 py-2.5">
           <div className="flex flex-wrap items-center gap-1.5">
             <button
@@ -565,7 +672,7 @@ export function NewCalendarView({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 pb-3">
           {blocks === null ? (
             <div className="grid place-items-center py-16 text-[var(--color-text-lo)]">
               <Loader2 size={18} className="animate-spin" />
@@ -573,78 +680,22 @@ export function NewCalendarView({
           ) : axis === "investigators" ? (
             sortedInvestigators.length === 0 ? (
               <EmptyState text="No investigators in this region." />
-            ) : vertical ? (
-              <div className="grid grid-cols-[repeat(auto-fill,20rem)] justify-start gap-2.5 pt-1">
+            ) : (
+              <div className="flex min-w-0 flex-col pt-1">
                 {sortedInvestigators.map((inv) => {
                   const block = blockByUser.get(inv.id);
                   const targetKey = `inv:${inv.id}`;
                   const highlight = acceptDropOnInvestigator && dropTarget === targetKey && !block;
+                  const listed = block ? cases.find((c) => c.id === block.caseId) : undefined;
                   return (
-                    <InvestigatorBoardColumn
+                    <CalendarDayRow
                       key={inv.id}
-                      name={inv.name}
-                      region={inv.region}
-                      block={block}
-                      canManage={canManage}
-                      dropHighlight={highlight}
-                      onDragOver={(e) => {
-                        if (!acceptDropOnInvestigator || block) return;
-                        e.preventDefault();
-                        setDropTarget(targetKey);
-                      }}
-                      onDragLeave={() => setDropTarget((t) => (t === targetKey ? null : t))}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        onDropInvestigatorRow(inv.id);
-                      }}
-                      onBandDragStart={(b, e) => startBlockDrag(b, e)}
-                      onBandDragEnd={clearDrag}
-                      onAssign={() => openPickCase(inv.id)}
-                      onOpenNotes={openNotes}
-                      onUnassign={(blockId) => {
-                        setBlocks((prev) => prev?.filter((b) => b.id !== blockId) ?? null);
-                        onRemoveBlock(blockId);
-                        refreshCoverage();
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            ) : (
-              sortedInvestigators.map((inv) => {
-                const block = blockByUser.get(inv.id);
-                const targetKey = `inv:${inv.id}`;
-                const highlight = acceptDropOnInvestigator && dropTarget === targetKey && !block;
-                return (
-                  <CalendarDayRow
-                    key={inv.id}
-                    label={<InvestigatorRowLabel name={inv.name} region={inv.region} />}
-                  >
-                    {block ? (
-                      <CaseAssignmentBand
-                        block={block}
-                        draggable={canManage}
-                        onDragStart={(e) => startBlockDrag(block, e)}
-                        onDragEnd={clearDrag}
-                        onClick={() => openNotes(block)}
-                        onContextUnassign={
-                          canManage
-                            ? () => {
-                                setBlocks((prev) => prev?.filter((b) => b.id !== block.id) ?? null);
-                                onRemoveBlock(block.id);
-                                refreshCoverage();
-                              }
-                            : undefined
-                        }
-                      />
-                    ) : (
-                      <EmptyAssignSlot
-                        label={canManage ? "Assign case" : "Unassigned"}
-                        disabled={!canManage}
-                        onClick={() => canManage && openPickCase(inv.id)}
-                        dropHighlight={highlight}
+                      label={<InvestigatorRowLabel name={inv.name} region={inv.region} />}
+                    >
+                      <div
+                        className={cn("min-w-0", highlight && "rounded-[1rem] ring-1 ring-[rgba(74,127,255,0.55)]")}
                         onDragOver={(e) => {
-                          if (!acceptDropOnInvestigator) return;
+                          if (!acceptDropOnInvestigator || block) return;
                           e.preventDefault();
                           setDropTarget(targetKey);
                         }}
@@ -653,17 +704,52 @@ export function NewCalendarView({
                           e.preventDefault();
                           onDropInvestigatorRow(inv.id);
                         }}
-                      />
-                    )}
-                  </CalendarDayRow>
-                );
-              })
+                      >
+                        {block && vertical ? (
+                          <CaseGlanceCard
+                            glance={glanceForAssignment(block, listed)}
+                            tone="amber"
+                            inert
+                            onOpen={canManage ? () => openNotes(block) : undefined}
+                          />
+                        ) : block ? (
+                          <CaseAssignmentBand
+                            block={block}
+                            className="h-[6.25rem] overflow-hidden"
+                            draggable={canManage}
+                            onDragStart={(e) => startBlockDrag(block, e)}
+                            onDragEnd={clearDrag}
+                            onClick={() => openNotes(block)}
+                            onContextUnassign={
+                              canManage
+                                ? () => {
+                                    setBlocks((prev) => prev?.filter((b) => b.id !== block.id) ?? null);
+                                    onRemoveBlock(block.id);
+                                    refreshCoverage();
+                                  }
+                                : undefined
+                            }
+                          />
+                        ) : (
+                          <EmptyAssignSlot
+                            label={canManage ? "Assign case" : "Unassigned"}
+                            disabled={!canManage}
+                            onClick={() => canManage && openPickCase(inv.id)}
+                            dropHighlight={highlight}
+                            className="h-[6.25rem]"
+                          />
+                        )}
+                      </div>
+                    </CalendarDayRow>
+                  );
+                })}
+              </div>
             )
           ) : (
             sortedCases.length === 0 ? (
               <EmptyState text="No open cases in this region." />
             ) : (
-              <div className={vertical ? "grid grid-cols-[repeat(auto-fill,minmax(20rem,1fr))] justify-start gap-2.5 pt-1" : "flex flex-col gap-2 pt-1"}>
+              <div className={vertical ? "grid min-w-0 items-start gap-2.5 pt-1 sm:grid-cols-2" : "flex min-w-0 flex-col gap-2 pt-1"}>
                 {(vertical ? boardCases : sortedCases).map((c) => {
                   const dayBlocks = blocksByCase.get(c.id) ?? [];
                   const targetKey = `case:${c.id}`;
@@ -671,7 +757,7 @@ export function NewCalendarView({
                   return (
                     <div
                       key={c.id}
-                      className={cn(highlight && "rounded-[1rem] ring-1 ring-[rgba(74,127,255,0.55)]")}
+                      className={cn("min-w-0", highlight && "rounded-[1rem] ring-1 ring-[rgba(74,127,255,0.55)]")}
                       onDragOver={(e) => {
                         if (!acceptDropOnCase) return;
                         e.preventDefault();
@@ -686,6 +772,8 @@ export function NewCalendarView({
                       <CaseGlanceCard
                         glance={glanceFromListItem(c)}
                         tone="amber"
+                        panelOpen={drag?.kind === "investigator"}
+                        onOpen={canManage ? () => openPickInvestigator(c.id) : undefined}
                         panel={
                           <div className="flex max-h-52 flex-col gap-1.5 overflow-y-auto border-t border-[rgba(247,168,19,0.28)] p-2">
                             {dayBlocks.map((block) => (

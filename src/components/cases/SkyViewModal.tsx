@@ -288,7 +288,7 @@ function PhotoCompare({
   const verdictColor = !chosen || chosen.score == null ? "var(--ink2)" : chosen.score >= 80 ? "var(--active)" : "var(--burned)";
 
   return (
-    <div className="photo-row">
+    <div className={shots.length === 0 ? "photo-row solo" : "photo-row"}>
       <div
         className="photo"
         onMouseMove={(event) => {
