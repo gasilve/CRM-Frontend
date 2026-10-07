@@ -9,12 +9,12 @@ const REVIEW_CONFIG: Record<PendingCaseStatus, { label: string; dot: string; pil
 
 const FILES_CONFIG: Record<PendingCaseFilesStatus, { label: string; pill: string; text: string }> = {
   none: { label: "No files", pill: "var(--color-ink-3)", text: "var(--color-text-lo)" },
-  pending: { label: "Not fetched", pill: "rgba(245,158,11,0.16)", text: "#f59e0b" },
-  ready: { label: "Fetched", pill: "rgba(74,222,128,0.16)", text: "#4ade80" },
-  failed: { label: "Fetch failed", pill: "rgba(248,113,113,0.16)", text: "#f87171" },
+  pending: { label: "Saving", pill: "rgba(245,158,11,0.16)", text: "#f59e0b" },
+  ready: { label: "Saved", pill: "rgba(74,222,128,0.16)", text: "#4ade80" },
+  failed: { label: "Not saved", pill: "rgba(248,113,113,0.16)", text: "#f87171" },
 };
 
-/** His `case_type` values, spelled out. Anything new falls through unchanged. */
+/** Case types on proposals created before the CRM read the mailbox itself. */
 const CASE_TYPE_LABELS: Record<string, string> = {
   new_case: "New case",
   surveillance_followup: "Follow-up",
@@ -22,14 +22,6 @@ const CASE_TYPE_LABELS: Record<string, string> = {
   medical_canvass: "Medical canvass",
   supplement: "Supplement",
   reopen: "Reopen",
-};
-
-/** His own case state, which we copy onto the real case on accept. */
-const INGESTOR_STATUS_COLORS: Record<string, { pill: string; text: string }> = {
-  open: { pill: "rgba(74,222,128,0.14)", text: "#4ade80" },
-  active: { pill: "rgba(74,222,128,0.14)", text: "#4ade80" },
-  closed: { pill: "rgba(91,102,128,0.16)", text: "#7a8499" },
-  cancelled: { pill: "rgba(248,113,113,0.14)", text: "#f87171" },
 };
 
 export function ReviewStatusPill({ status, className }: { status: PendingCaseStatus; className?: string }) {
@@ -66,16 +58,34 @@ export function CaseTypePill({ caseType }: { caseType: string | null }) {
   );
 }
 
-export function IngestorStatusPill({ status }: { status: string | null }) {
-  if (!status) return null;
-  const cfg = INGESTOR_STATUS_COLORS[status] ?? { pill: "var(--color-ink-3)", text: "var(--color-text-lo)" };
+const KIND_CONFIG: Record<string, { label: string; pill: string; text: string }> = {
+  new: { label: "New", pill: "rgba(74,127,255,0.16)", text: "#7aa1ff" },
+  reopen: { label: "Reopen", pill: "rgba(167,139,250,0.16)", text: "#b9a4fb" },
+};
+
+/** What the email asked for: new work, or more work on a claim the firm already handled. */
+export function KindPill({ kind, caseType }: { kind: string | null; caseType: string | null }) {
+  const cfg = kind ? KIND_CONFIG[kind] : undefined;
+  if (!cfg) return <CaseTypePill caseType={caseType} />;
   return (
     <span
-      className="inline-block rounded-[0.3125rem] px-1.5 py-0.5 font-mono text-[0.53125rem] font-semibold uppercase tracking-wider"
+      className="inline-block rounded-full px-2 py-0.5 text-[0.59375rem] font-medium tracking-wide"
       style={{ background: cfg.pill, color: cfg.text }}
-      title="Status reported by the ingestor"
     >
-      {status}
+      {cfg.label}
+    </span>
+  );
+}
+
+/** `review` means the draft came from free text and a person should check it closely. */
+export function LanePill({ lane }: { lane: string | null }) {
+  if (lane !== "review") return null;
+  return (
+    <span
+      className="inline-block rounded-[0.3125rem] bg-[rgba(245,158,11,0.14)] px-1.5 py-0.5 font-mono text-[0.53125rem] font-semibold uppercase tracking-wider text-[#f59e0b]"
+      title="Written in free text, so the draft needs a closer look"
+    >
+      Check
     </span>
   );
 }

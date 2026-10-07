@@ -18,7 +18,7 @@ const isoDate = (value: string | null): string | null => {
   return Number.isNaN(t) ? value : new Date(t).toISOString();
 };
 
-/** Best-effort service guess from the ingestor's free-text case type. */
+/** Best-effort service guess from the proposal's free-text case type. */
 const guessService = (caseType: string | null): CaseService => {
   const t = (caseType ?? "").toLowerCase();
   if (t.includes("comp") || /\bwc\b/.test(t)) return "WC";
@@ -52,6 +52,9 @@ const toCaseVehicle = (v: ProposalVehicle, index: number): CaseVehicle => ({
 const composeDescription = (p: PendingCaseDetail): string | null => {
   const a = p.proposal.assignment;
   const parts = [
+    a.claimSummary && `Summary: ${a.claimSummary}`,
+    a.goal && `Goal: ${a.goal}`,
+    a.previousDays && `Days already worked: ${a.previousDays}`,
     a.typeOfClaim && `Type of claim: ${a.typeOfClaim}`,
     a.injuryDescription && `Injury: ${a.injuryDescription}`,
     a.bodyParts && `Body parts: ${a.bodyParts}`,
@@ -71,11 +74,14 @@ export function proposalToCaseDetail(p: PendingCaseDetail): CaseDetail {
 
   return {
     id: p.id,
-    caseNumber: p.caseIngestorCode ?? "PENDING",
+    caseNumber: "PENDING",
     claimNumber: p.claimNumber,
     policyNumber: null,
     clientId: null,
-    client: p.insurer ? { id: "pending-insurer", company: p.insurer } : null,
+    client:
+      (p.proposal.clientCompany ?? p.insurer)
+        ? { id: "pending-insurer", company: (p.proposal.clientCompany ?? p.insurer) as string }
+        : null,
     adjusterName: assignment.adjusterName,
     adjusterEmail: assignment.adjusterEmail,
     adjusterPhone: assignment.adjusterPhone,
@@ -85,7 +91,7 @@ export function proposalToCaseDetail(p: PendingCaseDetail): CaseDetail {
     priority: "standard",
     subjectTransport: null,
     subjectSetting: null,
-    reopened: false,
+    reopened: p.kind === "reopen",
     region: null,
     state: null,
     earliestActiveAt: null,
@@ -118,11 +124,11 @@ export function proposalToCaseDetail(p: PendingCaseDetail): CaseDetail {
     subjectDriverLicense: null,
     subjectJobTitle: subject.job,
     subjectEmployer: subject.employer,
-    subjectEmployerAddress: subject.employerContact
-      ? [subject.employerContact, subject.employerPhone].filter(Boolean).join(" · ")
-      : null,
-    subjectWorkStatus: null,
-    subjectLanguage: null,
+    subjectEmployerAddress:
+      subject.employerAddress ??
+      (subject.employerContact ? [subject.employerContact, subject.employerPhone].filter(Boolean).join(" · ") : null),
+    subjectWorkStatus: subject.workStatus ?? null,
+    subjectLanguage: subject.language ?? null,
     subjectDescription: subject.physical,
     vehicles: p.proposal.vehicles.map(toCaseVehicle),
     people: [],

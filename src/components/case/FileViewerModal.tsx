@@ -462,7 +462,7 @@ function Preview({
           Contents unavailable
         </p>
         <p className="mt-1.5 text-[0.8125rem] text-[var(--color-text-mid)]">
-          {reason || "This attachment was listed by the ingestor without its bytes."}
+          {reason || "This attachment was listed in the email but could not be saved."}
         </p>
       </div>
     );

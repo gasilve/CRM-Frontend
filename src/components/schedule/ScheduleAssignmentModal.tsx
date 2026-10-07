@@ -2,10 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
-  CalendarClock,
   ChevronLeft,
   ChevronRight,
-  Folder,
   History,
   Loader2,
   MapPin,
@@ -16,9 +14,9 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { daysUntilDue, dueReminderLabel, formatDueShort } from "@/lib/dates";
+import { CaseGlanceCard, glanceFromListItem } from "@/components/cases/CaseGlanceCard";
 import { CoverStatusMark } from "@/components/icons";
-import { CASE_BG, INVESTIGATOR_BG } from "@/components/schedule/CalendarDayRow";
+import { INVESTIGATOR_BG } from "@/components/schedule/CalendarDayRow";
 import { placeholderCoverStatus } from "@/components/schedule/cover-status";
 import {
   ApiError,
@@ -28,7 +26,6 @@ import {
   type ScheduleBlock,
   type SchedulePriorWork,
 } from "@/lib/crm-api";
-import { SERVICE_LABELS } from "@/lib/mock-data";
 import { priorKey, sortCasesForInvestigator, sortInvestigatorsForCase } from "./AssignEntityModal";
 
 /** New assignment: pick → notes in one shell. Nothing is created until Done. */
@@ -193,7 +190,7 @@ export function ScheduleAssignmentModal({
   return (
     <>
       <div className="anim-backdrop fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 flex h-[min(42rem,90vh)] w-[min(36rem,94vw)] -translate-x-1/2 -translate-y-1/2 flex-col">
+      <div className="fixed left-1/2 top-1/2 z-50 flex h-[min(42rem,90vh)] w-[min(48rem,94vw)] -translate-x-1/2 -translate-y-1/2 flex-col">
         <div className="surface flex h-full min-h-0 flex-1 flex-col gap-5 overflow-hidden rounded-[1rem] p-7 sm:p-8">
           <div className="flex shrink-0 items-start justify-between gap-3">
             <div className="min-w-0">
@@ -300,77 +297,19 @@ function PickCaseStep({
   return (
     <>
       <SearchField value={q} onChange={setQ} placeholder="Search cases…" />
-      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-0.5">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-0.5">
         {busy && <BusyRow />}
         {!busy && list.length === 0 && <EmptyRow text="No open cases to assign." />}
         {!busy &&
-          list.map((c) => {
-            const matched = !!flow.investigator.region && c.region === flow.investigator.region;
-            const worked = prior.has(priorKey(c.id, flow.investigator.id));
-            const cover = placeholderCoverStatus(`${flow.investigator.id}:${c.id}`);
-            return (
-              <button
-                key={c.id}
-                type="button"
-                disabled={busy}
-                onClick={() => onPick(c.id)}
-                className={cn(
-                  "flex w-full items-start gap-2.5 rounded-[0.625rem] border px-3 py-2.5 text-left transition-colors",
-                  matched
-                    ? "border-[rgba(74,222,128,0.45)] bg-[color-mix(in_srgb,var(--color-pos)_18%,var(--color-ink-3))]"
-                    : "border-[var(--color-line)] bg-[var(--color-ink-2)] hover:border-[var(--color-line-2)]",
-                )}
-              >
-                <span
-                  className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-white"
-                  style={{ background: CASE_BG }}
-                >
-                  <Folder size={15} strokeWidth={1.8} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[0.8125rem] font-medium text-[var(--color-text-hi)]">{c.subjectName}</span>
-                    <span className="shrink-0 font-mono text-[0.625rem] text-[var(--color-text-lo)]">{c.caseNumber}</span>
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                    <span className="font-mono text-[0.59375rem] uppercase tracking-wider text-[var(--color-text-mid)]">
-                      {SERVICE_LABELS[c.service] ?? c.service}
-                    </span>
-                    {c.dueDate && <DueBadge caseItem={c} />}
-                    {matched ? (
-                      <SignalBadge
-                        icon={<MapPin size={9} strokeWidth={1.8} />}
-                        label="Same region"
-                        className="bg-[rgba(74,222,128,0.12)] text-[var(--color-pos)]"
-                      />
-                    ) : (
-                      c.region && (
-                        <SignalBadge
-                          icon={<MapPin size={9} strokeWidth={1.8} />}
-                          label={REGION_LABELS[c.region]}
-                          className="bg-[var(--color-ink-3)] text-[var(--color-text-mid)]"
-                        />
-                      )
-                    )}
-                    {worked ? (
-                      <SignalBadge
-                        icon={<History size={9} strokeWidth={1.8} />}
-                        label="Previously assigned"
-                        className="bg-[rgba(74,127,255,0.12)] text-[var(--color-accent-2)]"
-                      />
-                    ) : (
-                      <SignalBadge
-                        icon={<Sparkles size={9} strokeWidth={1.8} />}
-                        label="Never assigned"
-                        className="bg-[var(--color-ink-3)] text-[var(--color-text-lo)]"
-                      />
-                    )}
-                    <CoverStatusMark status={cover} size={11} />
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+          list.map((c) => (
+            <CaseGlanceCard
+              key={c.id}
+              glance={glanceFromListItem(c)}
+              tone="amber"
+              inert
+              onOpen={busy ? undefined : () => onPick(c.id)}
+            />
+          ))}
       </div>
     </>
   );
@@ -736,26 +675,6 @@ function NotesStep({
         </div>
       )}
     </>
-  );
-}
-
-function DueBadge({ caseItem }: { caseItem: CaseListItem }) {
-  if (!caseItem.dueDate) return null;
-  const left = daysUntilDue(caseItem.dueDate);
-  const tone =
-    caseItem.status === "closed"
-      ? "bg-[var(--color-ink-3)] text-[var(--color-text-mid)]"
-      : left < 0
-        ? "bg-[rgba(248,113,113,0.12)] text-[var(--color-neg)]"
-        : left <= 7
-          ? "bg-[rgba(251,146,60,0.12)] text-[#fb923c]"
-          : "bg-[var(--color-ink-3)] text-[var(--color-text-mid)]";
-  return (
-    <SignalBadge
-      icon={<CalendarClock size={9} strokeWidth={1.8} />}
-      label={`${formatDueShort(caseItem.dueDate)} · ${dueReminderLabel(caseItem.dueDate, caseItem.status)}`}
-      className={tone}
-    />
   );
 }
 

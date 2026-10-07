@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowUpRight, Briefcase, Cake, CalendarDays, ChevronLeft, ChevronRight,
-  Columns3, Droplets, Folder, GripVertical, Info, Loader2, MapPin, Search, User, Users, Wind, X,
+  Columns3, Droplets, Folder, GripVertical, Info, LayoutGrid, Loader2, MapPin, Search, User, Users, Wind, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/contexts/AuthContext";
@@ -75,32 +75,41 @@ type Mode = "calendar" | "investigators" | "cases";
 type DragPayload = { kind: "add"; otherId: string } | { kind: "block"; block: ScheduleBlock };
 
 const BOARD_LS_KEY = "accenty.crm.schedule.calendar.orient";
+/** Bumped once so saved toggles pick up cases-on / investigators-off. */
+const BOARD_DEFAULTS_KEY = "accenty.crm.schedule.calendar.orient.defaults2";
 
 type VerticalByAxis = Record<CalendarAxis, boolean>;
 
-const FLAT_BOARD: VerticalByAxis = { investigators: false, cases: false };
+const DEFAULT_VERTICAL: VerticalByAxis = { investigators: false, cases: true };
 
 function readBoard(): { axis: CalendarAxis; vertical: VerticalByAxis } {
   try {
     const v = localStorage.getItem(BOARD_LS_KEY);
-    if (v === "cases") return { axis: "cases", vertical: FLAT_BOARD };
-    if (v === "cases-vertical") return { axis: "cases", vertical: { investigators: false, cases: true } };
-    if (v === "investigators-vertical") return { axis: "investigators", vertical: { investigators: true, cases: false } };
-    if (v?.startsWith("{")) {
+    const migrated = localStorage.getItem(BOARD_DEFAULTS_KEY) === "1";
+    let axis: CalendarAxis = "investigators";
+    let vertical = DEFAULT_VERTICAL;
+    if (v === "cases" || v === "cases-vertical") axis = "cases";
+    else if (v === "investigators-vertical") axis = "investigators";
+    else if (v?.startsWith("{")) {
       const parsed = JSON.parse(v) as { axis?: string; vertical?: Partial<VerticalByAxis> };
-      const axis: CalendarAxis = parsed.axis === "cases" ? "cases" : "investigators";
-      return {
-        axis,
-        vertical: {
+      axis = parsed.axis === "cases" ? "cases" : "investigators";
+      if (migrated) {
+        vertical = {
           investigators: !!parsed.vertical?.investigators,
-          cases: !!parsed.vertical?.cases,
-        },
-      };
+          cases: parsed.vertical?.cases !== false,
+        };
+      }
     }
+    if (!migrated) {
+      localStorage.setItem(BOARD_DEFAULTS_KEY, "1");
+      localStorage.setItem(BOARD_LS_KEY, JSON.stringify({ axis, vertical: DEFAULT_VERTICAL }));
+      return { axis, vertical: DEFAULT_VERTICAL };
+    }
+    return { axis, vertical };
   } catch {
     /* ignore */
   }
-  return { axis: "investigators", vertical: FLAT_BOARD };
+  return { axis: "investigators", vertical: DEFAULT_VERTICAL };
 }
 
 function storeBoard(axis: CalendarAxis, vertical: VerticalByAxis) {
@@ -612,14 +621,20 @@ export default function Schedule() {
             onClick={pickVertical}
             aria-pressed={vertical}
             className={cn(
-              "inline-flex h-8 items-center gap-2 rounded-full border px-2.5 text-[0.71875rem] transition-colors",
+              "inline-flex h-8 w-[8.75rem] items-center justify-between gap-2 rounded-full border px-2.5 text-[0.71875rem] transition-colors",
               vertical
                 ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-text-hi)]"
                 : "border-dashed border-[var(--color-line-2)] text-[var(--color-text-mid)] hover:border-[var(--color-line)] hover:text-[var(--color-text-hi)]",
             )}
           >
-            <Columns3 size={13} strokeWidth={1.8} />
-            Vertical
+            <span className="inline-flex items-center gap-2">
+              {axis === "investigators" ? (
+                <LayoutGrid size={13} strokeWidth={1.8} />
+              ) : (
+                <Columns3 size={13} strokeWidth={1.8} />
+              )}
+              {axis === "investigators" ? "Cards" : "Vertical"}
+            </span>
             <span
               className={cn(
                 "relative h-3.5 w-6 shrink-0 rounded-full transition-colors",

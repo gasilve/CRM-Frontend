@@ -694,6 +694,9 @@ export interface CaseListItem {
 }
 
 export interface CaseDetail extends CaseListItem {
+  /** The earlier case this one reopens, and any later rounds that reopened this one. */
+  priorCase?: PriorCaseRef | null;
+  reopens?: PriorCaseRef[];
   subjectSsn: string | null;
   subjectDriverLicense: string | null;
   subjectJobTitle: string | null;
@@ -1069,9 +1072,6 @@ export const casesApi = {
     }
     return json.payload.file;
   },
-  /** Wipes and re-fetches every attachment from the ingestor — for rows stuck on a wiped local disk. */
-  resyncFiles: (id: string) => request<{ case: CaseDetail }>(`/cases/${id}/files/resync`, { method: "POST" }),
-
   assign: (id: string, userId: string, role = "investigator") =>
     request<{ assignment: CaseAssignment }>(`/cases/${id}/assignments`, {
       method: "POST",
@@ -1351,13 +1351,25 @@ export interface PresurveillanceSummary {
   stuck: { id: string; caseNumber: string; subjectName: string; dateOpened: string; presurveillanceId: string }[];
 }
 
-// ─── Case ingest — pending proposals ────────────────────────────────────────
-// Shapes mirror the ingestor's payload, normalised server-side. Snake_case
-// fields from his DTO become camelCase here; anything unmapped stays in
-// `rawPayload` on the detail response.
+// ─── Case intake — pending proposals ────────────────────────────────────────
+// The CRM reads the case mailbox itself and turns each referral into a pending
+// proposal. `lane` says how it was read (a known client format, or free text a
+// person must check); `kind` says what it is (new work or a reopen).
 
 export type PendingCaseStatus = "pending_review" | "accepted" | "rejected";
 export type PendingCaseFilesStatus = "none" | "pending" | "ready" | "failed";
+export type PendingCaseLane = "auto" | "review";
+export type PendingCaseKind = "new" | "reopen" | "supplement" | "instruction" | "cancel" | "notice" | "ignore";
+
+/** The earlier case a reopen continues. Null when that work never reached the CRM. */
+export interface PriorCaseRef {
+  id: string;
+  caseNumber: string;
+  claimNumber: string | null;
+  subjectName: string;
+  status: string;
+  dateOpened: string;
+}
 
 export interface ProposalSubject {
   name: string | null;
@@ -1371,6 +1383,9 @@ export interface ProposalSubject {
   employer: string | null;
   employerContact: string | null;
   employerPhone: string | null;
+  employerAddress?: string | null;
+  workStatus?: string | null;
+  language?: string | null;
 }
 
 export interface ProposalAssignment {
@@ -1380,12 +1395,15 @@ export interface ProposalAssignment {
   adjusterEmail: string | null;
   type: string | null;
   surveillanceDays: string | null;
+  previousDays?: string | null;
   reportDueDate: string | null;
   dateOfLoss: string | null;
   typeOfClaim: string | null;
   bodyParts: string | null;
   restrictions: string | null;
   injuryDescription: string | null;
+  claimSummary?: string | null;
+  goal?: string | null;
   instructions: string | null;
   suspicion: string | null;
   isRepresented: string | null;
@@ -1420,16 +1438,40 @@ export interface ProposalAttachment {
   hasInlineContent: boolean;
 }
 
+/** Background-search results (TLO / Accurint reports) merged into one summary. */
+export interface ProposalContext {
+  phones: { number: string; type: string | null }[];
+  emails: string[];
+  addressHistory: { address: string; dates: string | null }[];
+  aliases: string[];
+  relatives: string[];
+  sources: string[];
+}
+
+/** A later email about the same work: more files, new instructions, or a cancellation. */
+export interface ProposalUpdate {
+  kind: "supplement" | "instruction" | "cancel";
+  messageId: string | null;
+  receivedAt: string | null;
+  from: string | null;
+  subject: string | null;
+  text: string | null;
+}
+
 export interface CaseProposal {
   caseIngestorCode: string | null;
   claimNumber: string | null;
   caseType: string | null;
   ingestorStatus: string | null;
+  /** The organisation that sent the work; becomes the case's client on accept. */
+  clientCompany?: string | null;
   subject: ProposalSubject;
   assignment: ProposalAssignment;
   emailSource: ProposalEmailSource;
   vehicles: ProposalVehicle[];
   attachments: ProposalAttachment[];
+  context?: ProposalContext | null;
+  updates?: ProposalUpdate[];
   ingestorCreatedAt: string | null;
   pushedAt: string | null;
 }
@@ -1455,6 +1497,12 @@ export interface PendingCaseListItem {
   filesStatus: PendingCaseFilesStatus;
   ingestorStatus: string | null;
   ingestorCaseType: string | null;
+  /** Null on rows pushed by the retired ingestor. */
+  lane: PendingCaseLane | null;
+  kind: PendingCaseKind | null;
+  clientKey: string | null;
+  priorCaseId: string | null;
+  priorCase: PriorCaseRef | null;
   subjectName: string | null;
   insurer: string | null;
   dueDate: string | null;
@@ -1485,17 +1533,19 @@ export interface PendingCaseSummary {
 export interface PendingCasesListParams {
   status?: PendingCaseStatus;
   filesStatus?: PendingCaseFilesStatus;
+  lane?: PendingCaseLane;
+  kind?: "new" | "reopen";
   search?: string;
   includeRejected?: boolean;
   page?: number;
   pageSize?: number;
 }
 
-/** Only the normalised proposal is editable — the raw ingestor payload is not. */
+/** Only the normalised proposal is editable. */
 export interface UpdatePendingCasePayload {
   claimNumber?: string | null;
   caseType?: string | null;
-  ingestorStatus?: string | null;
+  clientCompany?: string | null;
   subject?: Partial<ProposalSubject>;
   assignment?: Partial<ProposalAssignment>;
   vehicles?: ProposalVehicle[];
@@ -1541,9 +1591,25 @@ export const pendingCasesApi = {
       method: "POST",
       body: JSON.stringify({ note }),
     }),
-  retryFiles: (id: string) =>
-    request<{ pendingCase: PendingCaseDetail }>(`/pending-cases/${id}/retry-files`, { method: "POST" }),
   fileBlob: (id: string, fileId: string, signal?: AbortSignal) => requestBlob(pendingCaseFilePath(id, fileId), signal),
+};
+
+/** How the mailbox job is doing: shown on the pending-cases page so staff know new referrals are arriving. */
+export interface IntakeStatus {
+  configured: boolean;
+  lastRunAt: string | null;
+  lastOkAt: string | null;
+  lastError: string | null;
+  running: boolean;
+  emailsHandledLast24h: number;
+  emailsWaitingForRetry: number;
+  newestEmailAt: string | null;
+}
+
+export const intakeApi = {
+  status: () => request<IntakeStatus>("/intake/status"),
+  /** Checks the mailbox now (needs intake.manage). */
+  run: () => request<{ created: number; joined: number; updated: number; failed: number }>("/intake/run", { method: "POST" }),
 };
 
 export const clientsApi = {

@@ -10,7 +10,7 @@ import { CaseSubjectHeader } from "@/components/case/CaseSubjectHeader";
 import { useGridLayout } from "@/hooks/useGridLayout";
 import { invalidateQueries, useQuery } from "@/lib/query-cache";
 import { proposalToCaseDetail } from "@/lib/pending-case-view";
-import { fieldClass } from "@/components/pending-cases/design-kit";
+import { KindPill, LanePill } from "@/components/cases/PendingCasePills";
 import {
   pendingCasesApi,
   pendingCaseFilePath,
@@ -23,6 +23,7 @@ import {
   type PendingCaseDetail as PendingCase,
   type PendingCaseFile,
   type PendingCaseFilesStatus,
+  type PriorCaseRef,
   type ProposalVehicle,
   type Region,
 } from "@/lib/crm-api";
@@ -40,6 +41,9 @@ import {
 import { CaseDetailGrid, type CaseDetailGridHandle } from "./CaseDetailGrid";
 import { CaseDetailPageNav } from "./CaseDetailPageNav";
 import { CasePageArrows } from "@/components/case/CasePageArrows";
+
+const fieldClass =
+  "w-full rounded-[0.5rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)] px-2.5 py-1.5 text-[0.78125rem] text-[var(--color-text-hi)] placeholder:text-[var(--color-text-lo)] focus:outline-none focus:border-[var(--color-accent)]";
 
 const SERVICES: CaseService[] = ["SURV", "WC", "FMLA", "BG", "DOM", "SOC", "DIS", "LOC", "PS", "LIA"];
 const PRIORITIES: CasePriority[] = ["standard", "rush"];
@@ -165,7 +169,7 @@ export default function PendingCaseDetail() {
       const { pendingCase: updated } = await pendingCasesApi.update(pendingCase.id, {
         claimNumber: clean(edits.claimNumber),
         caseType: clean(edits.caseType),
-        ingestorStatus: clean(edits.ingestorStatus),
+        clientCompany: clean(edits.clientCompany),
         subject: {
           name: clean(edits.name),
           dob: clean(edits.dob),
@@ -186,12 +190,15 @@ export default function PendingCaseDetail() {
           adjusterPhone: clean(edits.adjusterPhone),
           type: clean(edits.type),
           surveillanceDays: clean(edits.surveillanceDays),
+          previousDays: clean(edits.previousDays),
           reportDueDate: clean(edits.reportDueDate),
           dateOfLoss: clean(edits.dateOfLoss),
           typeOfClaim: clean(edits.typeOfClaim),
           bodyParts: clean(edits.bodyParts),
           restrictions: clean(edits.restrictions),
           injuryDescription: clean(edits.injuryDescription),
+          claimSummary: clean(edits.claimSummary),
+          goal: clean(edits.goal),
           instructions: clean(edits.instructions),
           suspicion: clean(edits.suspicion),
           isRepresented: clean(edits.isRepresented),
@@ -308,6 +315,8 @@ export default function PendingCaseDetail() {
         </div>
       )}
 
+      <ProposalNotices pendingCase={pendingCase} onOpenCase={(caseId) => navigate(`/cases/${caseId}`)} />
+
       {layout ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <CaseDetailPageNav
@@ -354,8 +363,8 @@ export default function PendingCaseDetail() {
       {acceptOpen && (
         <AcceptModal
           subjectName={pendingCase.subjectName}
-          insurer={pendingCase.proposal.assignment.insurer}
-          ingestorStatus={pendingCase.ingestorStatus}
+          client={pendingCase.proposal.clientCompany ?? pendingCase.proposal.assignment.insurer}
+          reopens={pendingCase.priorCase}
           busy={busy === "accept"}
           onCancel={() => setAcceptOpen(false)}
           onConfirm={accept}
@@ -384,6 +393,88 @@ export default function PendingCaseDetail() {
         onCancel={() => setRejectOpen(false)}
         onConfirm={reject}
       />
+    </div>
+  );
+}
+
+const fmtWhen = (iso: string | null): string =>
+  iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+
+/**
+ * Things a reviewer should know before deciding: whether this continues earlier
+ * work, whether the client wrote again since the referral (especially a cancel),
+ * and how much of the draft came from free text.
+ */
+function ProposalNotices({ pendingCase, onOpenCase }: { pendingCase: PendingCase; onOpenCase: (id: string) => void }) {
+  const { kind, lane, priorCase, proposal } = pendingCase;
+  const updates = proposal.updates ?? [];
+  const cancelled = updates.some((u) => u.kind === "cancel");
+  const context = proposal.context;
+  const reopen = kind === "reopen";
+
+  if (!reopen && lane !== "review" && updates.length === 0 && !context) return null;
+
+  return (
+    <div className="mb-2 flex max-h-[6.5rem] shrink-0 flex-col gap-1.5 overflow-y-auto">
+      {cancelled && (
+        <div className="surface rounded-[0.75rem] border border-[rgba(248,113,113,0.35)] bg-[rgba(248,113,113,0.07)] px-4 py-2 text-[0.78125rem] text-[var(--color-text-mid)]">
+          <span className="font-medium text-[#f87171]">The client asked to cancel this.</span> Check the email below before
+          accepting.
+        </div>
+      )}
+
+      {(reopen || lane === "review") && (
+        <div className="surface flex flex-wrap items-center gap-2 rounded-[0.75rem] px-4 py-2 text-[0.78125rem] text-[var(--color-text-mid)]">
+          <KindPill kind={kind} caseType={proposal.caseType} />
+          <LanePill lane={lane} />
+          {reopen &&
+            (priorCase ? (
+              <span>
+                Continues{" "}
+                <button
+                  type="button"
+                  onClick={() => onOpenCase(priorCase.id)}
+                  className="font-mono text-[var(--color-accent)] hover:underline"
+                >
+                  {priorCase.caseNumber}
+                </button>{" "}
+                ({priorCase.subjectName}, opened {new Date(priorCase.dateOpened).toLocaleDateString()}). Open it to see what
+                was done before.
+              </span>
+            ) : (
+              <span>This claim was worked before, but that work is not in the CRM, so prior history is unknown.</span>
+            ))}
+          {lane === "review" && (
+            <span>Written in free text. Check the name, claim number and instructions against the email.</span>
+          )}
+        </div>
+      )}
+
+      {updates.length > 0 && (
+        <div className="surface rounded-[0.75rem] px-4 py-2 text-[0.75rem] text-[var(--color-text-mid)]">
+          <div className="eyebrow mb-1">Later emails about this referral</div>
+          <ul className="flex flex-col gap-1">
+            {updates.map((u, index) => (
+              <li key={`${u.messageId ?? index}`} className="leading-snug">
+                <span className="font-mono text-[0.625rem] uppercase text-[var(--color-text-lo)]">
+                  {fmtWhen(u.receivedAt)} · {u.kind}
+                </span>{" "}
+                {u.text ? u.text.slice(0, 220) : u.subject}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {context && (context.phones.length > 0 || context.addressHistory.length > 0 || context.relatives.length > 0) && (
+        <div className="surface rounded-[0.75rem] px-4 py-2 text-[0.75rem] text-[var(--color-text-mid)]">
+          <span className="eyebrow mr-2">Background searches</span>
+          {context.phones.length} phone{context.phones.length === 1 ? "" : "s"}, {context.addressHistory.length} address
+          {context.addressHistory.length === 1 ? "" : "es"}, {context.relatives.length} relative
+          {context.relatives.length === 1 ? "" : "s"} read from {context.sources.length} attached report
+          {context.sources.length === 1 ? "" : "s"}.
+        </div>
+      )}
     </div>
   );
 }
@@ -473,7 +564,7 @@ function FilesChip({ files, filesStatus }: { files: PendingCaseFile[]; filesStat
     <span
       title={
         files.length === 0
-          ? "The ingestor sent no documents with this proposal."
+          ? "No documents came with this referral."
           : `${stored} of ${files.length} document(s) stored — open the Files widget to preview them.`
       }
       className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-[0.4375rem] px-2 text-[0.625rem] font-medium ${
@@ -518,7 +609,7 @@ function StripBtn({
   );
 }
 
-// ─── Edit proposal — every normalised field the ingestor sends ───────────────
+// ─── Edit proposal — every field the mailbox intake fills in ─────────────────
 
 type VehicleEdits = {
   year: string;
@@ -532,7 +623,7 @@ type VehicleEdits = {
 type ProposalEdits = {
   claimNumber: string;
   caseType: string;
-  ingestorStatus: string;
+  clientCompany: string;
   // Subject
   name: string;
   dob: string;
@@ -552,12 +643,15 @@ type ProposalEdits = {
   adjusterPhone: string;
   type: string;
   surveillanceDays: string;
+  previousDays: string;
   reportDueDate: string;
   dateOfLoss: string;
   typeOfClaim: string;
   bodyParts: string;
   restrictions: string;
   injuryDescription: string;
+  claimSummary: string;
+  goal: string;
   instructions: string;
   suspicion: string;
   isRepresented: string;
@@ -600,7 +694,7 @@ function EditProposalModal({
   const [edits, setEdits] = useState<ProposalEdits>(() => ({
     claimNumber: proposal.claimNumber ?? "",
     caseType: proposal.caseType ?? "",
-    ingestorStatus: proposal.ingestorStatus ?? "",
+    clientCompany: proposal.clientCompany ?? "",
     name: proposal.subject.name ?? "",
     dob: proposal.subject.dob ?? "",
     ssnLast4: proposal.subject.ssnLast4 ?? "",
@@ -618,12 +712,15 @@ function EditProposalModal({
     adjusterPhone: proposal.assignment.adjusterPhone ?? "",
     type: proposal.assignment.type ?? "",
     surveillanceDays: proposal.assignment.surveillanceDays ?? "",
+    previousDays: proposal.assignment.previousDays ?? "",
     reportDueDate: proposal.assignment.reportDueDate ?? "",
     dateOfLoss: proposal.assignment.dateOfLoss ?? "",
     typeOfClaim: proposal.assignment.typeOfClaim ?? "",
     bodyParts: proposal.assignment.bodyParts ?? "",
     restrictions: proposal.assignment.restrictions ?? "",
     injuryDescription: proposal.assignment.injuryDescription ?? "",
+    claimSummary: proposal.assignment.claimSummary ?? "",
+    goal: proposal.assignment.goal ?? "",
     instructions: proposal.assignment.instructions ?? "",
     suspicion: proposal.assignment.suspicion ?? "",
     isRepresented: proposal.assignment.isRepresented ?? "",
@@ -674,7 +771,7 @@ function EditProposalModal({
       >
         <h2 className="dashboard-modal__title">Edit proposal details</h2>
         <p className="dashboard-modal__text mt-1">
-          Corrects what the ingestor parsed. The raw email payload it sent stays untouched.
+          Corrects what was read from the email. The original email and its attachments stay as they arrived.
         </p>
         <div className="hairline my-5" />
 
@@ -683,7 +780,7 @@ function EditProposalModal({
             <div className="grid grid-cols-3 gap-3">
               {field("Claim number", "claimNumber")}
               {field("Case type", "caseType", "e.g. Surveillance")}
-              {field("Ingestor status", "ingestorStatus")}
+              {field("Client company", "clientCompany", "Who sent the work")}
             </div>
           </Section>
 
@@ -726,11 +823,14 @@ function EditProposalModal({
               {field("Surveillance days", "surveillanceDays")}
               {field("Report due", "reportDueDate", "YYYY-MM-DD")}
             </div>
+            <div className="grid grid-cols-3 gap-3">{field("Days already worked", "previousDays")}</div>
             <div className="grid grid-cols-3 gap-3">
               {field("Date of loss", "dateOfLoss", "YYYY-MM-DD")}
               {field("Type of claim", "typeOfClaim")}
               {field("Body parts", "bodyParts")}
             </div>
+            {area("Summary of the claim", "claimSummary", undefined, 4)}
+            {area("Goal of the assignment", "goal", undefined, 2)}
             {area("Injury description", "injuryDescription")}
             {area("Restrictions", "restrictions", undefined, 2)}
             {area("Special instructions", "instructions")}
@@ -855,15 +955,15 @@ function VehicleField({
 
 function AcceptModal({
   subjectName,
-  insurer,
-  ingestorStatus,
+  client,
+  reopens,
   busy,
   onCancel,
   onConfirm,
 }: {
   subjectName: string | null;
-  insurer: string | null;
-  ingestorStatus: string | null;
+  client: string | null;
+  reopens: PriorCaseRef | null;
   busy: boolean;
   onCancel: () => void;
   onConfirm: (payload: AcceptPendingCasePayload) => void;
@@ -882,16 +982,22 @@ function AcceptModal({
         <div className="dashboard-modal__body flex flex-col gap-3">
           <p className="dashboard-modal__text">
             Creates a case for <span className="text-[var(--color-text-hi)]">{subjectName ?? "this subject"}</span>
-            {insurer ? (
+            {client ? (
               <>
                 {" "}
-                and links it to <span className="text-[var(--color-text-hi)]">{insurer}</span>, creating that client if
+                and links it to <span className="text-[var(--color-text-hi)]">{client}</span>, creating that client if
                 it does not exist yet.
               </>
             ) : (
               " with no client attached."
             )}
-            {ingestorStatus && ` The ingestor reports this case as "${ingestorStatus}", which carries over.`}
+            {reopens && (
+              <>
+                {" "}
+                It is linked to the earlier case <span className="text-[var(--color-text-hi)]">{reopens.caseNumber}</span>{" "}
+                for this claim.
+              </>
+            )}
           </p>
 
           <div className="grid grid-cols-2 gap-3">

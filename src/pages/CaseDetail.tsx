@@ -661,6 +661,37 @@ export default function CaseDetail() {
         }
       />
 
+      {(kase.priorCase || (kase.reopens?.length ?? 0) > 0) && (
+        <div className="surface mb-2 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 rounded-[0.75rem] px-4 py-2 text-[0.78125rem] text-[var(--color-text-mid)]">
+          {kase.priorCase && (
+            <span>
+              Reopens{" "}
+              <button
+                type="button"
+                onClick={() => navigate(`/cases/${kase.priorCase!.id}`)}
+                className="font-mono text-[var(--color-accent)] hover:underline"
+              >
+                {kase.priorCase.caseNumber}
+              </button>{" "}
+              (opened {new Date(kase.priorCase.dateOpened).toLocaleDateString()})
+            </span>
+          )}
+          {(kase.reopens ?? []).map((later) => (
+            <span key={later.id}>
+              Reopened as{" "}
+              <button
+                type="button"
+                onClick={() => navigate(`/cases/${later.id}`)}
+                className="font-mono text-[var(--color-accent)] hover:underline"
+              >
+                {later.caseNumber}
+              </button>{" "}
+              ({new Date(later.dateOpened).toLocaleDateString()})
+            </span>
+          ))}
+        </div>
+      )}
+
       {layout ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <CaseDetailPageNav

@@ -811,7 +811,7 @@ export function VehiclesPanel({ ctx }: { ctx: CasePanelCtx }) {
 
 /**
  * Documents carried over from the proposal when the case was accepted. A row
- * with no `storageKey` is one the ingestor named but never sent — it stays
+ * with no `storageKey` is one that was listed but could not be saved — it stays
  * listed (losing it would hide that the document exists) and opens a
  * placeholder instead of a broken download.
  */
@@ -854,7 +854,7 @@ export function CaseFilesPanel({ ctx }: { ctx: CasePanelCtx }) {
               No documents yet
             </p>
             <p className="mt-1 font-mono text-[0.625rem] uppercase tracking-wider text-[var(--color-text-lo)]">
-              Attachments appear after ingest
+              Attachments arrive with the referral email
             </p>
           </div>
         </div>

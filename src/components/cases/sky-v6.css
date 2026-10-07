@@ -480,6 +480,15 @@ html[data-glass] .surveil-shell .sky-v6 :where(h1, h2, h3, p, span, a, button, l
   cursor: pointer;
 }
 .sky-v6 .shots button.on { border-color: #fff; }
+/* No comparison shots: wider by the thumb column, same height as the 262px photo. */
+.sky-v6 .photo-row.solo {
+  grid-template-columns: minmax(0, 340px);
+}
+.sky-v6 .photo-row.solo .photo {
+  max-width: 340px;
+  height: calc(262px * 226 / 232);
+  aspect-ratio: auto;
+}
 .sky-v6 .shots img { width: 100%; height: 100%; object-fit: cover; object-position: center 12%; display: block; position: static; }
 .sky-v6 .shot-score {
   position: absolute;

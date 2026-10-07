@@ -123,6 +123,8 @@ export function CaseGlanceCard({
   onOpen,
   tone,
   panel,
+  panelOpen = false,
+  inert = false,
 }: {
   glance: CaseGlance;
   muted?: boolean;
@@ -132,6 +134,10 @@ export function CaseGlanceCard({
   tone?: "amber";
   /** Replaces the summary that drops open on hover. */
   panel?: ReactNode;
+  /** Keep the drop-down panel open, for example while an investigator is being dragged. */
+  panelOpen?: boolean;
+  /** Stay closed. Used on the investigator board, where the card is only a preview. */
+  inert?: boolean;
 }) {
   const direct =
     glance.subjectPhotoUrl && /^(https?:|data:|blob:)/.test(glance.subjectPhotoUrl) ? glance.subjectPhotoUrl : null;
@@ -141,7 +147,7 @@ export function CaseGlanceCard({
   const due = dueDateTone(glance.dueDate);
 
   const cardClass = cn(
-    "group surface flex w-full flex-col items-stretch overflow-hidden rounded-[1rem] border text-left transition-colors hover:shadow-lg",
+    "group surface flex w-full min-w-0 flex-col items-stretch overflow-hidden rounded-[1rem] border text-left transition-colors hover:shadow-lg",
     tone === "amber"
       ? "border-[rgba(247,168,19,0.45)] hover:border-[rgba(247,168,19,0.7)]"
       : "border-[var(--color-line)] hover:border-[var(--color-line-2)]",
@@ -150,7 +156,15 @@ export function CaseGlanceCard({
     ? { background: "color-mix(in srgb, #f7a813 18%, var(--color-ink-2))" }
     : undefined;
   const hover = (
-    <div className="grid grid-rows-[0fr] transition-[grid-template-rows] duration-200 group-hover:grid-rows-[1fr] group-focus-within:grid-rows-[1fr]">
+    <div
+      className={cn(
+        "grid transition-[grid-template-rows] duration-200",
+        panelOpen
+          ? "grid-rows-[1fr]"
+          : "grid-rows-[0fr] group-hover:grid-rows-[1fr] group-focus-within:grid-rows-[1fr]",
+      )}
+      onClick={panel ? (event) => event.stopPropagation() : undefined}
+    >
       <div className="overflow-hidden">
         {panel ?? (
           <div className="flex h-[7.25rem] flex-col gap-1.5 border-t border-[var(--color-line)] px-3 py-2">
@@ -175,7 +189,7 @@ export function CaseGlanceCard({
 
   const body = (
     <>
-      <div className="flex h-[6.25rem] w-full items-stretch">
+      <div className="flex h-[6.25rem] w-full min-w-0 shrink-0 items-stretch">
         <img
           src={src}
           alt=""
@@ -247,13 +261,29 @@ export function CaseGlanceCard({
         </div>
       </div>
 
-      {hover}
+      {inert ? null : hover}
     </>
   );
 
   if (panel) {
     return (
-      <div className={cardClass} style={cardStyle}>
+      <div
+        className={cn(cardClass, onOpen && "cursor-pointer")}
+        style={cardStyle}
+        onClick={onOpen}
+        onKeyDown={
+          onOpen
+            ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onOpen();
+                }
+              }
+            : undefined
+        }
+        role={onOpen ? "button" : undefined}
+        tabIndex={onOpen ? 0 : undefined}
+      >
         {body}
       </div>
     );

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/cn";
 import { formatCalendarDate } from "@/lib/dates";
-import { CaseTypePill, FilesPill, IngestorStatusPill } from "@/components/cases/PendingCasePills";
+import { FilesPill, KindPill, LanePill } from "@/components/cases/PendingCasePills";
 import type { PendingCaseListItem } from "@/lib/crm-api";
 
 const PER_PAGE = 8;
@@ -33,7 +33,7 @@ export function PendingCasesTable({
         <span className="eyebrow">Subject</span>
         <span className="eyebrow">Insurer / Adjuster</span>
         <span className="eyebrow">Type</span>
-        <span className="eyebrow">Payload</span>
+        <span className="eyebrow">Contents</span>
         <span className="eyebrow">Files</span>
         <span className="eyebrow text-right">Due</span>
       </div>
@@ -47,7 +47,7 @@ export function PendingCasesTable({
             <p className="mx-auto mt-2 max-w-[20rem] text-[0.8125rem] leading-relaxed text-[var(--color-text-lo)]">
               {hasSearch
                 ? "No proposals match the current search."
-                : "Proposals pushed by the case ingestor land here for review before they become cases."}
+                : "Referrals read from the case mailbox land here for review before they become cases."}
             </p>
           </div>
         </div>
@@ -111,9 +111,9 @@ function PendingRow({
         <div className="truncate font-mono text-[0.6875rem] leading-tight text-[var(--color-text-mid)]">
           {item.claimNumber ?? "—"}
         </div>
-        {item.caseIngestorCode && (
-          <div className="truncate font-mono text-[0.5625rem] leading-tight text-[var(--color-text-lo)]">
-            ingestor #{item.caseIngestorCode}
+        {item.proposal?.clientCompany && (
+          <div className="truncate text-[0.5625rem] leading-tight text-[var(--color-text-lo)]">
+            {item.proposal.clientCompany}
           </div>
         )}
       </div>
@@ -135,8 +135,8 @@ function PendingRow({
       </div>
 
       <div className="flex min-w-0 flex-wrap items-center gap-1 overflow-hidden">
-        <CaseTypePill caseType={item.ingestorCaseType} />
-        <IngestorStatusPill status={item.ingestorStatus} />
+        <KindPill kind={item.kind} caseType={item.ingestorCaseType} />
+        <LanePill lane={item.lane} />
       </div>
 
       <div className="font-mono text-[0.625rem] leading-tight text-[var(--color-text-mid)]">
