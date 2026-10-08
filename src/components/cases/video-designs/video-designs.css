@@ -1,0 +1,467 @@
+.v1-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(64rem, 96vw);
+  height: min(48rem, 88vh);
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  background: rgba(14, 16, 26, 0.78);
+  color: #f4f6fb;
+  font-family: Inter, -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 30px 70px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+}
+
+.v1-modal button,
+.v1-modal input {
+  font: inherit;
+  color: inherit;
+}
+
+.v1-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 18px 8px 22px;
+}
+
+.v1-kicker {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #b18cff;
+}
+
+.v1-top h2 {
+  margin: 2px 0 0;
+  font-size: 32px;
+  font-weight: 200;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+
+.v1-claim {
+  margin: 6px 0 0;
+  color: rgba(244, 246, 251, 0.5);
+  font-size: 13px;
+}
+
+.v1-close {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(244, 246, 251, 0.55);
+  cursor: pointer;
+}
+
+.v1-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.v1-days {
+  display: flex;
+  gap: 6px;
+  padding: 0 22px 10px;
+  overflow-x: auto;
+}
+
+.v1-days button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(244, 246, 251, 0.62);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.v1-days button span {
+  color: rgba(244, 246, 251, 0.4);
+  font-size: 12px;
+}
+
+.v1-days button.on {
+  background: rgba(177, 140, 255, 0.2);
+  color: #fff;
+}
+
+.v1-watch {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 22px;
+}
+
+.v1-player,
+.v1-empty {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #10131c;
+}
+
+.v1-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  background: transparent;
+  color: rgba(244, 246, 251, 0.7);
+  cursor: pointer;
+}
+
+.v1-empty strong {
+  font-size: 22px;
+  font-weight: 300;
+}
+
+.v1-empty span,
+.v1-caption,
+.v1-note {
+  color: rgba(244, 246, 251, 0.48);
+  font-size: 13px;
+}
+
+.v1-modal.over .v1-empty,
+.v1-modal.over .v1-player {
+  box-shadow: inset 0 0 0 1px #b18cff;
+}
+
+.v1-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #10131c;
+  cursor: pointer;
+}
+
+.v1-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(8, 10, 16, 0.55);
+  pointer-events: none;
+}
+
+.v1-caption {
+  display: flex;
+  gap: 12px;
+  margin: 8px 2px 0;
+}
+
+.v1-caption b {
+  font-weight: 500;
+  color: #f4f6fb;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v1-strip {
+  display: flex;
+  gap: 8px;
+  padding: 10px 0 4px;
+  overflow-x: auto;
+}
+
+.v1-thumb {
+  position: relative;
+  flex: 0 0 96px;
+  height: 58px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  background: #10131c;
+}
+
+.v1-thumb.on {
+  border-color: #b18cff;
+}
+
+.v1-thumb-film,
+.v1-thumb .v1-video {
+  width: 100%;
+  height: 100%;
+}
+
+.v1-thumb-film {
+  position: relative;
+  height: 100%;
+}
+
+.v1-thumb .v1-x {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(8, 10, 16, 0.7);
+  color: #fff;
+  cursor: pointer;
+}
+
+.v1-thumb.add {
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  background: transparent;
+  color: rgba(244, 246, 251, 0.7);
+  cursor: pointer;
+}
+
+.v1-foot {
+  flex: none;
+  max-height: 46%;
+  overflow: auto;
+  padding: 12px 22px 16px;
+}
+
+.v1-minutes {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.v1-minutes label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.v1-minutes input {
+  width: 72px;
+  border: 0;
+  background: transparent;
+  font-size: 36px;
+  font-weight: 200;
+  letter-spacing: -1px;
+  padding: 0;
+}
+
+.v1-minutes input:focus {
+  outline: none;
+}
+
+.v1-minutes label span,
+.v1-minutes button {
+  color: rgba(244, 246, 251, 0.5);
+  font-size: 13px;
+}
+
+.v1-minutes button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.v1-minutes button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.v1-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.v1-checks button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.v1-checks i {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(244, 246, 251, 0.4);
+}
+
+.v1-checks button.on i {
+  border-color: transparent;
+  background: #b18cff;
+}
+
+.v1-sign {
+  position: relative;
+  margin-top: 8px;
+}
+
+.v1-pad {
+  display: block;
+  width: 100%;
+  height: 72px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+  background: transparent;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.v1-hint {
+  position: absolute;
+  left: 0;
+  top: 26px;
+  color: rgba(244, 246, 251, 0.38);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.v1-clear {
+  position: absolute;
+  right: 0;
+  top: 0;
+  border: 0;
+  background: none;
+  color: rgba(244, 246, 251, 0.5);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.v1-note,
+.v1-err {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+
+.v1-err {
+  color: #ff8d92;
+}
+
+.v1-go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  margin-top: 10px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #b18cff;
+  color: #fff;
+  cursor: pointer;
+}
+
+.v1-go:disabled {
+  color: rgba(244, 246, 251, 0.38);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: default;
+}
+
+.v1-custody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.v1-custody div {
+  margin-right: auto;
+}
+
+.v1-custody b {
+  display: block;
+  font-weight: 500;
+}
+
+.v1-custody span {
+  color: rgba(244, 246, 251, 0.5);
+  font-size: 13px;
+}
+
+.v1-custody .v1-go {
+  margin-top: 0;
+}
+
+.vd-original.sky-v6 {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  height: 100%;
+  background: transparent;
+}
+
+.vd-original .video-sheet {
+  width: min(1040px, 96vw);
+  height: min(860px, 86vh);
+}
+
+.vd-stack.original .vd-switch {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  z-index: 50;
+  transform: translateX(-50%);
+}
+
+.vd-switch {
+  position: relative;
+  z-index: 50;
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(8, 10, 16, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.vd-switch button {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(244, 246, 251, 0.7);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.vd-switch button.on {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
