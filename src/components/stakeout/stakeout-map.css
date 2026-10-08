@@ -740,11 +740,13 @@ textarea.stk-input {
   font: 700 12px/1 Inter, -apple-system, sans-serif;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--pin) 45%, transparent), 0 6px 16px rgba(0, 0, 0, 0.55);
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  /* MapLibre places markers with `transform`: animating it makes pins slide on every zoom. */
+  transition: box-shadow 0.12s ease, filter 0.12s ease;
 }
 
 .stk-pin:hover {
-  transform: scale(1.1);
+  filter: brightness(1.15);
+  box-shadow: 0 0 0 3px #fff, 0 6px 16px rgba(0, 0, 0, 0.55);
 }
 
 .stk-pin.is-selected {
