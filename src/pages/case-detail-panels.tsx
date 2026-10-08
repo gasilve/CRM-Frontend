@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Columns2, MapPin, User, Plus, X, Loader2, Car, ShieldQuestion, StickyNote,
-  ImagePlus, ScanFace, UserPlus, Lock, Paperclip, FileText, Eye, Home, Briefcase, Users2,
+  ImagePlus, ScanFace, UserPlus, Lock, Paperclip, FileText, Eye, Home, Briefcase, Users2, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/format";
@@ -267,6 +267,30 @@ export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
     setCompareOpen(true);
   };
 
+  const [enhancing, setEnhancing] = useState(false);
+  const [enhanceNote, setEnhanceNote] = useState<{ tone: "ok" | "warn"; text: string } | null>(null);
+  const portraitIsStored = c.subjectPhotoUrl ? !isDirectPhoto(c.subjectPhotoUrl) : Boolean(portraitFileId);
+  const canEnhance =
+    !pending && tab === "subject" && primary?.kind === "primary" && portraitIsStored && ctx.canEditField("case.subjectPhoto");
+  const enhancePortrait = async () => {
+    setEnhancing(true);
+    setEnhanceNote(null);
+    try {
+      const result = await casesApi.enhanceSubjectPhoto(c.id);
+      const identity = result.similarity !== null ? ` · face match ${Math.round(result.similarity * 100)}%` : "";
+      setEnhanceNote(
+        result.applied
+          ? { tone: "ok", text: `Enhanced${identity}. The original stays in Files.` }
+          : { tone: "warn", text: `The face changed too much${identity}. Kept the original; the copy is in Files for review.` },
+      );
+      ctx.onRefresh();
+    } catch (err) {
+      setEnhanceNote({ tone: "warn", text: err instanceof Error ? err.message : "Could not enhance the photo." });
+    } finally {
+      setEnhancing(false);
+    }
+  };
+
   if (!ctx.canSee("case.subjectPhoto")) {
     return (
       <PanelShell title="Photos" icon={<User size={11} strokeWidth={1.8} />}>
@@ -350,6 +374,36 @@ export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
             >
               <Columns2 size={14} strokeWidth={1.8} />
             </button>
+
+            {canEnhance && (
+              <button
+                type="button"
+                onClick={enhancePortrait}
+                disabled={enhancing}
+                title="Enhance photo: centre the face, upscale, colorize black and white. The original is kept."
+                aria-label="Enhance photo"
+                className="absolute bottom-2 right-11 z-[1] grid h-8 w-8 place-items-center rounded-[0.5rem] border border-[var(--color-line)] bg-[var(--color-ink-2)]/92 text-[var(--color-text-mid)] shadow-lg backdrop-blur transition-colors hover:border-[var(--color-line-3)] hover:text-[var(--color-text-hi)] disabled:cursor-wait"
+              >
+                {enhancing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} strokeWidth={1.8} />}
+              </button>
+            )}
+
+            {enhanceNote && (
+              <div
+                role="status"
+                className={cn(
+                  "absolute inset-x-2 top-2 z-[1] flex items-start gap-1.5 rounded-[0.5rem] border px-2 py-1.5 text-[0.65625rem] shadow-lg backdrop-blur",
+                  enhanceNote.tone === "ok"
+                    ? "border-[var(--color-line)] bg-[var(--color-ink-2)]/92 text-[var(--color-text-hi)]"
+                    : "border-amber-500/40 bg-[var(--color-ink-2)]/92 text-amber-300",
+                )}
+              >
+                <span className="min-w-0 flex-1">{enhanceNote.text}</span>
+                <button type="button" onClick={() => setEnhanceNote(null)} aria-label="Dismiss" className="shrink-0 opacity-70 hover:opacity-100">
+                  <X size={11} />
+                </button>
+              </div>
+            )}
           </div>
 
           {gallery.length > 0 && (

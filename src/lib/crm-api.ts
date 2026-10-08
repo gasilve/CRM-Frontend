@@ -741,6 +741,17 @@ export interface CaseFile {
   createdAt: string;
 }
 
+/** Result of enhancing the subject photo. The original file is never changed. */
+export interface SubjectPhotoEnhancement {
+  /** True when the enhanced copy kept the person's face and is now the portrait. */
+  applied: boolean;
+  status: "ok" | "needs_review";
+  similarity: number | null;
+  steps: string[];
+  original: { fileId: string; url: string };
+  enhanced: { fileId: string; url: string };
+}
+
 export interface CaseSummary {
   byService: { service: CaseService; count: number }[];
   byRegion: { region: Region | null; count: number }[];
@@ -1050,6 +1061,9 @@ export const casesApi = {
 
   listFiles: (id: string) => request<{ files: CaseFile[] }>(`/cases/${id}/files`),
   fileBlob: (id: string, fileId: string, signal?: AbortSignal) => requestBlob(caseFilePath(id, fileId), signal),
+  /** Saves an enhanced copy of the subject photo next to the original; it becomes the portrait when the face still matches. */
+  enhanceSubjectPhoto: (id: string) =>
+    request<SubjectPhotoEnhancement>(`/cases/${id}/subject-photo/enhance`, { method: "POST" }),
   /** Upload a field-capture photo (multipart). Returns a CaseFile URL usable as day-entry photoUrl. */
   uploadCapturePhoto: async (id: string, file: File) => {
     const form = new FormData();
