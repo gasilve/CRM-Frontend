@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Maximize2, ScanFace } from "lucide-react";
-import { CaseMap } from "@/components/case/CaseMap";
 import { VideoDesignGallery } from "@/components/cases/video-designs/VideoDesignGallery";
 import { StakeoutMapModal } from "@/components/stakeout/StakeoutMapModal";
+import { StakeoutMiniMap } from "@/components/stakeout/StakeoutMiniMap";
 import { useCasePhoto } from "@/hooks/useCasePhoto";
 import { useAuth } from "@/contexts/AuthContext";
 import { ScheduleAssignmentModal, type AssignInvestigatorFlow } from "@/components/schedule/ScheduleAssignmentModal";
@@ -563,9 +563,14 @@ export default function SkyViewPage() {
   const [designsOpen, setDesignsOpen] = useState(false);
   const [stakeoutOpen, setStakeoutOpen] = useState(false);
   const stakeouts = useQuery(id ? `case:${id}:stakeout` : null, () => stakeoutApi.list(id));
-  const stakeoutPositions = stakeouts.data?.positions ?? [];
+  const stakeoutPositions = useMemo(() => stakeouts.data?.positions ?? [], [stakeouts.data]);
   const stakeoutPlan = useQuery(id ? `case:${id}:stakeout-plan` : null, () => stakeoutApi.plan(id));
-  const stakeoutSuggestions = stakeoutPlan.data?.plan.suggestions ?? [];
+  const [stakeoutShown, setStakeoutShown] = useState(0);
+  const stakeoutHome = useMemo(() => {
+    const addresses = kase?.addresses ?? [];
+    const home = addresses.find((a) => a.isPrimary && a.lat != null) ?? addresses.find((a) => a.lat != null);
+    return home?.lat != null && home.lng != null ? { lat: home.lat, lng: home.lng } : null;
+  }, [kase?.addresses]);
 
   const ledger = useMemo(() => (kase ? buildLedger(kase) : { rows: [], sections: new Map<string, DaySection>() }), [kase]);
   const rows = ledger.rows;
@@ -1019,15 +1024,14 @@ export default function SkyViewPage() {
               </button>
             </div>
             <div className="stake-map">
-              <CaseMap
-                addresses={kase.addresses}
-                stakeouts={stakeoutPositions}
-                suggestions={stakeoutSuggestions}
-                fitToStakeout
-                frameClassName="h-full min-h-0 rounded-none border-0"
+              <StakeoutMiniMap
+                plan={stakeoutPlan.data ?? null}
+                positions={stakeoutPositions}
+                home={stakeoutHome}
+                onSuggestionsShown={setStakeoutShown}
               />
             </div>
-            <p className="wait">{stakeoutSummary(stakeoutPositions, stakeoutSuggestions.length, stakeoutPlan.loading)}</p>
+            <p className="wait">{stakeoutSummary(stakeoutPositions, stakeoutShown, stakeoutPlan.loading)}</p>
           </div>
 
         </div>

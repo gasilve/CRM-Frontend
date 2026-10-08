@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import maplibregl, { type GeoJSONSource, type Map as MapLibre, type Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { Box, Layers, LocateFixed, Map as MapIcon, RefreshCw, RotateCw, Star, Trash2, X } from "lucide-react";
+import { Axis3d, Box, Hash, Layers, LocateFixed, Map as MapIcon, Orbit, RefreshCw, RotateCcw, RotateCw, Star, Trash2, UserRound, X } from "lucide-react";
 import {
   ApiError,
   stakeoutApi,
@@ -13,10 +13,26 @@ import {
   type StakeoutPosition,
   type StakeoutStatus,
 } from "@/lib/crm-api";
-import { BASEMAPS, BUILDINGS, basemapById, buildingLook, type Basemap, type BasemapId } from "./basemaps";
+import { BASEMAPS, basemapById, type BasemapId } from "./basemaps";
+import {
+  PITCH_3D,
+  addBuildingLayers,
+  baseStyle,
+  blockedSpots,
+  onPrefsChange,
+  pinElement,
+  readPrefs,
+  rotateBy,
+  spotKey,
+  swapBasemap,
+  targetElement,
+  tiltStep,
+  writePrefs,
+  type MarkerStyle,
+} from "./map-core";
 import "./stakeout-map.css";
 
-type Selection = { kind: "suggestion"; index: number } | { kind: "position"; id: string } | { kind: "probe" } | null;
+type Selection = { kind: "suggestion"; key: string } | { kind: "position"; id: string } | { kind: "probe" } | null;
 type Probe = LatLng & { assessment: StakeoutAssessment | null; loading: boolean; error?: string };
 type Live = LatLng & { id: string; assessment: StakeoutAssessment | null };
 type LayerKey = "burn" | "exits" | "sight" | "suggestions";
@@ -34,22 +50,19 @@ const SIGHT = {
   blocked: { label: "Blocked", color: "#ff5c63" },
 } as const;
 const KIND_LABEL = { street: "Street", parking: "Parking lot", "off-road": "Off road" } as const;
-const SUGGESTION_COLOR = "#5aa9ff";
-const PITCH_3D = 60;
-const PREFS_KEY = "stakeout-map";
+export const SUGGESTION_COLOR = "#5aa9ff";
+const SUGGESTIONS_SHOWN = 6;
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
 export const scoreColor = (score: number) => (score >= 70 ? "#3ee08a" : score >= 50 ? "#ffc857" : score > 0 ? "#ff9f45" : "#ff5c63");
 
 const errorText = (err: unknown) => (err instanceof ApiError || err instanceof Error ? err.message : "Something went wrong.");
 
-const readPrefs = (): { basemap?: BasemapId; threeD?: boolean } => {
-  try {
-    return JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}");
-  } catch {
-    return {};
-  }
-};
+const BLOCKED_REASON = "A building on the map stands between this spot and the house";
+
+/** The server only knows OpenStreetMap buildings; a hit on the map's buildings overrides its view. */
+const withMapSight = <A extends StakeoutAssessment>(a: A, blocked: boolean): A =>
+  blocked && a.lineOfSight !== "blocked" ? { ...a, score: 0, lineOfSight: "blocked", bad: [BLOCKED_REASON, ...a.bad] } : a;
 
 const ringCoords = (points: LatLng[]) => {
   const ring = points.map((p) => [p.lng, p.lat]);
@@ -57,45 +70,7 @@ const ringCoords = (points: LatLng[]) => {
   return first && (first[0] !== last[0] || first[1] !== last[1]) ? [...ring, first] : ring;
 };
 
-const rasterSource = (base: Basemap): maplibregl.RasterSourceSpecification => ({
-  type: "raster",
-  tiles: base.tiles ?? [],
-  tileSize: base.tileSize,
-  attribution: base.attribution,
-  maxzoom: base.maxzoom,
-});
-
-const applyBuildingLook = (map: MapLibre, base: Basemap) => {
-  const look = buildingLook(base);
-  map.setPaintProperty("buildings-3d", "fill-extrusion-color", look.color as maplibregl.ExpressionSpecification);
-  map.setPaintProperty("buildings-3d", "fill-extrusion-opacity", look.opacity);
-};
-
 const addressLine = (a: CaseAddress) => [a.line1, a.city, [a.state, a.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-
-function pinElement(className: string, text: string, color: string, title: string) {
-  const el = document.createElement("button");
-  el.type = "button";
-  el.className = `stk-pin ${className}`;
-  el.style.setProperty("--pin", color);
-  el.title = title;
-  const label = document.createElement("span");
-  label.textContent = text;
-  el.appendChild(label);
-  return el;
-}
-
-function targetElement(hasFront: boolean) {
-  const el = document.createElement("div");
-  el.className = "stk-target";
-  el.title = "Front of the house: what the camera has to see";
-  el.appendChild(document.createElement("i"));
-  if (hasFront) {
-    const arrow = document.createElement("b");
-    el.appendChild(arrow);
-  }
-  return el;
-}
 
 function AssessmentView({ a }: { a: StakeoutAssessment }) {
   return (
@@ -158,6 +133,7 @@ export function StakeoutMapModal({
   const [addressId, setAddressId] = useState<string | null>(primary?.id ?? null);
   const [basemapId, setBasemapId] = useState<BasemapId>(basemapById(prefs.basemap).id);
   const [threeD, setThreeD] = useState(prefs.threeD ?? true);
+  const [markerStyle, setMarkerStyle] = useState<MarkerStyle>(prefs.markers ?? "number");
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>({ burn: true, exits: true, sight: true, suggestions: true });
   const [menu, setMenu] = useState<"basemap" | "layers" | null>(null);
   const [orbit, setOrbit] = useState(false);
@@ -176,7 +152,7 @@ export function StakeoutMapModal({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibre | null>(null);
   const [ready, setReady] = useState(false);
-  const markers = useRef<{ target?: Marker; suggestions: Marker[]; positions: Map<string, Marker>; probe?: Marker }>({
+  const markers = useRef<{ target?: Marker; suggestions: Marker[]; positions: Map<string, Marker>; probe?: Marker; probeStyle?: MarkerStyle }>({
     suggestions: [],
     positions: new Map(),
   });
@@ -185,9 +161,15 @@ export function StakeoutMapModal({
   const center: LatLng | null = plan?.plan.target ?? (watched?.lat != null && watched?.lng != null ? { lat: watched.lat, lng: watched.lng } : null);
   const basemap = basemapById(basemapId);
 
-  useEffect(() => {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ basemap: basemapId, threeD }));
-  }, [basemapId, threeD]);
+  useEffect(() => writePrefs({ basemap: basemapId, threeD, markers: markerStyle }), [basemapId, threeD, markerStyle]);
+  useEffect(
+    () =>
+      onPrefsChange((next) => {
+        if (next.basemap) setBasemapId(basemapById(next.basemap).id);
+        if (next.markers) setMarkerStyle(next.markers);
+      }),
+    [],
+  );
 
   const onChangedRef = useRef(onChanged);
   onChangedRef.current = onChanged;
@@ -296,7 +278,43 @@ export function StakeoutMapModal({
     mapClick: (_spot: LatLng) => {},
     positionDrag: (_id: string, _spot: LatLng, _final: boolean) => {},
     probeDrag: (_spot: LatLng, _final: boolean) => {},
+    checkSight: () => {},
   });
+
+  // Spots whose view is cut by a building drawn on the map. Buildings do not
+  // move, so a hit stays even after its tiles scroll out of view.
+  const [blocked, setBlocked] = useState<Set<string>>(() => new Set());
+  useEffect(() => setBlocked(new Set()), [plan]);
+
+  handlers.current.checkSight = () => {
+    const map = mapRef.current;
+    const p = plan?.plan;
+    if (!map || !p) return;
+    const spots = [
+      ...p.suggestions,
+      ...positions.map((pos) => (live?.id === pos.id ? live : pos)),
+      ...(probe ? [probe] : []),
+    ].map((s) => ({ lat: s.lat, lng: s.lng, key: spotKey(s) }));
+    const hits = blockedSpots(map, p.target, p.house ?? p.address, spots);
+    setBlocked((prev) => {
+      const fresh = [...hits].filter((k) => !prev.has(k));
+      return fresh.length ? new Set([...prev, ...fresh]) : prev;
+    });
+  };
+  useEffect(() => {
+    if (ready) handlers.current.checkSight();
+  }, [ready, plan, positions, live?.lat, live?.lng, probe?.lat, probe?.lng]);
+
+  const isBlocked = (spot: LatLng) => blocked.has(spotKey(spot));
+  const suggestions = useMemo(
+    () => (plan?.plan.suggestions ?? []).filter((s) => !blocked.has(spotKey(s))).slice(0, SUGGESTIONS_SHOWN),
+    [plan, blocked],
+  );
+  const hiddenSuggestions = (plan?.plan.suggestions ?? []).filter((s) => blocked.has(spotKey(s))).length;
+  const probeAssessment = useMemo(
+    () => (probe?.assessment ? withMapSight(probe.assessment, blocked.has(spotKey(probe))) : null),
+    [probe, blocked],
+  );
 
   handlers.current.mapClick = (spot) => {
     setMenu(null);
@@ -335,14 +353,7 @@ export function StakeoutMapModal({
     const start = center ?? { lat: 39.8, lng: -98.5 };
     const map = new maplibregl.Map({
       container,
-      style: {
-        version: 8,
-        sources: {
-          base: rasterSource(basemap),
-          buildings: BUILDINGS.source,
-        },
-        layers: [{ id: "base", type: "raster", source: "base" }],
-      },
+      style: baseStyle(basemap),
       center: [start.lng, start.lat],
       zoom: center ? 17 : 3,
       pitch: threeD ? PITCH_3D : 0,
@@ -353,22 +364,7 @@ export function StakeoutMapModal({
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
 
     map.on("load", () => {
-      map.setLight({ anchor: "viewport", color: "#ffffff", intensity: 0.35, position: [1.4, 210, 35] });
-      map.addLayer({
-        id: "buildings-3d",
-        type: "fill-extrusion",
-        source: "buildings",
-        "source-layer": BUILDINGS.sourceLayer,
-        minzoom: 14,
-        ...(BUILDINGS.filter && { filter: BUILDINGS.filter as maplibregl.FilterSpecification }),
-        layout: { visibility: threeD ? "visible" : "none" },
-        paint: {
-          "fill-extrusion-height": BUILDINGS.height as maplibregl.ExpressionSpecification,
-          "fill-extrusion-base": BUILDINGS.base as maplibregl.ExpressionSpecification,
-          "fill-extrusion-vertical-gradient": true,
-        },
-      });
-      applyBuildingLook(map, basemap);
+      addBuildingLayers(map, basemap, threeD);
       for (const id of ["burn", "exits", "sight", "house"]) map.addSource(id, { type: "geojson", data: EMPTY });
       map.addLayer({
         id: "burn-fill",
@@ -416,6 +412,7 @@ export function StakeoutMapModal({
     });
 
     map.on("click", (e) => handlers.current.mapClick({ lat: e.lngLat.lat, lng: e.lngLat.lng }));
+    map.on("idle", () => handlers.current.checkSight());
     mapRef.current = map;
     return () => {
       map.remove();
@@ -429,22 +426,20 @@ export function StakeoutMapModal({
     const map = mapRef.current;
     if (!map || !ready || appliedBase.current === basemap.id) return;
     appliedBase.current = basemap.id;
-    map.removeLayer("base");
-    map.removeSource("base");
-    map.addSource("base", rasterSource(basemap));
-    map.addLayer({ id: "base", type: "raster", source: "base" }, map.getStyle().layers[0]?.id);
-    applyBuildingLook(map, basemap);
+    swapBasemap(map, basemap);
   }, [basemap, ready]);
 
   const frontRef = useRef<StakeoutPlan["plan"]["front"]>(null);
   frontRef.current = plan?.plan.front ?? null;
   const firstPitch = useRef(true);
+  const tiltedByHand = useRef(false);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
     map.setLayoutProperty("buildings-3d", "visibility", threeD ? "visible" : "none");
-    if (firstPitch.current) {
+    if (firstPitch.current || tiltedByHand.current) {
       firstPitch.current = false;
+      tiltedByHand.current = false;
       return;
     }
     const front = frontRef.current;
@@ -504,7 +499,7 @@ export function StakeoutMapModal({
       return;
     }
     const bounds = new maplibregl.LngLatBounds();
-    for (const spot of [p.target, ...p.suggestions, ...positions]) bounds.extend([spot.lng, spot.lat]);
+    for (const spot of [p.target, ...p.suggestions.slice(0, SUGGESTIONS_SHOWN), ...positions]) bounds.extend([spot.lng, spot.lat]);
     const bearing = threeD && p.front ? (p.front.bearing + 180) % 360 : 0;
     const narrow = map.getContainer().clientWidth < 900;
     const camera = map.cameraForBounds(bounds, {
@@ -547,11 +542,13 @@ export function StakeoutMapModal({
         .setLngLat([p.target.lng, p.target.lat])
         .addTo(map);
       if (layers.suggestions) {
-        p.suggestions.forEach((spot, index) => {
-          const el = pinElement("suggestion", String(index + 1), SUGGESTION_COLOR, `Suggestion ${index + 1} · ${spot.score}/100`);
+        suggestions.forEach((spot, index) => {
+          const key = spotKey(spot);
+          const el = pinElement("suggestion", String(index + 1), SUGGESTION_COLOR, `Suggestion ${index + 1} · ${spot.score}/100`, markerStyle);
+          el.dataset.key = key;
           el.addEventListener("click", (e) => {
             e.stopPropagation();
-            setSelection({ kind: "suggestion", index });
+            setSelection({ kind: "suggestion", key });
           });
           m.suggestions.push(new maplibregl.Marker({ element: el }).setLngLat([spot.lng, spot.lat]).addTo(map));
         });
@@ -561,7 +558,7 @@ export function StakeoutMapModal({
     for (const position of positions) {
       const status = STAKEOUT_STATUS[position.status];
       const score = position.assessment?.score ?? position.score;
-      const el = pinElement("position", score != null ? String(score) : "•", status.color, `${position.label} · ${status.label}`);
+      const el = pinElement("position", score != null ? String(score) : "•", status.color, `${position.label} · ${status.label}`, markerStyle);
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         setSelection({ kind: "position", id: position.id });
@@ -575,12 +572,23 @@ export function StakeoutMapModal({
       marker.on("dragend", () => report(true));
       m.positions.set(position.id, marker);
     }
-  }, [plan, positions, layers.suggestions, canEdit, ready]);
+  }, [plan, positions, suggestions, layers.suggestions, canEdit, ready, markerStyle]);
+
+  // Relabelled in place: rebuilding markers would drop one being dragged.
+  useEffect(() => {
+    markers.current.positions.forEach((marker, id) => {
+      const position = positions.find((p) => p.id === id);
+      const text = marker.getElement().querySelector("span");
+      if (!position || !text) return;
+      const score = isBlocked(position) ? 0 : position.assessment?.score ?? position.score;
+      text.textContent = score != null ? String(score) : "•";
+    });
+  }, [blocked, positions]);
 
   useEffect(() => {
     const m = markers.current;
-    m.suggestions.forEach((marker, i) =>
-      marker.getElement().classList.toggle("is-selected", selection?.kind === "suggestion" && selection.index === i),
+    m.suggestions.forEach((marker) =>
+      marker.getElement().classList.toggle("is-selected", selection?.kind === "suggestion" && selection.key === marker.getElement().dataset.key),
     );
     m.positions.forEach((marker, id) =>
       marker.getElement().classList.toggle("is-selected", selection?.kind === "position" && selection.id === id),
@@ -597,8 +605,13 @@ export function StakeoutMapModal({
       m.probe = undefined;
       return;
     }
+    if (m.probe && m.probeStyle !== markerStyle) {
+      m.probe.remove();
+      m.probe = undefined;
+    }
     if (!m.probe) {
-      const el = pinElement("probe", "?", "#f4f6fb", "Test spot: drag it around");
+      m.probeStyle = markerStyle;
+      const el = pinElement("probe", "?", "#f4f6fb", "Test spot: drag it around", markerStyle);
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         setSelection({ kind: "probe" });
@@ -616,22 +629,27 @@ export function StakeoutMapModal({
     }
     const el = m.probe.getElement();
     const text = el.querySelector("span");
-    if (text) text.textContent = probe.assessment ? String(probe.assessment.score) : probe.loading ? "…" : "?";
-    el.style.setProperty("--pin", probe.assessment ? scoreColor(probe.assessment.score) : "#f4f6fb");
-  }, [probe, ready]);
+    const score = probeAssessment?.score;
+    if (text) text.textContent = score != null ? String(score) : probe.loading ? "…" : "?";
+    el.style.setProperty("--pin", score != null ? scoreColor(score) : "#f4f6fb");
+  }, [probe, probeAssessment, ready, markerStyle]);
 
   const selectedPosition = selection?.kind === "position" ? positions.find((p) => p.id === selection.id) ?? null : null;
-  const selectedSuggestion = selection?.kind === "suggestion" ? plan?.plan.suggestions[selection.index] ?? null : null;
-  const positionAssessment = selectedPosition
-    ? live?.id === selectedPosition.id
-      ? live.assessment ?? selectedPosition.assessment ?? null
+  const selectedSuggestion = selection?.kind === "suggestion" ? suggestions.find((s) => spotKey(s) === selection.key) ?? null : null;
+  const selectedIndex = selectedSuggestion ? suggestions.indexOf(selectedSuggestion) : -1;
+  const livePosition = selectedPosition && live?.id === selectedPosition.id ? live : null;
+  const rawPositionAssessment = selectedPosition
+    ? livePosition
+      ? livePosition.assessment ?? selectedPosition.assessment ?? null
       : selectedPosition.assessment ?? null
     : null;
+  const positionAssessment =
+    rawPositionAssessment && selectedPosition ? withMapSight(rawPositionAssessment, isBlocked(livePosition ?? selectedPosition)) : null;
 
   const sightFrom: (LatLng & { assessment: StakeoutAssessment | null }) | null = selectedSuggestion
     ? { ...selectedSuggestion, assessment: selectedSuggestion }
     : selection?.kind === "probe" && probe
-      ? { lat: probe.lat, lng: probe.lng, assessment: probe.assessment }
+      ? { lat: probe.lat, lng: probe.lng, assessment: probeAssessment }
       : selectedPosition
         ? live?.id === selectedPosition.id
           ? { lat: live.lat, lng: live.lng, assessment: positionAssessment }
@@ -709,7 +727,6 @@ export function StakeoutMapModal({
     flyTo(spot);
   };
 
-  const suggestions = plan?.plan.suggestions ?? [];
   const front = plan?.plan.front;
 
   return createPortal(
@@ -793,7 +810,40 @@ export function StakeoutMapModal({
               setOrbit((o) => !o);
             }}
           >
-            <RotateCw size={14} />
+            <Orbit size={14} />
+          </button>
+
+          <div className="stk-seg" role="group" aria-label="Rotate and tilt">
+            <button type="button" title="Rotate left" aria-label="Rotate left" onClick={() => mapRef.current && rotateBy(mapRef.current, -45)}>
+              <RotateCcw size={13} />
+            </button>
+            <button type="button" title="Rotate right" aria-label="Rotate right" onClick={() => mapRef.current && rotateBy(mapRef.current, 45)}>
+              <RotateCw size={13} />
+            </button>
+            <button
+              type="button"
+              title="Tilt: flat, angled, steep"
+              aria-label="Tilt the map"
+              onClick={() => {
+                if (!mapRef.current) return;
+                const on = tiltStep(mapRef.current);
+                if (on === threeD) return;
+                tiltedByHand.current = true;
+                setThreeD(on);
+              }}
+            >
+              <Axis3d size={13} />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            className="stk-tool"
+            title={markerStyle === "number" ? "Show spots as people" : "Show spots as numbers"}
+            aria-label={markerStyle === "number" ? "Show spots as people" : "Show spots as numbers"}
+            onClick={() => setMarkerStyle((s) => (s === "number" ? "avatar" : "number"))}
+          >
+            {markerStyle === "number" ? <UserRound size={14} /> : <Hash size={14} />}
           </button>
         </div>
 
@@ -866,7 +916,7 @@ export function StakeoutMapModal({
 
                 {selectedSuggestion && selection.kind === "suggestion" && (
                   <>
-                    <h3>Suggestion {selection.index + 1}</h3>
+                    <h3>Suggestion {selectedIndex + 1}</h3>
                     <AssessmentView a={selectedSuggestion} />
                     {canEdit && (
                       <button type="button" className="stk-btn primary" disabled={busy} onClick={() => void savePosition(selectedSuggestion, "suggested")}>
@@ -882,8 +932,8 @@ export function StakeoutMapModal({
                     <p className="stk-muted">Drag it around: the score follows.</p>
                     {probe.error ? (
                       <p className="stk-bad">{probe.error}</p>
-                    ) : probe.assessment ? (
-                      <AssessmentView a={probe.assessment} />
+                    ) : probeAssessment ? (
+                      <AssessmentView a={probeAssessment} />
                     ) : (
                       <p className="stk-muted">Scoring…</p>
                     )}
@@ -928,10 +978,15 @@ export function StakeoutMapModal({
                   {plan && suggestions.length === 0 && (
                     <p className="stk-muted">No spot within 300 m has a clear and safe view. Click the map to test one by hand.</p>
                   )}
+                  {hiddenSuggestions > 0 && (
+                    <p className="stk-muted">
+                      {hiddenSuggestions} hidden: a building on the map blocks the view to the house.
+                    </p>
+                  )}
                   <ol className="stk-list">
                     {suggestions.map((s, i) => (
-                      <li key={`${s.lat},${s.lng}`}>
-                        <button type="button" onClick={() => pick({ kind: "suggestion", index: i }, s)}>
+                      <li key={spotKey(s)}>
+                        <button type="button" onClick={() => pick({ kind: "suggestion", key: spotKey(s) }, s)}>
                           <span className="n" style={{ background: SUGGESTION_COLOR }}>
                             {i + 1}
                           </span>
@@ -959,7 +1014,7 @@ export function StakeoutMapModal({
                   )}
                   <ul className="stk-list">
                     {positions.map((p) => {
-                      const score = p.assessment?.score ?? p.score;
+                      const score = isBlocked(p) ? 0 : p.assessment?.score ?? p.score;
                       return (
                         <li key={p.id}>
                           <button type="button" onClick={() => pick({ kind: "position", id: p.id }, p)}>
