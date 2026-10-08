@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ScanFace } from "lucide-react";
 import { CaseMap } from "@/components/case/CaseMap";
+import { VideoDesignGallery } from "@/components/cases/video-designs/VideoDesignGallery";
 import { useCasePhoto } from "@/hooks/useCasePhoto";
+import { useAuth } from "@/contexts/AuthContext";
 import { ScheduleAssignmentModal, type AssignInvestigatorFlow } from "@/components/schedule/ScheduleAssignmentModal";
 import {
   ApiError,
@@ -14,7 +16,7 @@ import {
   type InvestigatorListItem,
 } from "@/lib/crm-api";
 import { SERVICE_LABELS } from "@/lib/mock-data";
-import { ageFromDob } from "@/lib/dates";
+import { ageFromDob, calendarDateKey } from "@/lib/dates";
 import { useQuery } from "@/lib/query-cache";
 import "./sky-v6.css";
 
@@ -26,7 +28,7 @@ const GAP = 3;
 const NAV = [
   { label: "Case", title: "Case", color: "#3ee08a", path: (id: string) => `/cases/${id}` },
   { label: "Investigator view", title: "Investigator view", color: "#ffc857", path: (id: string) => `/cases/${id}/work` },
-  { label: "Video", title: "Video", color: "#b18cff", path: (_id: string) => `/video` },
+  { label: "Video", title: "Video", color: "#b18cff", video: true },
   { label: "Reports", title: "Reports", color: "#5aa9ff", path: (_id: string) => `/reports` },
   { label: "Back", title: "Back to cases", color: "#ff9f45", path: (_id: string) => `/cases` },
 ] as const;
@@ -73,6 +75,10 @@ function clock(d: Date) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function eatClock(d: Date) {
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
 function ageYears(iso: string | null) {
   const key = iso ? /^(\d{4})-(\d{2})-(\d{2})/.exec(iso) : null;
   if (!key) return null;
@@ -114,6 +120,22 @@ function vehicleTitle(vehicle: CaseVehicle) {
   return [name || "Vehicle", plate].filter(Boolean).join(" · ");
 }
 
+/** End of the case window: the due date, or the open date plus the allotted days. */
+function caseDeadline(kase: CaseDetail): Date | null {
+  const dueKey = kase.dueDate ? calendarDateKey(kase.dueDate) : null;
+  if (dueKey) {
+    const [year, month, day] = dueKey.split("-").map(Number);
+    return new Date(year, month - 1, day + 1);
+  }
+  if (kase.daysAllotted != null && kase.dateOpened) {
+    const openKey = calendarDateKey(kase.dateOpened);
+    if (!openKey) return null;
+    const [year, month, day] = openKey.split("-").map(Number);
+    return new Date(year, month - 1, day + kase.daysAllotted);
+  }
+  return null;
+}
+
 type Face = { ok: boolean; score: number | null };
 
 function faceFromEntries(entries: { type: string; meta: Record<string, unknown> | null }[]): Face {
@@ -126,7 +148,15 @@ function faceFromEntries(entries: { type: string; meta: Record<string, unknown> 
   return { ok: best >= 80, score: best };
 }
 
-function NavRing({ caseId, onGo }: { caseId: string; onGo: (path: string) => void }) {
+function NavRing({
+  caseId,
+  onGo,
+  onVideo,
+}: {
+  caseId: string;
+  onGo: (path: string) => void;
+  onVideo: () => void;
+}) {
   const seg = 360 / NAV.length;
   return (
     <svg viewBox="0 0 460 460" role="navigation" aria-label="Case pages">
@@ -136,9 +166,13 @@ function NavRing({ caseId, onGo }: { caseId: string; onGo: (path: string) => voi
         const mid = (a0 + a1) / 2;
         const [x, y] = polar(mid, OUTER + 20);
         const aim = ((mid - 90) * Math.PI) / 180;
-        const path = item.path(caseId);
         return (
-          <g key={item.label} className="nav-g" style={{ ["--seg" as string]: item.color }} onClick={() => onGo(path)}>
+          <g
+            key={item.label}
+            className="nav-g"
+            style={{ ["--seg" as string]: item.color }}
+            onClick={() => ("video" in item ? onVideo() : onGo(item.path(caseId)))}
+          >
             <title>{item.title}</title>
             <path
               className="nav-seg"
@@ -497,6 +531,7 @@ function buildLedger(kase: CaseDetail): { rows: LedgerRow[]; sections: Map<strin
 export default function SkyViewPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const { user, can } = useAuth();
   const query = useQuery(id ? `case:${id}` : null, () => casesApi.get(id));
   const investigators = useQuery("investigators:list", () => investigatorsApi.list());
   const kase = query.data?.case;
@@ -508,6 +543,7 @@ export default function SkyViewPage() {
   const [assignDate, setAssignDate] = useState("");
   const [openDayId, setOpenDayId] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] = useState<LedgerRow | null>(null);
+  const [designsOpen, setDesignsOpen] = useState(false);
 
   const ledger = useMemo(() => (kase ? buildLedger(kase) : { rows: [], sections: new Map<string, DaySection>() }), [kase]);
   const rows = ledger.rows;
@@ -739,20 +775,22 @@ export default function SkyViewPage() {
   ];
   const age = ageYears(kase.subjectDob);
   const eat = kase.earliestActiveAt ? new Date(kase.earliestActiveAt) : null;
-  const deploy = eat ? new Date(eat.getTime() - 60 * 60 * 1000) : null;
-  const observed = kase.days.filter((day) => day.entries.length > 0).length;
   const exam = kase.imeAt ? new Date(kase.imeAt) : null;
-  const remaining = exam ? exam.getTime() - Date.now() : null;
-  const daysLeft = remaining == null ? null : Math.max(0, Math.floor(remaining / 86_400_000));
-  const hoursLeft = remaining == null ? null : Math.max(0, Math.floor((remaining % 86_400_000) / 3_600_000));
+  const examRemaining = exam ? exam.getTime() - Date.now() : null;
+  const examDays = examRemaining == null ? null : Math.max(0, Math.floor(examRemaining / 86_400_000));
+  const examHours = examRemaining == null ? null : Math.max(0, Math.floor((examRemaining % 86_400_000) / 3_600_000));
   const until =
     exam == null
       ? null
-      : remaining != null && remaining < 0
+      : examRemaining != null && examRemaining < 0
         ? "passed"
-        : daysLeft === 0
-          ? `in ${hoursLeft} hr${hoursLeft === 1 ? "" : "s"}`
-          : `in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`;
+        : examDays === 0
+          ? `in ${examHours} hr${examHours === 1 ? "" : "s"}`
+          : `in ${examDays} day${examDays === 1 ? "" : "s"}`;
+  const deadline = caseDeadline(kase);
+  const caseRemaining = deadline ? deadline.getTime() - Date.now() : null;
+  const daysLeft = caseRemaining == null ? null : Math.max(0, Math.floor(caseRemaining / 86_400_000));
+  const hoursLeft = caseRemaining == null ? null : Math.max(0, Math.floor((caseRemaining % 86_400_000) / 3_600_000));
   const weekdayCount = kase.scheduleBlocks.filter((block) => !dayLabel(scheduleKey(block.date)).weekend).length;
   const weekendCount = kase.scheduleBlocks.filter((block) => dayLabel(scheduleKey(block.date)).weekend).length;
 
@@ -789,27 +827,26 @@ export default function SkyViewPage() {
             </p>
 
             <div className="facts">
-              <div className="fact">
+              <div className="fact eat">
                 <div className="big">
-                  {eat ? clock(eat) : "—"}
-                  {deploy && <small>deploy {clock(deploy)}</small>}
+                  <span>{eat ? eatClock(eat) : "—"}</span>
+                  <span className="eat-lab">EAT</span>
                 </div>
-                earliest active time, {observed} day{observed === 1 ? "" : "s"} observed
               </div>
 
               <div className="fact">
                 <div className="sec">Transport</div>
                 {kase.subjectTransport && (
-                  <div className="line">
-                    <span>Mode</span>
-                    <span>{TRANSPORT_LABEL[kase.subjectTransport]}</span>
+                  <div className="pl">
+                    <span className="k">{TRANSPORT_LABEL[kase.subjectTransport]}</span>
+                    <span className="t">Mode</span>
                   </div>
                 )}
-                {kase.vehicles.length === 0 && <div className="line"><span>No vehicles on file</span><span /></div>}
+                {kase.vehicles.length === 0 && <div className="pl"><span className="a">No vehicles on file</span></div>}
                 {kase.vehicles.map((vehicle) => (
-                  <div className="line" key={vehicle.id}>
-                    <span>{vehicleTitle(vehicle)}</span>
-                    <span>{shareLabel(vehicle)}</span>
+                  <div className="pl" key={vehicle.id}>
+                    <span className="k">{vehicleTitle(vehicle)}</span>
+                    <span className="t">{shareLabel(vehicle)}</span>
                   </div>
                 ))}
               </div>
@@ -833,7 +870,13 @@ export default function SkyViewPage() {
 
         <div className="center">
           <div className="wheel">
-            <NavRing caseId={kase.id} onGo={(path) => navigate(path)} />
+            <NavRing
+              caseId={kase.id}
+              onGo={(path) => navigate(path)}
+              onVideo={() => {
+                if (can("video.use")) setDesignsOpen(true);
+              }}
+            />
             <div className="core g">
               {editingIme ? (
                 <form
@@ -950,6 +993,26 @@ export default function SkyViewPage() {
 
         </div>
       </div>
+
+      {designsOpen && (
+        <VideoDesignGallery
+          caseId={kase.id}
+          subjectName={kase.subjectName}
+          claimNumber={kase.claimNumber}
+          caseNumber={kase.caseNumber}
+          service={kase.service}
+          signerName={user?.name || "Investigator"}
+          crew={[
+            ...new Set(
+              kase.scheduleBlocks
+                .filter((block) => scheduleKey(block.date) === localKey(new Date()))
+                .map((block) => block.user.name)
+                .filter(Boolean),
+            ),
+          ]}
+          onClose={() => setDesignsOpen(false)}
+        />
+      )}
 
       {pendingRemove && (
         <div className="confirm-layer">
