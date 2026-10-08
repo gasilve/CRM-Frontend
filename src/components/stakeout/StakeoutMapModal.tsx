@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import maplibregl, { type GeoJSONSource, type Map as MapLibre, type Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { Axis3d, Box, Hash, Layers, LocateFixed, Map as MapIcon, Orbit, RefreshCw, RotateCcw, RotateCw, Star, Trash2, UserRound, X } from "lucide-react";
+import { Axis3d, Box, Layers, LocateFixed, Map as MapIcon, Orbit, RefreshCw, RotateCcw, RotateCw, Star, Trash2, X } from "lucide-react";
 import {
   ApiError,
   stakeoutApi,
@@ -15,14 +15,11 @@ import {
 } from "@/lib/crm-api";
 import { BASEMAPS, basemapById, type BasemapId } from "./basemaps";
 import {
-  AVATAR_OFFSET,
   PITCH_3D,
   addBuildingLayers,
-  addPeopleLayer,
   baseStyle,
   blockedSpots,
   fitZoom,
-  setPeople,
   onPrefsChange,
   pinElement,
   readPrefs,
@@ -32,7 +29,6 @@ import {
   targetElement,
   tiltStep,
   writePrefs,
-  type MarkerStyle,
 } from "./map-core";
 import "./stakeout-map.css";
 
@@ -137,7 +133,6 @@ export function StakeoutMapModal({
   const [addressId, setAddressId] = useState<string | null>(primary?.id ?? null);
   const [basemapId, setBasemapId] = useState<BasemapId>(basemapById(prefs.basemap).id);
   const [threeD, setThreeD] = useState(prefs.threeD ?? true);
-  const [markerStyle, setMarkerStyle] = useState<MarkerStyle>(prefs.markers ?? "number");
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>({ burn: true, exits: true, sight: true, suggestions: true });
   const [menu, setMenu] = useState<"basemap" | "layers" | null>(null);
   const [orbit, setOrbit] = useState(false);
@@ -156,7 +151,7 @@ export function StakeoutMapModal({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibre | null>(null);
   const [ready, setReady] = useState(false);
-  const markers = useRef<{ target?: Marker; suggestions: Marker[]; positions: Map<string, Marker>; probe?: Marker; probeStyle?: MarkerStyle }>({
+  const markers = useRef<{ target?: Marker; suggestions: Marker[]; positions: Map<string, Marker>; probe?: Marker }>({
     suggestions: [],
     positions: new Map(),
   });
@@ -165,12 +160,11 @@ export function StakeoutMapModal({
   const center: LatLng | null = plan?.plan.target ?? (watched?.lat != null && watched?.lng != null ? { lat: watched.lat, lng: watched.lng } : null);
   const basemap = basemapById(basemapId);
 
-  useEffect(() => writePrefs({ basemap: basemapId, threeD, markers: markerStyle }), [basemapId, threeD, markerStyle]);
+  useEffect(() => writePrefs({ basemap: basemapId, threeD }), [basemapId, threeD]);
   useEffect(
     () =>
       onPrefsChange((next) => {
         if (next.basemap) setBasemapId(basemapById(next.basemap).id);
-        if (next.markers) setMarkerStyle(next.markers);
       }),
     [],
   );
@@ -309,9 +303,7 @@ export function StakeoutMapModal({
     if (ready) handlers.current.checkSight();
   }, [ready, plan, positions, live?.lat, live?.lng, probe?.lat, probe?.lng]);
 
-  const isBlocked = (spot: LatLng) => blocked.has(spotKey(spot));
-  const pinOffset = markerStyle === "avatar" ? AVATAR_OFFSET : undefined;
-  const suggestions = useMemo(
+  const isBlocked = (spot: LatLng) => blocked.has(spotKey(spot));  const suggestions = useMemo(
     () => (plan?.plan.suggestions ?? []).filter((s) => !blocked.has(spotKey(s))).slice(0, SUGGESTIONS_SHOWN),
     [plan, blocked],
   );
@@ -413,7 +405,6 @@ export function StakeoutMapModal({
         layout: { "line-cap": "round" },
         paint: { "line-color": ["get", "color"], "line-width": 3, "line-opacity": 0.95, "line-dasharray": [2, 1] },
       });
-      addPeopleLayer(map);
       setReady(true);
     });
 
@@ -550,18 +541,18 @@ export function StakeoutMapModal({
         .addTo(map);
       if (layers.suggestions) {
         for (const spot of p.suggestions.slice(0, SUGGESTIONS_SHOWN).filter((s) => blocked.has(spotKey(s)))) {
-          const el = pinElement("suggestion blocked", "×", "#8a93a6", "A building blocks the view from here", markerStyle);
+          const el = pinElement("suggestion blocked", "×", "#8a93a6", "A building blocks the view from here");
           m.suggestions.push(new maplibregl.Marker({ element: el }).setLngLat([spot.lng, spot.lat]).addTo(map));
         }
         suggestions.forEach((spot, index) => {
           const key = spotKey(spot);
-          const el = pinElement("suggestion", String(index + 1), SUGGESTION_COLOR, `Suggestion ${index + 1} · ${spot.score}/100`, markerStyle);
+          const el = pinElement("suggestion", String(index + 1), SUGGESTION_COLOR, `Suggestion ${index + 1} · ${spot.score}/100`);
           el.dataset.key = key;
           el.addEventListener("click", (e) => {
             e.stopPropagation();
             setSelection({ kind: "suggestion", key });
           });
-          m.suggestions.push(new maplibregl.Marker({ element: el, offset: pinOffset }).setLngLat([spot.lng, spot.lat]).addTo(map));
+          m.suggestions.push(new maplibregl.Marker({ element: el }).setLngLat([spot.lng, spot.lat]).addTo(map));
         });
       }
     }
@@ -569,14 +560,12 @@ export function StakeoutMapModal({
     for (const position of positions) {
       const status = STAKEOUT_STATUS[position.status];
       const score = position.assessment?.score ?? position.score;
-      const el = pinElement("position", score != null ? String(score) : "•", status.color, `${position.label} · ${status.label}`, markerStyle);
+      const el = pinElement("position", score != null ? String(score) : "•", status.color, `${position.label} · ${status.label}`);
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         setSelection({ kind: "position", id: position.id });
       });
-      const marker = new maplibregl.Marker({ element: el, draggable: canEdit, offset: pinOffset })
-        .setLngLat([position.lng, position.lat])
-        .addTo(map);
+      const marker = new maplibregl.Marker({ element: el, draggable: canEdit }).setLngLat([position.lng, position.lat]).addTo(map);
       const report = (final: boolean) => {
         const at = marker.getLngLat();
         handlers.current.positionDrag(position.id, { lat: at.lat, lng: at.lng }, final);
@@ -585,7 +574,7 @@ export function StakeoutMapModal({
       marker.on("dragend", () => report(true));
       m.positions.set(position.id, marker);
     }
-  }, [plan, positions, suggestions, blocked, layers.suggestions, canEdit, ready, markerStyle]);
+  }, [plan, positions, suggestions, blocked, layers.suggestions, canEdit, ready]);
 
   // Relabelled in place: rebuilding markers would drop one being dragged.
   useEffect(() => {
@@ -618,20 +607,13 @@ export function StakeoutMapModal({
       m.probe = undefined;
       return;
     }
-    if (m.probe && m.probeStyle !== markerStyle) {
-      m.probe.remove();
-      m.probe = undefined;
-    }
     if (!m.probe) {
-      m.probeStyle = markerStyle;
-      const el = pinElement("probe", "?", "#f4f6fb", "Test spot: drag it around", markerStyle);
+      const el = pinElement("probe", "?", "#f4f6fb", "Test spot: drag it around");
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         setSelection({ kind: "probe" });
       });
-      const marker = new maplibregl.Marker({ element: el, draggable: true, offset: pinOffset })
-        .setLngLat([probe.lng, probe.lat])
-        .addTo(map);
+      const marker = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([probe.lng, probe.lat]).addTo(map);
       const report = (final: boolean) => {
         const at = marker.getLngLat();
         handlers.current.probeDrag({ lat: at.lat, lng: at.lng }, final);
@@ -647,24 +629,7 @@ export function StakeoutMapModal({
     const score = probeAssessment?.score;
     if (text) text.textContent = score != null ? String(score) : probe.loading ? "…" : "?";
     el.style.setProperty("--pin", score != null ? scoreColor(score) : "#f4f6fb");
-  }, [probe, probeAssessment, ready, markerStyle]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ready) return;
-    if (markerStyle !== "avatar") {
-      setPeople(map, []);
-      return;
-    }
-    setPeople(map, [
-      ...(layers.suggestions ? suggestions.map((s) => ({ lat: s.lat, lng: s.lng, color: SUGGESTION_COLOR })) : []),
-      ...positions.map((pos) => {
-        const at = live?.id === pos.id ? live : pos;
-        return { lat: at.lat, lng: at.lng, color: STAKEOUT_STATUS[pos.status].color };
-      }),
-      ...(probe ? [{ lat: probe.lat, lng: probe.lng, color: probeAssessment ? scoreColor(probeAssessment.score) : "#f4f6fb" }] : []),
-    ]);
-  }, [markerStyle, suggestions, positions, live?.id, live?.lat, live?.lng, probe?.lat, probe?.lng, probeAssessment, layers.suggestions, ready]);
+  }, [probe, probeAssessment, ready]);
 
   const selectedPosition = selection?.kind === "position" ? positions.find((p) => p.id === selection.id) ?? null : null;
   const selectedSuggestion = selection?.kind === "suggestion" ? suggestions.find((s) => spotKey(s) === selection.key) ?? null : null;
@@ -867,16 +832,6 @@ export function StakeoutMapModal({
               <Axis3d size={13} />
             </button>
           </div>
-
-          <button
-            type="button"
-            className="stk-tool"
-            title={markerStyle === "number" ? "Show spots as people" : "Show spots as numbers"}
-            aria-label={markerStyle === "number" ? "Show spots as people" : "Show spots as numbers"}
-            onClick={() => setMarkerStyle((s) => (s === "number" ? "avatar" : "number"))}
-          >
-            {markerStyle === "number" ? <UserRound size={14} /> : <Hash size={14} />}
-          </button>
         </div>
 
         <div className="stk-legend">

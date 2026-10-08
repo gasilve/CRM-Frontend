@@ -1,17 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl, { type Map as MapLibre, type Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { Axis3d, ChevronDown, Hash, RotateCcw, RotateCw, Star, UserRound } from "lucide-react";
+import { Axis3d, ChevronDown, RotateCcw, RotateCw, Star } from "lucide-react";
 import type { LatLng, StakeoutPlan, StakeoutPosition } from "@/lib/crm-api";
 import { BASEMAPS, basemapById, type BasemapId } from "./basemaps";
 import {
-  AVATAR_OFFSET,
   addBuildingLayers,
-  addPeopleLayer,
   baseStyle,
   blockedSpots,
   fitZoom,
-  setPeople,
   onPrefsChange,
   pinElement,
   readPrefs,
@@ -21,7 +18,6 @@ import {
   targetElement,
   tiltStep,
   writePrefs,
-  type MarkerStyle,
 } from "./map-core";
 import { STAKEOUT_STATUS, SUGGESTION_COLOR } from "./StakeoutMapModal";
 import "./stakeout-map.css";
@@ -46,7 +42,6 @@ export function StakeoutMiniMap({
 }) {
   const prefs = useMemo(readPrefs, []);
   const [basemapId, setBasemapId] = useState<BasemapId>(basemapById(prefs.basemap).id);
-  const [markerStyle, setMarkerStyle] = useState<MarkerStyle>(prefs.markers ?? "number");
   const [menu, setMenu] = useState(false);
   const [ready, setReady] = useState(false);
   const [blocked, setBlocked] = useState<Set<string>>(() => new Set());
@@ -61,7 +56,6 @@ export function StakeoutMiniMap({
     () =>
       onPrefsChange((next) => {
         if (next.basemap) setBasemapId(basemapById(next.basemap).id);
-        if (next.markers) setMarkerStyle(next.markers);
       }),
     [],
   );
@@ -82,7 +76,6 @@ export function StakeoutMiniMap({
     });
     map.on("load", () => {
       addBuildingLayers(map, basemap, threeD);
-      addPeopleLayer(map);
       setReady(true);
     });
     map.on("idle", () => checkSight.current());
@@ -139,30 +132,15 @@ export function StakeoutMiniMap({
       add(targetElement(Boolean(p?.front)), target, { rotationAlignment: "map", pitchAlignment: "map", rotation: p?.front?.bearing ?? 0 });
     }
     for (const s of (p?.suggestions ?? []).slice(0, SHOWN).filter((spot) => blocked.has(spotKey(spot)))) {
-      add(pinElement("suggestion mini blocked", "×", "#8a93a6", "A building blocks the view from here", markerStyle), s);
+      add(pinElement("suggestion mini blocked", "×", "#8a93a6", "A building blocks the view from here"), s);
     }
-    const avatar = markerStyle === "avatar";
-    const offset = avatar ? AVATAR_OFFSET : undefined;
-    suggestions.forEach((s, i) =>
-      add(pinElement("suggestion mini", String(i + 1), SUGGESTION_COLOR, `Suggestion ${i + 1} · ${s.score}/100`, markerStyle), s, { offset }),
-    );
+    suggestions.forEach((s, i) => add(pinElement("suggestion mini", String(i + 1), SUGGESTION_COLOR, `Suggestion ${i + 1} · ${s.score}/100`), s));
     for (const position of positions) {
       const status = STAKEOUT_STATUS[position.status];
       const score = blocked.has(spotKey(position)) ? 0 : position.assessment?.score ?? position.score;
-      add(pinElement("position mini", score != null ? String(score) : "•", status.color, `${position.label} · ${status.label}`, markerStyle), position, {
-        offset,
-      });
+      add(pinElement("position mini", score != null ? String(score) : "•", status.color, `${position.label} · ${status.label}`), position);
     }
-    setPeople(
-      map,
-      avatar
-        ? [
-            ...suggestions.map((s) => ({ lat: s.lat, lng: s.lng, color: SUGGESTION_COLOR })),
-            ...positions.map((pos) => ({ lat: pos.lat, lng: pos.lng, color: STAKEOUT_STATUS[pos.status].color })),
-          ]
-        : [],
-    );
-  }, [plan, positions, suggestions, home, markerStyle, blocked, ready]);
+  }, [plan, positions, suggestions, home, blocked, ready]);
 
   const fittedFor = useRef<string | null>(null);
   useEffect(() => {
@@ -188,12 +166,6 @@ export function StakeoutMiniMap({
     setBasemapId(id);
     setMenu(false);
     writePrefs({ basemap: id });
-  };
-
-  const toggleMarkers = () => {
-    const next = markerStyle === "number" ? "avatar" : "number";
-    setMarkerStyle(next);
-    writePrefs({ markers: next });
   };
 
   return (
@@ -240,15 +212,6 @@ export function StakeoutMiniMap({
           onClick={() => mapRef.current && writePrefs({ threeD: tiltStep(mapRef.current) })}
         >
           <Axis3d size={13} />
-        </button>
-        <button
-          type="button"
-          className="stk-mini-btn"
-          title={markerStyle === "number" ? "Show spots as people" : "Show spots as numbers"}
-          aria-label={markerStyle === "number" ? "Show spots as people" : "Show spots as numbers"}
-          onClick={toggleMarkers}
-        >
-          {markerStyle === "number" ? <UserRound size={13} /> : <Hash size={13} />}
         </button>
       </div>
     </div>

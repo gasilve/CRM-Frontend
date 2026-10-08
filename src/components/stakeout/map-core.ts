@@ -9,8 +9,7 @@ import { BUILDINGS, basemapById, buildingLook, type Basemap, type BasemapId } fr
 
 // ── Preferences (shared by both maps) ──────────────────────────────────
 
-export type MarkerStyle = "number" | "avatar";
-export type MapPrefs = { basemap?: BasemapId; threeD?: boolean; markers?: MarkerStyle };
+export type MapPrefs = { basemap?: BasemapId; threeD?: boolean };
 
 const PREFS_KEY = "stakeout-map";
 const PREFS_EVENT = "stakeout-map-prefs";
@@ -127,13 +126,10 @@ export const fitZoom = (flatZoom: number, pitch: number) => flatZoom - (pitch / 
 
 // ── Markers ────────────────────────────────────────────────────────────
 
-/** In person mode the 3D figure stands on the spot; the label sits just below its feet. */
-export const AVATAR_OFFSET: [number, number] = [0, 16];
-
-export function pinElement(className: string, text: string, color: string, title: string, style: MarkerStyle = "number") {
+export function pinElement(className: string, text: string, color: string, title: string) {
   const el = document.createElement("button");
   el.type = "button";
-  el.className = `stk-pin ${className} ${style === "avatar" ? "avatar" : ""}`;
+  el.className = `stk-pin ${className}`;
   el.style.setProperty("--pin", color);
   el.title = title;
   const label = document.createElement("span");
@@ -141,68 +137,6 @@ export function pinElement(className: string, text: string, color: string, title
   el.appendChild(label);
   return el;
 }
-
-// ── 3D people ──────────────────────────────────────────────────────────
-
-/**
- * Figures are oversized (about 12 m tall) so they read at street zoom next
- * to houses; at true scale a person is a couple of pixels.
- */
-const PERSON_PARTS = [
-  { dx: -1.1, r: 0.9, base: 0, top: 4.2, shade: 0.75 },
-  { dx: 1.1, r: 0.9, base: 0, top: 4.2, shade: 0.75 },
-  { dx: 0, r: 2.3, base: 4.2, top: 8.6, shade: 1 },
-  { dx: 0, r: 1.7, base: 9, top: 12, shade: 1.1 },
-];
-
-const shadeColor = (hex: string, k: number) => {
-  const n = parseInt(hex.slice(1), 16);
-  const ch = (v: number) => Math.max(0, Math.min(255, Math.round(v * k)));
-  return `rgb(${ch((n >> 16) & 255)}, ${ch((n >> 8) & 255)}, ${ch(n & 255)})`;
-};
-
-const circle = (center: LatLng, dxM: number, radiusM: number) => {
-  const kx = 111_320 * Math.cos((center.lat * Math.PI) / 180);
-  const ky = 110_540;
-  const ring: [number, number][] = [];
-  for (let i = 0; i <= 16; i++) {
-    const a = (i / 16) * Math.PI * 2;
-    ring.push([center.lng + (dxM + Math.cos(a) * radiusM) / kx, center.lat + (Math.sin(a) * radiusM) / ky]);
-  }
-  return ring;
-};
-
-export type Person = LatLng & { color: string };
-
-export const peopleData = (people: Person[]): GeoJSON.FeatureCollection => ({
-  type: "FeatureCollection",
-  features: people.flatMap((p) =>
-    PERSON_PARTS.map((part) => ({
-      type: "Feature" as const,
-      properties: { color: shadeColor(p.color, part.shade), base: part.base, top: part.top },
-      geometry: { type: "Polygon" as const, coordinates: [circle(p, part.dx, part.r)] },
-    })),
-  ),
-});
-
-export const addPeopleLayer = (map: MapLibre) => {
-  map.addSource("people", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-  map.addLayer({
-    id: "people-3d",
-    type: "fill-extrusion",
-    source: "people",
-    paint: {
-      "fill-extrusion-color": ["get", "color"],
-      "fill-extrusion-base": ["get", "base"],
-      "fill-extrusion-height": ["get", "top"],
-      "fill-extrusion-opacity": 0.96,
-      "fill-extrusion-vertical-gradient": true,
-    },
-  });
-};
-
-export const setPeople = (map: MapLibre, people: Person[]) =>
-  (map.getSource("people") as maplibregl.GeoJSONSource | undefined)?.setData(peopleData(people));
 
 export function targetElement(hasFront: boolean) {
   const el = document.createElement("div");

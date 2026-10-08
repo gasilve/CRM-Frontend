@@ -775,20 +775,7 @@ textarea.stk-input {
   cursor: help;
 }
 
-/* Person mode: the 3D figure is the marker; this is the name plate at its feet. */
-.stk-pin.avatar {
-  min-width: 22px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  border: 1.5px solid var(--pin);
-  background: rgba(10, 13, 22, 0.88);
-  color: #fff;
-  font-size: 10.5px;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
-}
-
-.stk-pin.mini:not(.avatar) {
+.stk-pin.mini {
   min-width: 24px;
   height: 24px;
   font-size: 11px;
