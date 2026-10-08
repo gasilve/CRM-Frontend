@@ -725,9 +725,7 @@ export function StakeoutMapModal({
                     type="button"
                     role="menuitemradio"
                     aria-checked={b.id === basemapId}
-                    disabled={!b.tiles}
                     className={cls(b.id === basemapId && "on")}
-                    title={b.missing}
                     onClick={() => {
                       setBasemapId(b.id);
                       setMenu(null);
@@ -737,7 +735,7 @@ export function StakeoutMapModal({
                       {b.label}
                       {b.recommended && <Star size={11} fill="currentColor" aria-label="Recommended" />}
                     </span>
-                    <small>{b.missing ?? b.hint}</small>
+                    <small>{b.hint}</small>
                   </button>
                 ))}
               </div>

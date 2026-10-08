@@ -1,10 +1,22 @@
 /**
- * Raster base maps for the investigator map. Keyless ones always work; Mapbox
- * and Thunderforest need a key in the frontend env and are hidden without it.
- * Stadia (dark, toner) works keyless on localhost; on a real domain either add
- * the domain in the Stadia dashboard or set VITE_STADIA_KEY.
+ * Raster base maps for the investigator map. Premium styles (Mapbox,
+ * Thunderforest) show when their key is set and replace their keyless
+ * stand-ins; without keys the stand-ins show instead.
+ * Stadia (dark, toner, streets stand-in) works keyless on localhost; on a real
+ * domain either add the domain in the Stadia dashboard or set VITE_STADIA_KEY.
  */
-export type BasemapId = "dark" | "light" | "satellite" | "toner" | "streets" | "transit" | "mapbox" | "transport" | "osm";
+export type BasemapId =
+  | "dark"
+  | "satellite-streets"
+  | "satellite"
+  | "mapbox"
+  | "streets"
+  | "light"
+  | "toner"
+  | "transport"
+  | "transport-dark"
+  | "transit"
+  | "osm";
 
 export type Basemap = {
   id: BasemapId;
@@ -17,8 +29,8 @@ export type Basemap = {
   tileSize: 256 | 512;
   attribution: string;
   maxzoom: number;
-  /** Why it cannot be used right now. */
-  missing?: string;
+  /** Keyless stand-in, hidden when this premium style is available. */
+  replacedBy?: BasemapId;
 };
 
 const env = import.meta.env;
@@ -28,6 +40,13 @@ const thunderforestKey = env.VITE_THUNDERFOREST_KEY as string | undefined;
 
 const OSM = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>';
 const STADIA = '© <a href="https://stadiamaps.com/" target="_blank" rel="noreferrer">Stadia Maps</a>';
+const MAPBOX = '© <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noreferrer">Mapbox</a>';
+const THUNDERFOREST = '© <a href="https://www.thunderforest.com/" target="_blank" rel="noreferrer">Thunderforest</a>';
+
+const mapbox = (style: string) =>
+  mapboxToken ? [`https://api.mapbox.com/styles/v1/mapbox/${style}/tiles/512/{z}/{x}/{y}@2x?access_token=${mapboxToken}`] : null;
+const thunderforest = (style: string) =>
+  thunderforestKey ? [`https://tile.thunderforest.com/${style}/{z}/{x}/{y}@2x.png?apikey=${thunderforestKey}`] : null;
 
 const ALL_BASEMAPS: Basemap[] = [
   {
@@ -42,6 +61,47 @@ const ALL_BASEMAPS: Basemap[] = [
     maxzoom: 20,
   },
   {
+    id: "satellite-streets",
+    label: "Satellite + labels",
+    hint: "Mapbox: imagery with street names and numbers",
+    tone: "dark",
+    tiles: mapbox("satellite-streets-v12"),
+    tileSize: 512,
+    attribution: `${MAPBOX} ${OSM} © Maxar`,
+    maxzoom: 22,
+  },
+  {
+    id: "satellite",
+    label: "Satellite",
+    hint: "Esri World Imagery: often a different date than Mapbox",
+    tone: "dark",
+    tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+    tileSize: 256,
+    attribution: "Tiles © Esri — Maxar, Earthstar Geographics",
+    maxzoom: 19,
+  },
+  {
+    id: "mapbox",
+    label: "Streets",
+    hint: "Mapbox Streets: names, shops, house numbers",
+    tone: "light",
+    tiles: mapbox("streets-v12"),
+    tileSize: 512,
+    attribution: `${MAPBOX} ${OSM}`,
+    maxzoom: 22,
+  },
+  {
+    id: "streets",
+    label: "Streets",
+    hint: "Stadia OSM Bright: street names and shops",
+    tone: "light",
+    tiles: [`https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}@2x.png${stadiaKey}`],
+    tileSize: 256,
+    attribution: `${STADIA} © OpenMapTiles ${OSM}`,
+    maxzoom: 20,
+    replacedBy: "mapbox",
+  },
+  {
     id: "light",
     label: "Light",
     hint: "CartoDB Positron",
@@ -50,16 +110,6 @@ const ALL_BASEMAPS: Basemap[] = [
     tileSize: 256,
     attribution: `© <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> ${OSM}`,
     maxzoom: 20,
-  },
-  {
-    id: "satellite",
-    label: "Satellite",
-    hint: "Esri World Imagery",
-    tone: "dark",
-    tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
-    tileSize: 256,
-    attribution: "Tiles © Esri — Maxar, Earthstar Geographics",
-    maxzoom: 19,
   },
   {
     id: "toner",
@@ -72,14 +122,24 @@ const ALL_BASEMAPS: Basemap[] = [
     maxzoom: 20,
   },
   {
-    id: "streets",
-    label: "Streets",
-    hint: "Stadia OSM Bright: street names and shops",
-    tone: "light",
-    tiles: [`https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}@2x.png${stadiaKey}`],
+    id: "transport-dark",
+    label: "Transport dark",
+    hint: "Thunderforest: bus, rail and road classes at night",
+    tone: "dark",
+    tiles: thunderforest("transport-dark"),
     tileSize: 256,
-    attribution: `${STADIA} © OpenMapTiles ${OSM}`,
-    maxzoom: 20,
+    attribution: `${THUNDERFOREST} ${OSM}`,
+    maxzoom: 22,
+  },
+  {
+    id: "transport",
+    label: "Transport",
+    hint: "Thunderforest: bus, rail and road classes",
+    tone: "light",
+    tiles: thunderforest("transport"),
+    tileSize: 256,
+    attribution: `${THUNDERFOREST} ${OSM}`,
+    maxzoom: 22,
   },
   {
     id: "transit",
@@ -90,30 +150,7 @@ const ALL_BASEMAPS: Basemap[] = [
     tileSize: 256,
     attribution: `Map <a href="https://memomaps.de/" target="_blank" rel="noreferrer">memomaps.de</a> CC-BY-SA ${OSM}`,
     maxzoom: 18,
-  },
-  {
-    id: "mapbox",
-    label: "Mapbox Streets",
-    hint: "Premium street detail",
-    tone: "light",
-    tiles: mapboxToken
-      ? [`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/512/{z}/{x}/{y}@2x?access_token=${mapboxToken}`]
-      : null,
-    tileSize: 512,
-    attribution: `© <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noreferrer">Mapbox</a> ${OSM}`,
-    maxzoom: 22,
-    missing: mapboxToken ? undefined : "Needs VITE_MAPBOX_TOKEN",
-  },
-  {
-    id: "transport",
-    label: "Transport",
-    hint: "Thunderforest: transit and road classes",
-    tone: "light",
-    tiles: thunderforestKey ? [`https://tile.thunderforest.com/transport/{z}/{x}/{y}@2x.png?apikey=${thunderforestKey}`] : null,
-    tileSize: 256,
-    attribution: `© <a href="https://www.thunderforest.com/" target="_blank" rel="noreferrer">Thunderforest</a> ${OSM}`,
-    maxzoom: 22,
-    missing: thunderforestKey ? undefined : "Needs VITE_THUNDERFOREST_KEY",
+    replacedBy: "transport",
   },
   {
     id: "osm",
@@ -127,11 +164,17 @@ const ALL_BASEMAPS: Basemap[] = [
   },
 ];
 
-/** Keyed styles only show up once their key is set. */
-export const BASEMAPS: Basemap[] = ALL_BASEMAPS.filter((b) => b.tiles);
+const available = (id: BasemapId) => Boolean(ALL_BASEMAPS.find((b) => b.id === id)?.tiles);
 
-export const basemapById = (id: string | null | undefined): Basemap =>
-  BASEMAPS.find((b) => b.id === id && b.tiles) ?? BASEMAPS[0];
+/** What the switcher offers: every style with tiles, minus stand-ins whose premium version is there. */
+export const BASEMAPS: Basemap[] = ALL_BASEMAPS.filter((b) => b.tiles && !(b.replacedBy && available(b.replacedBy)));
+
+/** A saved choice that is no longer offered falls back to its premium version, then to the default. */
+export const basemapById = (id: string | null | undefined): Basemap => {
+  const saved = ALL_BASEMAPS.find((b) => b.id === id);
+  const target = saved?.replacedBy && available(saved.replacedBy) ? saved.replacedBy : id;
+  return BASEMAPS.find((b) => b.id === target) ?? BASEMAPS[0];
+};
 
 /** Vector tiles with building heights, used for the 3D view on top of any base map. */
 export const BUILDINGS_SOURCE = "https://tiles.openfreemap.org/planet";
