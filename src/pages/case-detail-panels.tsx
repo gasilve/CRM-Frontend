@@ -218,23 +218,30 @@ export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
     return chooseSubjectPhoto(files)?.id ?? null;
   }, [c.subjectPhotoUrl, c.files]);
   const [portraitUrl, setPortraitUrl] = useState<string | null>(null);
+  const [portraitLoading, setPortraitLoading] = useState(false);
   const loadBlob = ctx.loadFileBlob;
   useEffect(() => {
     if (!portraitFileId) {
       setPortraitUrl(null);
+      setPortraitLoading(false);
       return;
     }
     let revoke: string | null = null;
     let cancelled = false;
+    setPortraitLoading(true);
     const load = loadBlob ? loadBlob(portraitFileId) : casesApi.fileBlob(c.id, portraitFileId);
     load
       .then((blob) => {
         if (cancelled) return;
         revoke = URL.createObjectURL(blob);
         setPortraitUrl(revoke);
+        setPortraitLoading(false);
       })
       .catch(() => {
-        if (!cancelled) setPortraitUrl(null);
+        if (!cancelled) {
+          setPortraitUrl(null);
+          setPortraitLoading(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -316,6 +323,10 @@ export function SubjectPhotoPanel({ ctx }: { ctx: CasePanelCtx }) {
           <div className="relative min-h-[7.5rem] min-w-0 flex-1 overflow-hidden rounded-[0.625rem] border border-[var(--color-line-2)] bg-[var(--color-ink-3)]">
             {primary ? (
               <PanelPhotoImg photo={primary} />
+            ) : portraitLoading && tab === "subject" ? (
+              <div className="grid h-full place-items-center">
+                <Loader2 size={18} className="animate-spin text-[var(--color-text-lo)]" />
+              </div>
             ) : (
               <div className="grid h-full place-items-center px-4 text-center">
                 <span className="font-mono text-[0.65625rem] text-[var(--color-text-lo)]">
