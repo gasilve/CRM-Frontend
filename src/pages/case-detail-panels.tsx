@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Columns2, MapPin, User, Plus, X, Loader2, Car, ShieldQuestion, StickyNote,
-  ImagePlus, ScanFace, UserPlus, Lock, Paperclip, FileText, Eye, Home, Briefcase, Users2, Crosshair,
+  ImagePlus, ScanFace, UserPlus, Lock, Paperclip, FileText, Eye, Home, Briefcase, Users2, Maximize2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/format";
@@ -705,10 +705,11 @@ export function AddressesMapPanel({ ctx }: { ctx: CasePanelCtx }) {
             <button
               type="button"
               onClick={() => setStakeoutOpen(true)}
-              title="Investigator map: where to watch from"
-              className="inline-flex items-center gap-1 font-mono text-[0.625rem] text-[var(--color-accent-2)]"
+              title="Open the investigator map"
+              aria-label="Open the investigator map"
+              className="text-[var(--color-accent-2)]"
             >
-              <Crosshair size={12} /> Investigator
+              <Maximize2 size={12} />
             </button>
           )}
           {ctx.canEdit && !adding && <button type="button" onClick={() => setAdding(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}

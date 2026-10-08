@@ -36,11 +36,25 @@ function FlyToFocus({ lat, lng }: { lat: number; lng: number }) {
   return null;
 }
 
+/** Zooms in on the house and its stakeout spots: at city zoom they sit on top of each other. */
+function FitStakeout({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  const key = points.map((p) => p.join(",")).join(";");
+  useEffect(() => {
+    if (points.length < 2) return;
+    map.fitBounds(L.latLngBounds(points), { padding: [24, 24], maxZoom: 17 });
+    // Refit only when the spots change.
+  }, [key, map]);
+  return null;
+}
+
 export function CaseMap({
   addresses,
   focusAddressId,
   frameClassName,
   stakeouts,
+  suggestions,
+  fitToStakeout = false,
 }: {
   addresses: CaseAddress[];
   /** When set, the map flies to this geocoded address. */
@@ -48,6 +62,10 @@ export function CaseMap({
   frameClassName?: string;
   /** Saved stakeout spots, drawn as small dots coloured by status. */
   stakeouts?: StakeoutPosition[];
+  /** Planner suggestions, drawn as small blue dots. */
+  suggestions?: { lat: number; lng: number; score: number }[];
+  /** Frame the house and the stakeout spots instead of the whole city. */
+  fitToStakeout?: boolean;
 }) {
   const pinned = addresses.filter((a): a is CaseAddress & { lat: number; lng: number } => a.lat != null && a.lng != null);
 
@@ -85,6 +103,27 @@ export function CaseMap({
               {a.city ? `, ${a.city}` : ""} {a.state ?? ""}
             </Popup>
           </Marker>
+        ))}
+        {fitToStakeout && (
+          <FitStakeout
+            points={[
+              [primary.lat, primary.lng],
+              ...(stakeouts ?? []).map((s): [number, number] => [s.lat, s.lng]),
+              ...(suggestions ?? []).map((s): [number, number] => [s.lat, s.lng]),
+            ]}
+          />
+        )}
+        {suggestions?.map((s, i) => (
+          <CircleMarker
+            key={`suggestion-${s.lat},${s.lng}`}
+            center={[s.lat, s.lng]}
+            radius={5}
+            pathOptions={{ color: "#0a0d16", weight: 1.5, fillColor: "#5aa9ff", fillOpacity: 0.95 }}
+          >
+            <Tooltip>
+              Suggested spot {i + 1} · {s.score}/100
+            </Tooltip>
+          </CircleMarker>
         ))}
         {stakeouts?.map((s) => (
           <CircleMarker

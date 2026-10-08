@@ -15,7 +15,7 @@
   inset: 0;
   z-index: 3000;
   display: grid;
-  place-items: stretch;
+  place-items: center;
   padding: 20px;
   color: var(--ink);
   font-family: Inter, -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;
@@ -38,9 +38,13 @@
   cursor: default;
 }
 
+/* About three quarters of the screen, so the case stays visible around it. */
 .stk-frame {
   position: relative;
+  width: min(78vw, 1640px);
+  height: min(80vh, 1000px);
   min-height: 0;
+  animation: stk-open 0.22s ease-out;
   overflow: hidden;
   border-radius: 28px;
   border: 1px solid var(--edge);
@@ -307,6 +311,10 @@
   border-radius: 999px;
   font-size: 13px;
   animation: stk-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes stk-open {
+  from { opacity: 0; transform: scale(0.96); }
 }
 
 @keyframes stk-pulse {
@@ -786,10 +794,11 @@ textarea.stk-input {
 
 @media (prefers-reduced-motion: reduce) {
   .stk-target i,
-  .stk-loading { animation: none; }
+  .stk-loading,
+  .stk-frame { animation: none; }
 }
 
-/* Normal / Investigator switch on the Sky View stakeout card. */
+/* Expand button on the Sky View stakeout card. */
 .sky-v6 .stake-head {
   display: flex;
   align-items: center;
@@ -802,39 +811,35 @@ textarea.stk-input {
   margin-bottom: 0;
 }
 
-.sky-v6 .stake-mode {
-  display: inline-flex;
-  padding: 2px;
-  border-radius: 999px;
+.sky-v6 .stake-expand {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
   border: 1px solid var(--edge);
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.sky-v6 .stake-mode button {
-  padding: 3px 10px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--ink3);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink2);
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 
-.sky-v6 .stake-mode button.on {
-  background: rgba(255, 255, 255, 0.16);
-  color: var(--ink);
+.sky-v6 .stake-expand:hover {
+  background: rgba(90, 169, 255, 0.22);
+  border-color: rgba(90, 169, 255, 0.6);
+  color: #fff;
+  transform: scale(1.06);
 }
 
-.sky-v6 .stake-mode button:not(.on):hover {
-  color: var(--fixed);
+/* Smaller laptops: use more of the screen so the map is not cramped beside the panel. */
+@media (max-width: 1400px) {
+  .stk-frame { width: 92vw; height: 88vh; }
 }
 
 /* Narrow screens: the panel becomes a bottom sheet. */
 @media (max-width: 900px) {
   .stk { padding: 0; }
-  .stk-frame { border-radius: 0; }
+  .stk-frame { width: 100vw; height: 100vh; border-radius: 0; }
   .stk-tools { max-width: calc(100% - 32px); }
   .stk-panel { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 46%; }
   .stk-legend, .stk-hint { display: none; }
