@@ -13,7 +13,7 @@ import {
   type StakeoutPosition,
   type StakeoutStatus,
 } from "@/lib/crm-api";
-import { BASEMAPS, BUILDINGS_ATTRIBUTION, BUILDINGS_SOURCE, basemapById, type Basemap, type BasemapId } from "./basemaps";
+import { BASEMAPS, BUILDINGS, basemapById, buildingLook, type Basemap, type BasemapId } from "./basemaps";
 import "./stakeout-map.css";
 
 type Selection = { kind: "suggestion"; index: number } | { kind: "position"; id: string } | { kind: "probe" } | null;
@@ -65,7 +65,11 @@ const rasterSource = (base: Basemap): maplibregl.RasterSourceSpecification => ({
   maxzoom: base.maxzoom,
 });
 
-const buildingColor = (base: Basemap) => (base.tone === "dark" ? "#2a3245" : "#d5d9e2");
+const applyBuildingLook = (map: MapLibre, base: Basemap) => {
+  const look = buildingLook(base);
+  map.setPaintProperty("buildings-3d", "fill-extrusion-color", look.color as maplibregl.ExpressionSpecification);
+  map.setPaintProperty("buildings-3d", "fill-extrusion-opacity", look.opacity);
+};
 
 const addressLine = (a: CaseAddress) => [a.line1, a.city, [a.state, a.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 
@@ -335,7 +339,7 @@ export function StakeoutMapModal({
         version: 8,
         sources: {
           base: rasterSource(basemap),
-          buildings: { type: "vector", url: BUILDINGS_SOURCE, attribution: BUILDINGS_ATTRIBUTION },
+          buildings: BUILDINGS.source,
         },
         layers: [{ id: "base", type: "raster", source: "base" }],
       },
@@ -349,20 +353,22 @@ export function StakeoutMapModal({
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
 
     map.on("load", () => {
+      map.setLight({ anchor: "viewport", color: "#ffffff", intensity: 0.35, position: [1.4, 210, 35] });
       map.addLayer({
         id: "buildings-3d",
         type: "fill-extrusion",
         source: "buildings",
-        "source-layer": "building",
+        "source-layer": BUILDINGS.sourceLayer,
         minzoom: 14,
+        ...(BUILDINGS.filter && { filter: BUILDINGS.filter as maplibregl.FilterSpecification }),
         layout: { visibility: threeD ? "visible" : "none" },
         paint: {
-          "fill-extrusion-color": buildingColor(basemap),
-          "fill-extrusion-height": ["coalesce", ["get", "render_height"], 6],
-          "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], 0],
-          "fill-extrusion-opacity": 0.82,
+          "fill-extrusion-height": BUILDINGS.height as maplibregl.ExpressionSpecification,
+          "fill-extrusion-base": BUILDINGS.base as maplibregl.ExpressionSpecification,
+          "fill-extrusion-vertical-gradient": true,
         },
       });
+      applyBuildingLook(map, basemap);
       for (const id of ["burn", "exits", "sight", "house"]) map.addSource(id, { type: "geojson", data: EMPTY });
       map.addLayer({
         id: "burn-fill",
@@ -427,7 +433,7 @@ export function StakeoutMapModal({
     map.removeSource("base");
     map.addSource("base", rasterSource(basemap));
     map.addLayer({ id: "base", type: "raster", source: "base" }, map.getStyle().layers[0]?.id);
-    map.setPaintProperty("buildings-3d", "fill-extrusion-color", buildingColor(basemap));
+    applyBuildingLook(map, basemap);
   }, [basemap, ready]);
 
   const frontRef = useRef<StakeoutPlan["plan"]["front"]>(null);

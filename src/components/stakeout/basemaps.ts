@@ -176,6 +176,50 @@ export const basemapById = (id: string | null | undefined): Basemap => {
   return BASEMAPS.find((b) => b.id === target) ?? BASEMAPS[0];
 };
 
-/** Vector tiles with building heights, used for the 3D view on top of any base map. */
-export const BUILDINGS_SOURCE = "https://tiles.openfreemap.org/planet";
-export const BUILDINGS_ATTRIBUTION = '<a href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a>';
+type Expression = unknown[];
+
+/**
+ * Building footprints and heights for the 3D view, on top of any base map.
+ * Mapbox has far more US houses mapped than OpenStreetMap, so it is used when
+ * there is a token; OpenFreeMap (OpenStreetMap buildings) otherwise.
+ */
+export const BUILDINGS: {
+  source: { type: "vector"; url?: string; tiles?: string[]; maxzoom?: number; attribution: string };
+  sourceLayer: string;
+  height: Expression;
+  base: Expression;
+  filter?: Expression;
+} = mapboxToken
+  ? {
+      source: {
+        type: "vector",
+        tiles: [`https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/{z}/{x}/{y}.vector.pbf?access_token=${mapboxToken}`],
+        maxzoom: 16,
+        attribution: MAPBOX,
+      },
+      sourceLayer: "building",
+      height: ["coalesce", ["get", "height"], 6],
+      base: ["coalesce", ["get", "min_height"], 0],
+      filter: ["all", ["!=", ["get", "underground"], "true"], ["!=", ["get", "extrude"], "false"]],
+    }
+  : {
+      source: {
+        type: "vector",
+        url: "https://tiles.openfreemap.org/planet",
+        attribution: '<a href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a>',
+      },
+      sourceLayer: "building",
+      height: ["coalesce", ["get", "render_height"], 6],
+      base: ["coalesce", ["get", "render_min_height"], 0],
+    };
+
+/** How buildings look over a base map: solid on drawn maps, see-through over imagery so roofs show. */
+export const buildingLook = (base: Basemap): { color: Expression | string; opacity: number } => {
+  if (base.id.startsWith("satellite")) {
+    return { color: ["interpolate", ["linear"], BUILDINGS.height, 0, "#e9e4da", 30, "#f6f3ee"], opacity: 0.55 };
+  }
+  if (base.tone === "dark") {
+    return { color: ["interpolate", ["linear"], BUILDINGS.height, 0, "#283043", 40, "#3a4560"], opacity: 0.9 };
+  }
+  return { color: ["interpolate", ["linear"], BUILDINGS.height, 0, "#d7dbe3", 40, "#c3c9d6"], opacity: 0.9 };
+};
