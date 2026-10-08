@@ -176,16 +176,17 @@ const projector = (origin: LatLng) => {
 
 const cross = (ax: number, ay: number, bx: number, by: number) => ax * by - ay * bx;
 
-const segmentsCross = (a: XY, b: XY, c: XY, d: XY) => {
+/** Where along a→b (0..1) the segment c→d crosses it, or null. */
+const crossingAt = (a: XY, b: XY, c: XY, d: XY): number | null => {
   const rx = b.x - a.x;
   const ry = b.y - a.y;
   const sx = d.x - c.x;
   const sy = d.y - c.y;
   const denom = cross(rx, ry, sx, sy);
-  if (denom === 0) return false;
+  if (denom === 0) return null;
   const t = cross(c.x - a.x, c.y - a.y, sx, sy) / denom;
   const u = cross(c.x - a.x, c.y - a.y, rx, ry) / denom;
-  return t > 0 && t < 1 && u > 0 && u < 1;
+  return t > 0 && t < 1 && u >= 0 && u <= 1 ? t : null;
 };
 
 const inside = (p: XY, ring: XY[]) => {
@@ -206,6 +207,28 @@ const areaOf = (ring: XY[]) => {
 
 /** Sheds and kiosks under this size do not hide a car. */
 const MIN_BLOCKING_M2 = 12;
+/** A line that only clips a corner still sees past it. */
+const MIN_CROSSING_M = 3;
+/** Porch, garage and yard right at the front are part of the shot, not in its way. */
+const TARGET_CLEARANCE_M = 6;
+
+/** Metres of the segment a→b that run inside the ring. */
+const lengthInside = (a: XY, b: XY, ring: XY[]) => {
+  const cuts = [0, 1];
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const t = crossingAt(a, b, ring[j], ring[i]);
+    if (t !== null) cuts.push(t);
+  }
+  if (cuts.length === 2) return 0;
+  cuts.sort((x, y) => x - y);
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  let inner = 0;
+  for (let k = 1; k < cuts.length; k++) {
+    const mid = (cuts[k - 1] + cuts[k]) / 2;
+    if (inside({ x: a.x + (b.x - a.x) * mid, y: a.y + (b.y - a.y) * mid }, ring)) inner += (cuts[k] - cuts[k - 1]) * len;
+  }
+  return inner;
+};
 
 /**
  * Checks spots against the buildings drawn on the map (Mapbox has far more US
@@ -237,14 +260,15 @@ export function blockedSpots(map: MapLibre, target: LatLng, address: LatLng, spo
 
   for (const spot of spots) {
     const s = toXY(spot);
-    const box = { minX: Math.min(s.x, t.x), minY: Math.min(s.y, t.y), maxX: Math.max(s.x, t.x), maxY: Math.max(s.y, t.y) };
+    const span = Math.hypot(s.x - t.x, s.y - t.y);
+    if (span <= TARGET_CLEARANCE_M) continue;
+    const k = TARGET_CLEARANCE_M / span;
+    const end = { x: t.x + (s.x - t.x) * k, y: t.y + (s.y - t.y) * k };
+    const box = { minX: Math.min(s.x, end.x), minY: Math.min(s.y, end.y), maxX: Math.max(s.x, end.x), maxY: Math.max(s.y, end.y) };
     const hit = footprints.some((f) => {
       if (f.maxX < box.minX || f.minX > box.maxX || f.maxY < box.minY || f.minY > box.maxY) return false;
       if (inside(s, f.ring)) return false;
-      for (let i = 0, j = f.ring.length - 1; i < f.ring.length; j = i++) {
-        if (segmentsCross(s, t, f.ring[j], f.ring[i])) return true;
-      }
-      return false;
+      return lengthInside(s, end, f.ring) >= MIN_CROSSING_M;
     });
     if (hit) blocked.add(spot.key);
   }

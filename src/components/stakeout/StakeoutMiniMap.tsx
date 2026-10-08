@@ -133,6 +133,9 @@ export function StakeoutMiniMap({
     if (target) {
       add(targetElement(Boolean(p?.front)), target, { rotationAlignment: "map", pitchAlignment: "map", rotation: p?.front?.bearing ?? 0 });
     }
+    for (const s of (p?.suggestions ?? []).slice(0, SHOWN).filter((spot) => blocked.has(spotKey(spot)))) {
+      add(pinElement("suggestion mini blocked", "×", "#8a93a6", "A building blocks the view from here", markerStyle), s);
+    }
     suggestions.forEach((s, i) =>
       add(pinElement("suggestion mini", String(i + 1), SUGGESTION_COLOR, `Suggestion ${i + 1} · ${s.score}/100`, markerStyle), s),
     );

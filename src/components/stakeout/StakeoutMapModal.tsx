@@ -542,6 +542,10 @@ export function StakeoutMapModal({
         .setLngLat([p.target.lng, p.target.lat])
         .addTo(map);
       if (layers.suggestions) {
+        for (const spot of p.suggestions.slice(0, SUGGESTIONS_SHOWN).filter((s) => blocked.has(spotKey(s)))) {
+          const el = pinElement("suggestion blocked", "×", "#8a93a6", "A building blocks the view from here", markerStyle);
+          m.suggestions.push(new maplibregl.Marker({ element: el }).setLngLat([spot.lng, spot.lat]).addTo(map));
+        }
         suggestions.forEach((spot, index) => {
           const key = spotKey(spot);
           const el = pinElement("suggestion", String(index + 1), SUGGESTION_COLOR, `Suggestion ${index + 1} · ${spot.score}/100`, markerStyle);
@@ -572,7 +576,7 @@ export function StakeoutMapModal({
       marker.on("dragend", () => report(true));
       m.positions.set(position.id, marker);
     }
-  }, [plan, positions, suggestions, layers.suggestions, canEdit, ready, markerStyle]);
+  }, [plan, positions, suggestions, blocked, layers.suggestions, canEdit, ready, markerStyle]);
 
   // Relabelled in place: rebuilding markers would drop one being dragged.
   useEffect(() => {

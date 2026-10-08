@@ -767,6 +767,14 @@ textarea.stk-input {
   cursor: grab;
 }
 
+/* A suggestion the map found blocked by a building: kept in sight, greyed out. */
+.stk-pin.blocked {
+  opacity: 0.6;
+  border-style: dashed;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+  cursor: help;
+}
+
 /* Person marker: a round avatar with the number or score as a badge. */
 .stk-pin.avatar {
   position: relative;
