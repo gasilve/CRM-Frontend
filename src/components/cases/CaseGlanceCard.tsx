@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Clock, MapPin, UserRound } from "lucide-react";
 import { MobilityMark } from "@/components/cases/SubjectMobility";
 import { cn } from "@/lib/cn";
-import { placeholderPhotoFor, SERVICE_LABELS } from "@/lib/mock-data";
+import { SERVICE_LABELS } from "@/lib/mock-data";
 import { useCasePhoto } from "@/hooks/useCasePhoto";
 import { READABLE_DATE_CLASS } from "@/lib/journal";
 import { dueDateTone, formatCalendarDate } from "@/lib/dates";
@@ -142,7 +142,7 @@ export function CaseGlanceCard({
   const direct =
     glance.subjectPhotoUrl && /^(https?:|data:|blob:)/.test(glance.subjectPhotoUrl) ? glance.subjectPhotoUrl : null;
   const resolved = useCasePhoto(glance.id, direct ? null : glance.subjectPhotoUrl);
-  const src = direct || resolved || placeholderPhotoFor(glance.id);
+  const src = direct || resolved || null;
   const active = formatEarliestActive(glance.earliestActiveAt);
   const due = dueDateTone(glance.dueDate);
 
@@ -190,14 +190,18 @@ export function CaseGlanceCard({
   const body = (
     <>
       <div className="flex h-[6.25rem] w-full min-w-0 shrink-0 items-stretch">
-        <img
-          src={src}
-          alt=""
-          className={cn(
-            "aspect-[4/3] h-full shrink-0 object-cover transition-[filter] duration-200",
-            muted && "grayscale-[0.9] contrast-[0.85] brightness-[0.75] group-hover:grayscale-0 group-hover:brightness-100 group-focus-within:grayscale-0",
-          )}
-        />
+        {src ? (
+          <img
+            src={src}
+            alt=""
+            className={cn(
+              "aspect-[4/3] h-full shrink-0 object-cover transition-[filter] duration-200",
+              muted && "grayscale-[0.9] contrast-[0.85] brightness-[0.75] group-hover:grayscale-0 group-hover:brightness-100 group-focus-within:grayscale-0",
+            )}
+          />
+        ) : (
+          <div className="aspect-[4/3] h-full shrink-0 bg-[var(--color-ink-3)]" />
+        )}
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden px-3 py-2">
           <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
             {isActiveClock && (

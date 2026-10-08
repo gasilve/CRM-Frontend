@@ -11,7 +11,7 @@ type PhotoCandidate = {
   storageKey?: string | null;
 };
 
-const SIGNATURE_NAME = /^image\d*\.(png|jpe?g|gif)$/i;
+const LOGO_NAME = /logo|promedix|signature|banner|\bicon\b|spacer|pixel|tracking/i;
 const NOT_AN_IMAGE = /\.(pdf|docx?|xlsx?|csv|txt|eml|msg|zip)$/i;
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif|heic|heif)$/i;
 const IMAGE_TYPE = /^image\/(jpe?g|png|webp|gif|heic|heif)/i;
@@ -26,7 +26,7 @@ const extractedRole = (extracted: unknown): string | null => {
 
 const isSubjectImage = (file: { filename: string; contentType?: string | null }): boolean => {
   const name = file.filename.trim();
-  if (!name || SIGNATURE_NAME.test(name) || NOT_AN_IMAGE.test(name)) return false;
+  if (!name || LOGO_NAME.test(name) || NOT_AN_IMAGE.test(name)) return false;
   const image = IMAGE_EXT.test(name) || IMAGE_TYPE.test(file.contentType ?? "");
   if (!image) return false;
   if (NOT_THE_SUBJECT.test(name)) return false;
