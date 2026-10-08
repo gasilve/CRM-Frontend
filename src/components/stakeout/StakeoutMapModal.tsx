@@ -15,10 +15,14 @@ import {
 } from "@/lib/crm-api";
 import { BASEMAPS, basemapById, type BasemapId } from "./basemaps";
 import {
+  AVATAR_OFFSET,
   PITCH_3D,
   addBuildingLayers,
+  addPeopleLayer,
   baseStyle,
   blockedSpots,
+  fitZoom,
+  setPeople,
   onPrefsChange,
   pinElement,
   readPrefs,
@@ -306,6 +310,7 @@ export function StakeoutMapModal({
   }, [ready, plan, positions, live?.lat, live?.lng, probe?.lat, probe?.lng]);
 
   const isBlocked = (spot: LatLng) => blocked.has(spotKey(spot));
+  const pinOffset = markerStyle === "avatar" ? AVATAR_OFFSET : undefined;
   const suggestions = useMemo(
     () => (plan?.plan.suggestions ?? []).filter((s) => !blocked.has(spotKey(s))).slice(0, SUGGESTIONS_SHOWN),
     [plan, blocked],
@@ -408,6 +413,7 @@ export function StakeoutMapModal({
         layout: { "line-cap": "round" },
         paint: { "line-color": ["get", "color"], "line-width": 3, "line-opacity": 0.95, "line-dasharray": [2, 1] },
       });
+      addPeopleLayer(map);
       setReady(true);
     });
 
@@ -507,7 +513,8 @@ export function StakeoutMapModal({
       bearing,
       maxZoom: 18.5,
     });
-    if (camera) map.flyTo({ ...camera, pitch: threeD ? PITCH_3D : 0, bearing, duration: 1400 });
+    const pitch = threeD ? PITCH_3D : 0;
+    if (camera) map.flyTo({ ...camera, zoom: fitZoom(camera.zoom ?? 17, pitch), pitch, bearing, duration: 1400 });
     else map.flyTo({ center: [p.target.lng, p.target.lat], zoom: 17, pitch: threeD ? PITCH_3D : 0, bearing, duration: 1000 });
   }, [plan, positions, threeD, center]);
 
@@ -554,7 +561,7 @@ export function StakeoutMapModal({
             e.stopPropagation();
             setSelection({ kind: "suggestion", key });
           });
-          m.suggestions.push(new maplibregl.Marker({ element: el }).setLngLat([spot.lng, spot.lat]).addTo(map));
+          m.suggestions.push(new maplibregl.Marker({ element: el, offset: pinOffset }).setLngLat([spot.lng, spot.lat]).addTo(map));
         });
       }
     }
@@ -567,7 +574,9 @@ export function StakeoutMapModal({
         e.stopPropagation();
         setSelection({ kind: "position", id: position.id });
       });
-      const marker = new maplibregl.Marker({ element: el, draggable: canEdit }).setLngLat([position.lng, position.lat]).addTo(map);
+      const marker = new maplibregl.Marker({ element: el, draggable: canEdit, offset: pinOffset })
+        .setLngLat([position.lng, position.lat])
+        .addTo(map);
       const report = (final: boolean) => {
         const at = marker.getLngLat();
         handlers.current.positionDrag(position.id, { lat: at.lat, lng: at.lng }, final);
@@ -620,7 +629,9 @@ export function StakeoutMapModal({
         e.stopPropagation();
         setSelection({ kind: "probe" });
       });
-      const marker = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([probe.lng, probe.lat]).addTo(map);
+      const marker = new maplibregl.Marker({ element: el, draggable: true, offset: pinOffset })
+        .setLngLat([probe.lng, probe.lat])
+        .addTo(map);
       const report = (final: boolean) => {
         const at = marker.getLngLat();
         handlers.current.probeDrag({ lat: at.lat, lng: at.lng }, final);
@@ -637,6 +648,23 @@ export function StakeoutMapModal({
     if (text) text.textContent = score != null ? String(score) : probe.loading ? "…" : "?";
     el.style.setProperty("--pin", score != null ? scoreColor(score) : "#f4f6fb");
   }, [probe, probeAssessment, ready, markerStyle]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    if (markerStyle !== "avatar") {
+      setPeople(map, []);
+      return;
+    }
+    setPeople(map, [
+      ...(layers.suggestions ? suggestions.map((s) => ({ lat: s.lat, lng: s.lng, color: SUGGESTION_COLOR })) : []),
+      ...positions.map((pos) => {
+        const at = live?.id === pos.id ? live : pos;
+        return { lat: at.lat, lng: at.lng, color: STAKEOUT_STATUS[pos.status].color };
+      }),
+      ...(probe ? [{ lat: probe.lat, lng: probe.lng, color: probeAssessment ? scoreColor(probeAssessment.score) : "#f4f6fb" }] : []),
+    ]);
+  }, [markerStyle, suggestions, positions, live?.id, live?.lat, live?.lng, probe?.lat, probe?.lng, probeAssessment, layers.suggestions, ready]);
 
   const selectedPosition = selection?.kind === "position" ? positions.find((p) => p.id === selection.id) ?? null : null;
   const selectedSuggestion = selection?.kind === "suggestion" ? suggestions.find((s) => spotKey(s) === selection.key) ?? null : null;

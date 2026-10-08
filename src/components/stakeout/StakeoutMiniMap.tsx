@@ -5,9 +5,13 @@ import { Axis3d, ChevronDown, Hash, RotateCcw, RotateCw, Star, UserRound } from 
 import type { LatLng, StakeoutPlan, StakeoutPosition } from "@/lib/crm-api";
 import { BASEMAPS, basemapById, type BasemapId } from "./basemaps";
 import {
+  AVATAR_OFFSET,
   addBuildingLayers,
+  addPeopleLayer,
   baseStyle,
   blockedSpots,
+  fitZoom,
+  setPeople,
   onPrefsChange,
   pinElement,
   readPrefs,
@@ -78,6 +82,7 @@ export function StakeoutMiniMap({
     });
     map.on("load", () => {
       addBuildingLayers(map, basemap, threeD);
+      addPeopleLayer(map);
       setReady(true);
     });
     map.on("idle", () => checkSight.current());
@@ -136,14 +141,27 @@ export function StakeoutMiniMap({
     for (const s of (p?.suggestions ?? []).slice(0, SHOWN).filter((spot) => blocked.has(spotKey(spot)))) {
       add(pinElement("suggestion mini blocked", "×", "#8a93a6", "A building blocks the view from here", markerStyle), s);
     }
+    const avatar = markerStyle === "avatar";
+    const offset = avatar ? AVATAR_OFFSET : undefined;
     suggestions.forEach((s, i) =>
-      add(pinElement("suggestion mini", String(i + 1), SUGGESTION_COLOR, `Suggestion ${i + 1} · ${s.score}/100`, markerStyle), s),
+      add(pinElement("suggestion mini", String(i + 1), SUGGESTION_COLOR, `Suggestion ${i + 1} · ${s.score}/100`, markerStyle), s, { offset }),
     );
     for (const position of positions) {
       const status = STAKEOUT_STATUS[position.status];
       const score = blocked.has(spotKey(position)) ? 0 : position.assessment?.score ?? position.score;
-      add(pinElement("position mini", score != null ? String(score) : "•", status.color, `${position.label} · ${status.label}`, markerStyle), position);
+      add(pinElement("position mini", score != null ? String(score) : "•", status.color, `${position.label} · ${status.label}`, markerStyle), position, {
+        offset,
+      });
     }
+    setPeople(
+      map,
+      avatar
+        ? [
+            ...suggestions.map((s) => ({ lat: s.lat, lng: s.lng, color: SUGGESTION_COLOR })),
+            ...positions.map((pos) => ({ lat: pos.lat, lng: pos.lng, color: STAKEOUT_STATUS[pos.status].color })),
+          ]
+        : [],
+    );
   }, [plan, positions, suggestions, home, markerStyle, blocked, ready]);
 
   const fittedFor = useRef<string | null>(null);
@@ -151,7 +169,7 @@ export function StakeoutMiniMap({
     const map = mapRef.current;
     const p = plan?.plan;
     if (!map || !ready) return;
-    const key = p ? `plan-${plan.address.id}` : home ? `home-${home.lat},${home.lng}` : null;
+    const key = p ? `plan-${plan.address.id}-${positions.length}` : home ? `home-${home.lat},${home.lng}` : null;
     if (!key || fittedFor.current === key) return;
     fittedFor.current = key;
     if (!p) {
@@ -161,8 +179,9 @@ export function StakeoutMiniMap({
     const bounds = new maplibregl.LngLatBounds();
     for (const spot of [p.target, ...p.suggestions.slice(0, SHOWN), ...positions]) bounds.extend([spot.lng, spot.lat]);
     const bearing = map.getPitch() > 0 && p.front ? (p.front.bearing + 180) % 360 : 0;
-    const camera = map.cameraForBounds(bounds, { padding: 36, bearing, maxZoom: 18 });
-    if (camera) map.jumpTo({ ...camera, bearing, pitch: map.getPitch() });
+    const camera = map.cameraForBounds(bounds, { padding: { top: 54, bottom: 30, left: 30, right: 30 }, bearing, maxZoom: 18 });
+    const pitch = map.getPitch();
+    if (camera) map.jumpTo({ ...camera, zoom: fitZoom(camera.zoom ?? 16.5, pitch), bearing, pitch });
   }, [plan, positions, home, ready]);
 
   const pickBasemap = (id: BasemapId) => {

@@ -775,56 +775,23 @@ textarea.stk-input {
   cursor: help;
 }
 
-/* Person marker: a round avatar with the number or score as a badge. */
+/* Person mode: the 3D figure is the marker; this is the name plate at its feet. */
 .stk-pin.avatar {
-  position: relative;
-  width: 34px;
-  min-width: 34px;
-  height: 34px;
-  padding: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--pin) 80%, #fff) 0%, var(--pin) 70%);
-}
-
-.stk-pin.avatar svg {
-  width: 22px;
-  height: 22px;
-  margin-top: 4px;
-  fill: #0a0d16;
-  opacity: 0.85;
-}
-
-.stk-pin.avatar .badge {
-  position: absolute;
-  right: -7px;
-  top: -7px;
-  display: grid;
-  place-items: center;
-  min-width: 18px;
+  min-width: 22px;
   height: 18px;
-  padding: 0 4px;
+  padding: 0 5px;
   border-radius: 999px;
   border: 1.5px solid var(--pin);
-  background: #0a0d16;
+  background: rgba(10, 13, 22, 0.88);
   color: #fff;
-  font-size: 10px;
+  font-size: 10.5px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
 }
 
 .stk-pin.mini:not(.avatar) {
   min-width: 24px;
   height: 24px;
   font-size: 11px;
-}
-
-.stk-pin.avatar.mini {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-}
-
-.stk-pin.avatar.mini svg {
-  width: 18px;
-  height: 18px;
 }
 
 .stk-target {
