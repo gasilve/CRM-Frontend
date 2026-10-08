@@ -51,8 +51,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/cn";
 import { ThemePicker } from "./ThemePicker";
 import { ConfirmModal } from "@/components/dashboard/ConfirmModal";
-import { invCases } from "@/lib/mock-data";
-import { investigatorsApi } from "@/lib/crm-api";
+import { casesApi, investigatorsApi } from "@/lib/crm-api";
 import { useQuery } from "@/lib/query-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { canAccessPatternLab } from "@/lib/dev-access";
@@ -60,9 +59,6 @@ import { usePendingIntake } from "@/contexts/PendingIntakeContext";
 import type { Permission } from "@/lib/auth-client";
 import { getInitials, formatRoleList } from "@/lib/format";
 import accentyLogo from "@/assets/branding/accenty-logo.png";
-
-// Cases badge still on mock data — swap with API later.
-const openCases = invCases.filter((c) => c.status === "open").length;
 
 type Item = {
   to: string;
@@ -94,7 +90,7 @@ const DEFAULT_GROUPS: Group[] = [
     items: [
       { to: "/",              label: "Dashboard",    icon: LayoutDashboard },
       { to: "/my-day",        label: "My Day",       icon: Sun,          permissions: ["cases.view"] },
-      { to: "/cases",         label: "Cases",        icon: FolderOpen,   badge: openCases, permissions: ["cases.view"] },
+      { to: "/cases",         label: "Cases",        icon: FolderOpen,   permissions: ["cases.view"] },
       { to: "/pending-cases", label: "Pending cases", icon: Inbox, permissions: ["intake.view"] },
       { to: "/schedule",      label: "Scheduling",   icon: CalendarClock, permissions: ["schedule.view"] },
       { to: "/investigators", label: "Investigators",icon: Users2,        permissions: ["team.view"] },
@@ -570,7 +566,13 @@ export default function Sidebar({
 
   const canSeeIntake = canAny("intake.view");
   const canSeeTeam = canAny("team.view");
+  const canSeeCases = canAny("cases.view");
   const { pendingReview: pendingCases } = usePendingIntake();
+  const casesSummaryQuery = useQuery(
+    canSeeCases ? "cases:summary" : null,
+    () => casesApi.summary(),
+  );
+  const openCases = casesSummaryQuery.data?.openCount;
   const investigatorsQuery = useQuery(
     canSeeTeam ? "investigators:list" : null,
     () => investigatorsApi.list(),
@@ -589,6 +591,9 @@ export default function Sidebar({
           .filter((item) => !item.permissions || canAny(...item.permissions))
           .filter((item) => item.to !== "/playground" || showLab)
           .map((item) => {
+            if (item.to === "/cases" && openCases != null && openCases > 0) {
+              return { ...item, badge: openCases };
+            }
             if (item.to === "/pending-cases" && canSeeIntake && pendingCases && pendingCases > 0) {
               return { ...item, badge: pendingCases };
             }
@@ -600,7 +605,7 @@ export default function Sidebar({
       }))
       .filter((folder) => folder.items.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sidebarState, canAny, canSeeIntake, pendingCases, investigatorCount, user?.email]);
+  }, [sidebarState, canAny, canSeeIntake, openCases, pendingCases, investigatorCount, user?.email]);
 
   const updateState = (next: SidebarState) => {
     setSidebarState(next);
