@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Columns2, MapPin, User, Plus, X, Loader2, Car, ShieldQuestion, StickyNote,
-  ImagePlus, ScanFace, UserPlus, Lock, Paperclip, FileText, Eye, Home, Briefcase, Users2,
+  ImagePlus, ScanFace, UserPlus, Lock, Paperclip, FileText, Eye, Home, Briefcase, Users2, Crosshair,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/format";
@@ -14,6 +14,7 @@ import {
   fileDownloadUrl,
   geocodeApi,
   noteVersionsOf,
+  stakeoutApi,
   type CaseDetail,
   type CaseStatus,
   type CaseDayEntry,
@@ -25,6 +26,8 @@ import { CasePhoto } from "@/components/case/EntityModal";
 import { chooseSubjectPhoto } from "@/lib/subject-photo";
 import { FileViewerModal } from "@/components/case/FileViewerModal";
 import { CaseMap } from "@/components/case/CaseMap";
+import { StakeoutMapModal } from "@/components/stakeout/StakeoutMapModal";
+import { useQuery } from "@/lib/query-cache";
 import type { CasePanelCtx } from "./case-detail-widgets";
 import { formatCalendarDate } from "@/lib/dates";
 
@@ -607,6 +610,9 @@ export function AddressesMapPanel({ ctx }: { ctx: CasePanelCtx }) {
   const geocodeAttempted = useRef(new Set<string>());
   const canEdit = ctx.canEdit;
   const onRefresh = ctx.onRefresh;
+  const [stakeoutOpen, setStakeoutOpen] = useState(false);
+  const canSeeAddresses = ctx.canSee("case.subjectAddresses");
+  const stakeouts = useQuery(canSeeAddresses ? `case:${c.id}:stakeout` : null, () => stakeoutApi.list(c.id));
 
   // Backfill pins for addresses that landed without lat/lng (pre-Photon ingest / pending proposals).
   useEffect(() => {
@@ -693,10 +699,34 @@ export function AddressesMapPanel({ ctx }: { ctx: CasePanelCtx }) {
     <PanelShell
       title="Addresses & map"
       icon={<MapPin size={11} strokeWidth={1.8} />}
-      action={ctx.canEdit && !adding && <button type="button" onClick={() => setAdding(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}
+      action={
+        <span className="inline-flex items-center gap-2">
+          {c.addresses.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setStakeoutOpen(true)}
+              title="Investigator map: where to watch from"
+              className="inline-flex items-center gap-1 font-mono text-[0.625rem] text-[var(--color-accent-2)]"
+            >
+              <Crosshair size={12} /> Investigator
+            </button>
+          )}
+          {ctx.canEdit && !adding && <button type="button" onClick={() => setAdding(true)} className="text-[var(--color-accent-2)]"><Plus size={13} /></button>}
+        </span>
+      }
     >
+      {stakeoutOpen && (
+        <StakeoutMapModal
+          caseId={c.id}
+          subjectName={c.subjectName}
+          addresses={addressesForMap}
+          canEdit={ctx.canEdit}
+          onChanged={(positions) => stakeouts.mutate({ positions })}
+          onClose={() => setStakeoutOpen(false)}
+        />
+      )}
       <div className="relative h-full min-h-0 min-w-0">
-        <CaseMap addresses={addressesForMap} focusAddressId={focusId} />
+        <CaseMap addresses={addressesForMap} focusAddressId={focusId} stakeouts={stakeouts.data?.positions} />
 
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[500] flex flex-col gap-1.5 p-2">
           <div className="pointer-events-auto flex max-h-[42%] flex-wrap content-start gap-1 overflow-y-auto">

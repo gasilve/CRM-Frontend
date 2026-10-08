@@ -1,0 +1,842 @@
+/* Investigator map: the Sky View glass look, full screen over whatever opened it. */
+.stk {
+  --ink: #f4f6fb;
+  --ink2: rgba(244, 246, 251, 0.72);
+  --ink3: rgba(244, 246, 251, 0.45);
+  --active: #3ee08a;
+  --working: #ffc857;
+  --burned: #ff5c63;
+  --fixed: #5aa9ff;
+  --tail: #b18cff;
+  --glass: rgba(14, 18, 30, 0.72);
+  --edge: rgba(255, 255, 255, 0.2);
+
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: grid;
+  place-items: stretch;
+  padding: 20px;
+  color: var(--ink);
+  font-family: Inter, -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.stk *,
+.stk *::before,
+.stk *::after {
+  box-sizing: border-box;
+}
+
+.stk-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(6, 9, 18, 0.72);
+  backdrop-filter: blur(10px);
+  cursor: default;
+}
+
+.stk-frame {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid var(--edge);
+  background: #0a0d16;
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.8);
+}
+
+.stk-map {
+  position: absolute;
+  inset: 0;
+}
+
+.stk-map .maplibregl-canvas {
+  cursor: crosshair;
+}
+
+.stk-map .maplibregl-ctrl-group {
+  background: var(--glass);
+  border: 1px solid var(--edge);
+  border-radius: 14px;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+}
+
+.stk-map .maplibregl-ctrl-group button + button {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.stk-map .maplibregl-ctrl-group .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+
+.stk-map .maplibregl-ctrl-scale {
+  background: var(--glass);
+  border-color: var(--ink3);
+  color: var(--ink2);
+}
+
+.stk-map .maplibregl-ctrl-attrib {
+  background: rgba(10, 13, 22, 0.7);
+  color: var(--ink3);
+}
+
+.stk-map .maplibregl-ctrl-attrib a {
+  color: var(--ink2);
+}
+
+/* Glass pieces */
+.stk-tool,
+.stk-seg,
+.stk-menu,
+.stk-legend,
+.stk-hint,
+.stk-loading,
+.stk-panel {
+  background: var(--glass);
+  border: 1px solid var(--edge);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 20px 40px -24px rgba(0, 0, 0, 0.8);
+}
+
+.stk button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.stk button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* Toolbar */
+.stk-tools {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: calc(100% - 440px);
+}
+
+.stk-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.stk-tool.on,
+.stk-tool:hover {
+  border-color: rgba(90, 169, 255, 0.6);
+  color: #fff;
+}
+
+.stk-tool.on {
+  background: rgba(90, 169, 255, 0.22);
+}
+
+.stk-seg {
+  display: inline-flex;
+  height: 36px;
+  padding: 3px;
+  border-radius: 999px;
+}
+
+.stk-seg button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink3);
+}
+
+.stk-seg button.on {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--ink);
+}
+
+.stk-menuwrap {
+  position: relative;
+}
+
+.stk-menu {
+  position: absolute;
+  top: 44px;
+  left: 0;
+  z-index: 3;
+  display: grid;
+  gap: 2px;
+  min-width: 250px;
+  padding: 6px;
+  border-radius: 18px;
+}
+
+.stk-menu > button {
+  display: grid;
+  gap: 1px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  text-align: left;
+}
+
+.stk-menu > button:hover:not(:disabled),
+.stk-menu > button.on {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.stk-menu > button.on .t {
+  color: var(--fixed);
+}
+
+.stk-menu .t {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.stk-menu .t svg {
+  color: var(--working);
+}
+
+.stk-menu small {
+  color: var(--ink3);
+  font-size: 11.5px;
+}
+
+.stk-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.stk-check:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.stk-check input {
+  accent-color: var(--fixed);
+}
+
+/* Legend, hint, loading */
+.stk-legend {
+  position: absolute;
+  right: 416px;
+  bottom: 34px;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  max-width: 360px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 11.5px;
+  color: var(--ink2);
+}
+
+.stk-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stk-legend i {
+  width: 14px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.stk-legend i.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.stk-legend i.dash {
+  height: 0;
+  border-top: 2px dashed;
+  border-radius: 0;
+}
+
+.stk-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 34px;
+  z-index: 1;
+  transform: translateX(calc(-50% - 200px));
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--ink2);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.stk-loading {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(calc(-50% - 200px));
+  margin-top: 52px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  animation: stk-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes stk-pulse {
+  50% { opacity: 0.55; }
+}
+
+/* Side panel */
+.stk-panel {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 384px;
+  padding: 20px 20px 14px;
+  border-radius: 24px;
+}
+
+.stk-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.stk-kicker {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink3);
+}
+
+.stk-head h2 {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.stk-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.stk-icon:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.stk-addr,
+.stk-front {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink2);
+}
+
+.stk-front b {
+  color: var(--ink);
+}
+
+.stk-select,
+.stk-input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.stk-select option {
+  background: #141826;
+}
+
+.stk-input.title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.stk-input:focus,
+.stk-select:focus {
+  outline: none;
+  border-color: rgba(90, 169, 255, 0.7);
+}
+
+textarea.stk-input {
+  resize: vertical;
+}
+
+.stk-banner {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 92, 99, 0.4);
+  background: rgba(255, 92, 99, 0.12);
+  font-size: 12.5px;
+}
+
+.stk-banner p {
+  margin: 0;
+}
+
+.stk-banner.soft {
+  border-color: rgba(255, 200, 87, 0.4);
+  background: rgba(255, 200, 87, 0.1);
+}
+
+.stk-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -8px;
+  padding: 0 8px;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.stk-sec {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink3);
+}
+
+.stk-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stk-list button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  text-align: left;
+}
+
+.stk-list button:hover {
+  border-color: var(--edge);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.stk-list .n {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #0a0d16;
+}
+
+.stk-list .main {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.stk-list .main b,
+.stk-list .main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stk-list .main b {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stk-list .main small {
+  font-size: 11.5px;
+  color: var(--ink3);
+}
+
+.stk-list .sc {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stk-muted {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink3);
+}
+
+.stk-bad {
+  margin: 0;
+  color: var(--burned);
+  font-size: 13px;
+}
+
+.stk-foot {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink3);
+}
+
+.stk-notes {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 13px;
+  color: var(--ink2);
+}
+
+/* Detail */
+.stk-detail {
+  display: grid;
+  gap: 12px;
+}
+
+.stk-detail h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.stk-back {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12.5px;
+  color: var(--fixed) !important;
+}
+
+.stk-assess {
+  display: grid;
+  gap: 10px;
+}
+
+.stk-scoreline {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.stk-score {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background:
+    radial-gradient(closest-side, #121726 82%, transparent 84%),
+    conic-gradient(var(--s) var(--p), rgba(255, 255, 255, 0.1) 0);
+}
+
+.stk-score b {
+  font-size: 24px;
+  line-height: 1;
+  color: var(--s);
+}
+
+.stk-score small {
+  font-size: 10px;
+  color: var(--ink3);
+}
+
+.stk-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.stk-chip {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.stk-facing {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(177, 140, 255, 0.35);
+  background: rgba(177, 140, 255, 0.1);
+  font-size: 12.5px;
+}
+
+.stk-facing b {
+  color: var(--tail);
+}
+
+.stk-reasons {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.stk-reasons li {
+  position: relative;
+  padding-left: 18px;
+  color: var(--ink2);
+}
+
+.stk-reasons li::before {
+  position: absolute;
+  left: 2px;
+  font-weight: 700;
+}
+
+.stk-reasons li.good::before {
+  content: "+";
+  color: var(--active);
+}
+
+.stk-reasons li.bad::before {
+  content: "−";
+  color: var(--burned);
+}
+
+.stk-status {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.stk-status button {
+  flex: 1;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink3);
+}
+
+.stk-status button.on {
+  background: color-mix(in srgb, var(--c) 22%, transparent);
+  color: var(--c);
+}
+
+.stk-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.stk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stk-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.stk-btn.primary {
+  border-color: rgba(90, 169, 255, 0.6);
+  background: rgba(90, 169, 255, 0.25);
+}
+
+.stk-btn.danger {
+  justify-self: start;
+  border-color: rgba(255, 92, 99, 0.45);
+  color: var(--burned);
+  background: rgba(255, 92, 99, 0.08);
+}
+
+/* Markers */
+.stk-pin {
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 2px solid #0a0d16;
+  background: var(--pin);
+  color: #0a0d16;
+  font: 700 12px/1 Inter, -apple-system, sans-serif;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pin) 45%, transparent), 0 6px 16px rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.stk-pin:hover {
+  transform: scale(1.1);
+}
+
+.stk-pin.is-selected {
+  box-shadow: 0 0 0 4px #fff, 0 0 0 9px color-mix(in srgb, var(--pin) 45%, transparent), 0 8px 20px rgba(0, 0, 0, 0.6);
+  z-index: 2;
+}
+
+.stk-pin.suggestion {
+  min-width: 26px;
+  height: 26px;
+}
+
+.stk-pin.position {
+  border-radius: 10px;
+}
+
+.stk-pin.probe {
+  border-style: dashed;
+  border-color: #fff;
+  cursor: grab;
+}
+
+.stk-target {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  pointer-events: none;
+}
+
+.stk-target i {
+  position: absolute;
+  inset: 11px;
+  border-radius: 50%;
+  border: 3px solid #ff9f45;
+  background: rgba(255, 159, 69, 0.25);
+  box-shadow: 0 0 0 0 rgba(255, 159, 69, 0.6);
+  animation: stk-ping 2s ease-out infinite;
+}
+
+/* Points away from the house, toward the street: where the windows look. */
+.stk-target b {
+  position: absolute;
+  left: 50%;
+  top: -16px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 14px solid #ff9f45;
+}
+
+@keyframes stk-ping {
+  70% { box-shadow: 0 0 0 16px rgba(255, 159, 69, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 159, 69, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stk-target i,
+  .stk-loading { animation: none; }
+}
+
+/* Normal / Investigator switch on the Sky View stakeout card. */
+.sky-v6 .stake-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sky-v6 .stake-head .sec {
+  margin-bottom: 0;
+}
+
+.sky-v6 .stake-mode {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sky-v6 .stake-mode button {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sky-v6 .stake-mode button.on {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--ink);
+}
+
+.sky-v6 .stake-mode button:not(.on):hover {
+  color: var(--fixed);
+}
+
+/* Narrow screens: the panel becomes a bottom sheet. */
+@media (max-width: 900px) {
+  .stk { padding: 0; }
+  .stk-frame { border-radius: 0; }
+  .stk-tools { max-width: calc(100% - 32px); }
+  .stk-panel { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 46%; }
+  .stk-legend, .stk-hint { display: none; }
+  .stk-loading { transform: translateX(-50%); }
+}

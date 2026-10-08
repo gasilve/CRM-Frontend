@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ScanFace } from "lucide-react";
 import { CaseMap } from "@/components/case/CaseMap";
 import { VideoDesignGallery } from "@/components/cases/video-designs/VideoDesignGallery";
+import { StakeoutMapModal } from "@/components/stakeout/StakeoutMapModal";
 import { useCasePhoto } from "@/hooks/useCasePhoto";
 import { useAuth } from "@/contexts/AuthContext";
 import { ScheduleAssignmentModal, type AssignInvestigatorFlow } from "@/components/schedule/ScheduleAssignmentModal";
@@ -11,9 +12,11 @@ import {
   casesApi,
   investigatorsApi,
   scheduleApi,
+  stakeoutApi,
   type CaseDetail,
   type CaseVehicle,
   type InvestigatorListItem,
+  type StakeoutPosition,
 } from "@/lib/crm-api";
 import { SERVICE_LABELS } from "@/lib/mock-data";
 import { ageFromDob, calendarDateKey } from "@/lib/dates";
@@ -528,10 +531,20 @@ function buildLedger(kase: CaseDetail): { rows: LedgerRow[]; sections: Map<strin
   return { rows, sections };
 }
 
+function stakeoutSummary(positions: StakeoutPosition[]) {
+  if (positions.length === 0) return "Home address. No stakeout spots yet: open the investigator map for suggestions.";
+  const live = positions.filter((p) => p.status === "actual").length;
+  const best = Math.max(...positions.map((p) => p.score ?? 0));
+  const parts = [`${positions.length} spot${positions.length === 1 ? "" : "s"}`];
+  if (live) parts.push(`${live} in use`);
+  if (best > 0) parts.push(`best ${best}/100`);
+  return parts.join(" · ");
+}
+
 export default function SkyViewPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const { user, can } = useAuth();
+  const { user, can, canAny } = useAuth();
   const query = useQuery(id ? `case:${id}` : null, () => casesApi.get(id));
   const investigators = useQuery("investigators:list", () => investigatorsApi.list());
   const kase = query.data?.case;
@@ -544,6 +557,9 @@ export default function SkyViewPage() {
   const [openDayId, setOpenDayId] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] = useState<LedgerRow | null>(null);
   const [designsOpen, setDesignsOpen] = useState(false);
+  const [stakeoutOpen, setStakeoutOpen] = useState(false);
+  const stakeouts = useQuery(id ? `case:${id}:stakeout` : null, () => stakeoutApi.list(id));
+  const stakeoutPositions = stakeouts.data?.positions ?? [];
 
   const ledger = useMemo(() => (kase ? buildLedger(kase) : { rows: [], sections: new Map<string, DaySection>() }), [kase]);
   const rows = ledger.rows;
@@ -984,15 +1000,36 @@ export default function SkyViewPage() {
           </div>
 
           <div className="g stake">
-            <div className="sec">Stakeout</div>
-            <div className="stake-map">
-              <CaseMap addresses={kase.addresses} frameClassName="h-full min-h-0 rounded-none border-0" />
+            <div className="stake-head">
+              <div className="sec">Stakeout</div>
+              <div className="stake-mode" role="group" aria-label="Map mode">
+                <button type="button" className="on">
+                  Normal
+                </button>
+                <button type="button" onClick={() => setStakeoutOpen(true)}>
+                  Investigator
+                </button>
+              </div>
             </div>
-            <p className="wait">Home address. Stakeout positions are not placed yet.</p>
+            <div className="stake-map">
+              <CaseMap addresses={kase.addresses} stakeouts={stakeoutPositions} frameClassName="h-full min-h-0 rounded-none border-0" />
+            </div>
+            <p className="wait">{stakeoutSummary(stakeoutPositions)}</p>
           </div>
 
         </div>
       </div>
+
+      {stakeoutOpen && (
+        <StakeoutMapModal
+          caseId={kase.id}
+          subjectName={kase.subjectName}
+          addresses={kase.addresses}
+          canEdit={canAny("cases.edit", "cases.work", "cases.journal.write")}
+          onChanged={(positions) => stakeouts.mutate({ positions })}
+          onClose={() => setStakeoutOpen(false)}
+        />
+      )}
 
       {designsOpen && (
         <VideoDesignGallery

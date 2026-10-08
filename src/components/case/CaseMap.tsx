@@ -1,11 +1,13 @@
 import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, ZoomControl, CircleMarker, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
-import type { CaseAddress } from "@/lib/crm-api";
+import type { CaseAddress, StakeoutPosition } from "@/lib/crm-api";
+
+const STAKEOUT_COLOR = { proposed: "#ffc857", actual: "#3ee08a", nogo: "#ff5c63" } as const;
 
 const defaultIcon = L.icon({
   iconUrl: markerIcon,
@@ -38,11 +40,14 @@ export function CaseMap({
   addresses,
   focusAddressId,
   frameClassName,
+  stakeouts,
 }: {
   addresses: CaseAddress[];
   /** When set, the map flies to this geocoded address. */
   focusAddressId?: string | null;
   frameClassName?: string;
+  /** Saved stakeout spots, drawn as small dots coloured by status. */
+  stakeouts?: StakeoutPosition[];
 }) {
   const pinned = addresses.filter((a): a is CaseAddress & { lat: number; lng: number } => a.lat != null && a.lng != null);
 
@@ -80,6 +85,19 @@ export function CaseMap({
               {a.city ? `, ${a.city}` : ""} {a.state ?? ""}
             </Popup>
           </Marker>
+        ))}
+        {stakeouts?.map((s) => (
+          <CircleMarker
+            key={s.id}
+            center={[s.lat, s.lng]}
+            radius={6}
+            pathOptions={{ color: "#0a0d16", weight: 2, fillColor: STAKEOUT_COLOR[s.status], fillOpacity: 1 }}
+          >
+            <Tooltip>
+              {s.label}
+              {s.score != null ? ` · ${s.score}/100` : ""}
+            </Tooltip>
+          </CircleMarker>
         ))}
       </MapContainer>
     </div>
