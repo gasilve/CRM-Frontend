@@ -21,7 +21,7 @@ import {
   tiltStep,
   writePrefs,
 } from "./map-core";
-import { STAKEOUT_STATUS, SUGGESTION_COLOR } from "./StakeoutMapModal";
+import { STAKEOUT_STATUS, suggestionColor, watchesHouse } from "./StakeoutMapModal";
 import "./stakeout-map.css";
 
 /**
@@ -101,7 +101,7 @@ export function StakeoutMiniMap({
     const map = mapRef.current;
     const p = plan?.plan;
     if (!map || !p) return;
-    const spots = [...p.suggestions, ...positions].map((s) => ({ lat: s.lat, lng: s.lng, key: spotKey(s) }));
+    const spots = [...p.suggestions.filter(watchesHouse), ...positions].map((s) => ({ lat: s.lat, lng: s.lng, key: spotKey(s) }));
     const hits = blockedSpots(map, p.target, p.house ?? p.address, spots);
     setBlocked((prev) => {
       const fresh = [...hits].filter((k) => !prev.has(k));
@@ -130,7 +130,7 @@ export function StakeoutMiniMap({
     }
     const warn = (spot: LatLng) => (blocked.has(spotKey(spot)) ? " warn" : "");
     suggestions.forEach((s, i) =>
-      add(pinElement(`suggestion mini${warn(s)}`, String(i + 1), SUGGESTION_COLOR, `Suggestion ${i + 1} · ${s.score}/100`), s),
+      add(pinElement(`suggestion mini${warn(s)}`, String(i + 1), suggestionColor(s), `Suggestion ${i + 1} · ${s.score}/100`), s),
     );
     for (const position of positions) {
       const status = STAKEOUT_STATUS[position.status];

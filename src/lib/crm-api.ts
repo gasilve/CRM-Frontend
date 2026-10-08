@@ -1004,6 +1004,8 @@ export interface StakeoutAssessment extends LatLng {
   lineOfSight: "clear" | "vegetation" | "blocked";
   burnRisk: "low" | "medium" | "high";
   kind: "street" | "parking" | "off-road";
+  /** `house`: films the front of the house. `departure`: sees the subject drive out, not the door. */
+  watch?: "house" | "departure";
   road: string | null;
   /** Which way to park to follow the subject out, e.g. "NE toward Main St". */
   facing: string | null;

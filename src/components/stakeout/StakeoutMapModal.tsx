@@ -53,6 +53,11 @@ const SIGHT = {
 } as const;
 const KIND_LABEL = { street: "Street", parking: "Parking lot", "off-road": "Off road" } as const;
 export const SUGGESTION_COLOR = "#5aa9ff";
+/** Same purple as the ways out: these spots watch the subject leave, not the house. */
+export const DEPARTURE_COLOR = "#b18cff";
+export const suggestionColor = (s: StakeoutAssessment) => (s.watch === "departure" ? DEPARTURE_COLOR : SUGGESTION_COLOR);
+/** Departure-watch spots are not meant to see the house, so the building check skips them. */
+export const watchesHouse = (s: StakeoutAssessment) => s.watch !== "departure";
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
 export const scoreColor = (score: number) => (score >= 70 ? "#3ee08a" : score >= 50 ? "#ffc857" : score > 0 ? "#ff9f45" : "#ff5c63");
@@ -85,9 +90,15 @@ function AssessmentView({ a }: { a: StakeoutAssessment }) {
           <span className="stk-chip" style={{ color: RISK_COLOR[a.burnRisk] }}>
             Burn risk {a.burnRisk}
           </span>
-          <span className="stk-chip" style={{ color: SIGHT[a.lineOfSight].color }}>
-            {SIGHT[a.lineOfSight].label}
-          </span>
+          {a.watch === "departure" ? (
+            <span className="stk-chip" style={{ color: DEPARTURE_COLOR }}>
+              Watches the way out
+            </span>
+          ) : (
+            <span className="stk-chip" style={{ color: SIGHT[a.lineOfSight].color }}>
+              {SIGHT[a.lineOfSight].label}
+            </span>
+          )}
           <span className="stk-chip">{a.distanceM} m</span>
           <span className="stk-chip">{a.road ?? KIND_LABEL[a.kind]}</span>
         </div>
@@ -290,7 +301,7 @@ export function StakeoutMapModal({
     const p = plan?.plan;
     if (!map || !p) return;
     const spots = [
-      ...p.suggestions,
+      ...p.suggestions.filter(watchesHouse),
       ...positions.map((pos) => (live?.id === pos.id ? live : pos)),
       ...(probe ? [probe] : []),
     ].map((s) => ({ lat: s.lat, lng: s.lng, key: spotKey(s) }));
@@ -545,8 +556,8 @@ export function StakeoutMapModal({
           const el = pinElement(
             flagged ? "suggestion warn" : "suggestion",
             String(index + 1),
-            SUGGESTION_COLOR,
-            `Suggestion ${index + 1} · ${spot.score}/100${flagged ? " · a building may block the view" : ""}`,
+            suggestionColor(spot),
+            `Suggestion ${index + 1} · ${spot.score}/100${spot.watch === "departure" ? " · watches the way out" : ""}${flagged ? " · a building may block the view" : ""}`,
           );
           el.dataset.key = key;
           el.addEventListener("click", (e) => {
@@ -840,6 +851,7 @@ export function StakeoutMapModal({
           <span><i style={{ background: "rgba(255,92,99,.55)" }} />Burn zone</span>
           <span><i className="dash" style={{ borderColor: "#b18cff" }} />Way out</span>
           <span><i className="dot" style={{ background: SUGGESTION_COLOR }} />Suggested</span>
+          <span><i className="dot" style={{ background: DEPARTURE_COLOR }} />Watch the way out</span>
           {(Object.keys(STAKEOUT_STATUS) as StakeoutStatus[]).map((s) => (
             <span key={s}>
               <i className="dot" style={{ background: STAKEOUT_STATUS[s].color }} />
@@ -974,13 +986,14 @@ export function StakeoutMapModal({
                     {suggestions.map((s, i) => (
                       <li key={spotKey(s)}>
                         <button type="button" onClick={() => pick({ kind: "suggestion", key: spotKey(s) }, s)}>
-                          <span className="n" style={{ background: SUGGESTION_COLOR }}>
+                          <span className="n" style={{ background: suggestionColor(s) }}>
                             {i + 1}
                           </span>
                           <span className="main">
                             <b>{s.road ?? KIND_LABEL[s.kind]}</b>
                             <small>
-                              {s.distanceM} m · {SIGHT[s.lineOfSight].label.toLowerCase()} · burn {s.burnRisk}
+                              {s.distanceM} m · {s.watch === "departure" ? "watches the way out" : SIGHT[s.lineOfSight].label.toLowerCase()} · burn{" "}
+                              {s.burnRisk}
                               {isBlocked(s) && <span className="stk-warn-text"> · ⚠ building in the way?</span>}
                             </small>
                           </span>
