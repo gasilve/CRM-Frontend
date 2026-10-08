@@ -16,12 +16,14 @@ import {
 import { BASEMAPS, basemapById, type BasemapId } from "./basemaps";
 import {
   PITCH_3D,
+  SUGGESTIONS_SHOWN,
   addBuildingLayers,
   baseStyle,
   blockedSpots,
   fitZoom,
   onPrefsChange,
   pinElement,
+  rankSuggestions,
   readPrefs,
   rotateBy,
   spotKey,
@@ -51,18 +53,17 @@ const SIGHT = {
 } as const;
 const KIND_LABEL = { street: "Street", parking: "Parking lot", "off-road": "Off road" } as const;
 export const SUGGESTION_COLOR = "#5aa9ff";
-const SUGGESTIONS_SHOWN = 6;
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
 export const scoreColor = (score: number) => (score >= 70 ? "#3ee08a" : score >= 50 ? "#ffc857" : score > 0 ? "#ff9f45" : "#ff5c63");
 
 const errorText = (err: unknown) => (err instanceof ApiError || err instanceof Error ? err.message : "Something went wrong.");
 
-const BLOCKED_REASON = "A building on the map stands between this spot and the house";
+const BLOCKED_REASON = "A building on the map may stand between this spot and the house: check the view";
 
-/** The server only knows OpenStreetMap buildings; a hit on the map's buildings overrides its view. */
+/** The server only knows OpenStreetMap buildings; a hit on the map's buildings is flagged, not scored. */
 const withMapSight = <A extends StakeoutAssessment>(a: A, blocked: boolean): A =>
-  blocked && a.lineOfSight !== "blocked" ? { ...a, score: 0, lineOfSight: "blocked", bad: [BLOCKED_REASON, ...a.bad] } : a;
+  blocked && a.lineOfSight !== "blocked" ? { ...a, bad: [BLOCKED_REASON, ...a.bad] } : a;
 
 const ringCoords = (points: LatLng[]) => {
   const ring = points.map((p) => [p.lng, p.lat]);
@@ -303,11 +304,9 @@ export function StakeoutMapModal({
     if (ready) handlers.current.checkSight();
   }, [ready, plan, positions, live?.lat, live?.lng, probe?.lat, probe?.lng]);
 
-  const isBlocked = (spot: LatLng) => blocked.has(spotKey(spot));  const suggestions = useMemo(
-    () => (plan?.plan.suggestions ?? []).filter((s) => !blocked.has(spotKey(s))).slice(0, SUGGESTIONS_SHOWN),
-    [plan, blocked],
-  );
-  const hiddenSuggestions = (plan?.plan.suggestions ?? []).filter((s) => blocked.has(spotKey(s))).length;
+  const isBlocked = (spot: LatLng) => blocked.has(spotKey(spot));
+  const suggestions = useMemo(() => rankSuggestions(plan?.plan.suggestions ?? [], blocked), [plan, blocked]);
+  const doubtfulSuggestions = suggestions.filter((s) => blocked.has(spotKey(s))).length;
   const probeAssessment = useMemo(
     () => (probe?.assessment ? withMapSight(probe.assessment, blocked.has(spotKey(probe))) : null),
     [probe, blocked],
@@ -540,13 +539,15 @@ export function StakeoutMapModal({
         .setLngLat([p.target.lng, p.target.lat])
         .addTo(map);
       if (layers.suggestions) {
-        for (const spot of p.suggestions.slice(0, SUGGESTIONS_SHOWN).filter((s) => blocked.has(spotKey(s)))) {
-          const el = pinElement("suggestion blocked", "×", "#8a93a6", "A building blocks the view from here");
-          m.suggestions.push(new maplibregl.Marker({ element: el }).setLngLat([spot.lng, spot.lat]).addTo(map));
-        }
         suggestions.forEach((spot, index) => {
           const key = spotKey(spot);
-          const el = pinElement("suggestion", String(index + 1), SUGGESTION_COLOR, `Suggestion ${index + 1} · ${spot.score}/100`);
+          const flagged = blocked.has(key);
+          const el = pinElement(
+            flagged ? "suggestion warn" : "suggestion",
+            String(index + 1),
+            SUGGESTION_COLOR,
+            `Suggestion ${index + 1} · ${spot.score}/100${flagged ? " · a building may block the view" : ""}`,
+          );
           el.dataset.key = key;
           el.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -582,8 +583,9 @@ export function StakeoutMapModal({
       const position = positions.find((p) => p.id === id);
       const text = marker.getElement().querySelector("span");
       if (!position || !text) return;
-      const score = isBlocked(position) ? 0 : position.assessment?.score ?? position.score;
+      const score = position.assessment?.score ?? position.score;
       text.textContent = score != null ? String(score) : "•";
+      marker.getElement().classList.toggle("warn", isBlocked(position));
     });
   }, [blocked, positions]);
 
@@ -904,7 +906,7 @@ export function StakeoutMapModal({
                 {selectedSuggestion && selection.kind === "suggestion" && (
                   <>
                     <h3>Suggestion {selectedIndex + 1}</h3>
-                    <AssessmentView a={selectedSuggestion} />
+                    <AssessmentView a={withMapSight(selectedSuggestion, isBlocked(selectedSuggestion))} />
                     {canEdit && (
                       <button type="button" className="stk-btn primary" disabled={busy} onClick={() => void savePosition(selectedSuggestion, "suggested")}>
                         Save as proposed spot
@@ -965,10 +967,8 @@ export function StakeoutMapModal({
                   {plan && suggestions.length === 0 && (
                     <p className="stk-muted">No spot within 300 m has a clear and safe view. Click the map to test one by hand.</p>
                   )}
-                  {hiddenSuggestions > 0 && (
-                    <p className="stk-muted">
-                      {hiddenSuggestions} hidden: a building on the map blocks the view to the house.
-                    </p>
+                  {doubtfulSuggestions > 0 && (
+                    <p className="stk-muted">⚠ {doubtfulSuggestions} may have a building in the way: check the view before using them.</p>
                   )}
                   <ol className="stk-list">
                     {suggestions.map((s, i) => (
@@ -981,6 +981,7 @@ export function StakeoutMapModal({
                             <b>{s.road ?? KIND_LABEL[s.kind]}</b>
                             <small>
                               {s.distanceM} m · {SIGHT[s.lineOfSight].label.toLowerCase()} · burn {s.burnRisk}
+                              {isBlocked(s) && <span className="stk-warn-text"> · ⚠ building in the way?</span>}
                             </small>
                           </span>
                           <span className="sc" style={{ color: scoreColor(s.score) }}>
@@ -1001,7 +1002,7 @@ export function StakeoutMapModal({
                   )}
                   <ul className="stk-list">
                     {positions.map((p) => {
-                      const score = isBlocked(p) ? 0 : p.assessment?.score ?? p.score;
+                      const score = p.assessment?.score ?? p.score;
                       return (
                         <li key={p.id}>
                           <button type="button" onClick={() => pick({ kind: "position", id: p.id }, p)}>

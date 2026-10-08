@@ -10,7 +10,9 @@ import {
   blockedSpots,
   fitZoom,
   onPrefsChange,
+  SUGGESTIONS_SHOWN,
   pinElement,
+  rankSuggestions,
   readPrefs,
   rotateBy,
   spotKey,
@@ -21,8 +23,6 @@ import {
 } from "./map-core";
 import { STAKEOUT_STATUS, SUGGESTION_COLOR } from "./StakeoutMapModal";
 import "./stakeout-map.css";
-
-const SHOWN = 6;
 
 /**
  * The stakeout card's map in Sky View: saved spots and the suggestions that
@@ -112,10 +112,7 @@ export function StakeoutMiniMap({
     if (ready) checkSight.current();
   }, [ready, plan, positions]);
 
-  const suggestions = useMemo(
-    () => (plan?.plan.suggestions ?? []).filter((s) => !blocked.has(spotKey(s))).slice(0, SHOWN),
-    [plan, blocked],
-  );
+  const suggestions = useMemo(() => rankSuggestions(plan?.plan.suggestions ?? [], blocked), [plan, blocked]);
   useEffect(() => onSuggestionsShown?.(suggestions.length), [suggestions.length, onSuggestionsShown]);
 
   useEffect(() => {
@@ -131,14 +128,14 @@ export function StakeoutMiniMap({
     if (target) {
       add(targetElement(Boolean(p?.front)), target, { rotationAlignment: "map", pitchAlignment: "map", rotation: p?.front?.bearing ?? 0 });
     }
-    for (const s of (p?.suggestions ?? []).slice(0, SHOWN).filter((spot) => blocked.has(spotKey(spot)))) {
-      add(pinElement("suggestion mini blocked", "×", "#8a93a6", "A building blocks the view from here"), s);
-    }
-    suggestions.forEach((s, i) => add(pinElement("suggestion mini", String(i + 1), SUGGESTION_COLOR, `Suggestion ${i + 1} · ${s.score}/100`), s));
+    const warn = (spot: LatLng) => (blocked.has(spotKey(spot)) ? " warn" : "");
+    suggestions.forEach((s, i) =>
+      add(pinElement(`suggestion mini${warn(s)}`, String(i + 1), SUGGESTION_COLOR, `Suggestion ${i + 1} · ${s.score}/100`), s),
+    );
     for (const position of positions) {
       const status = STAKEOUT_STATUS[position.status];
-      const score = blocked.has(spotKey(position)) ? 0 : position.assessment?.score ?? position.score;
-      add(pinElement("position mini", score != null ? String(score) : "•", status.color, `${position.label} · ${status.label}`), position);
+      const score = position.assessment?.score ?? position.score;
+      add(pinElement(`position mini${warn(position)}`, score != null ? String(score) : "•", status.color, `${position.label} · ${status.label}`), position);
     }
   }, [plan, positions, suggestions, home, blocked, ready]);
 
@@ -155,7 +152,7 @@ export function StakeoutMiniMap({
       return;
     }
     const bounds = new maplibregl.LngLatBounds();
-    for (const spot of [p.target, ...p.suggestions.slice(0, SHOWN), ...positions]) bounds.extend([spot.lng, spot.lat]);
+    for (const spot of [p.target, ...p.suggestions.slice(0, SUGGESTIONS_SHOWN), ...positions]) bounds.extend([spot.lng, spot.lat]);
     const bearing = map.getPitch() > 0 && p.front ? (p.front.bearing + 180) % 360 : 0;
     const camera = map.cameraForBounds(bounds, { padding: { top: 54, bottom: 30, left: 30, right: 30 }, bearing, maxZoom: 18 });
     const pitch = map.getPitch();

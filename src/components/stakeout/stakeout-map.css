@@ -767,12 +767,30 @@ textarea.stk-input {
   cursor: grab;
 }
 
-/* A suggestion the map found blocked by a building: kept in sight, greyed out. */
-.stk-pin.blocked {
-  opacity: 0.6;
-  border-style: dashed;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
-  cursor: help;
+/* A spot whose line to the house crosses a building drawn on the map: still usable, flagged to check. */
+.stk-pin.warn {
+  position: relative;
+  box-shadow: 0 0 0 2px #ff5c63, 0 0 0 4px rgba(255, 92, 99, 0.3), 0 6px 16px rgba(0, 0, 0, 0.55);
+}
+
+.stk-pin.warn::after {
+  content: "!";
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #ff5c63;
+  color: #fff;
+  font: 800 10px/1 Inter, -apple-system, sans-serif;
+  border: 1.5px solid #0a0d16;
+}
+
+.stk-warn-text {
+  color: #ff9f45;
 }
 
 .stk-pin.mini {

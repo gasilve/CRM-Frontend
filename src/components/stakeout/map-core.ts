@@ -260,3 +260,12 @@ export function blockedSpots(map: MapLibre, target: LatLng, address: LatLng, spo
 }
 
 export const spotKey = (p: LatLng) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`;
+
+export const SUGGESTIONS_SHOWN = 6;
+
+/** Clear views first, in the server's order; flagged ones fill the remaining places. */
+export const rankSuggestions = <S extends LatLng>(all: S[], blocked: Set<string>): S[] => {
+  const clear = all.filter((s) => !blocked.has(spotKey(s)));
+  const flagged = all.filter((s) => blocked.has(spotKey(s)));
+  return [...clear, ...flagged].slice(0, SUGGESTIONS_SHOWN);
+};
