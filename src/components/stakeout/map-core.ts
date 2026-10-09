@@ -11,7 +11,7 @@ import { BUILDINGS, basemapById, buildingLook, type Basemap, type BasemapId } fr
 
 export type MapPrefs = { basemap?: BasemapId; threeD?: boolean };
 
-const PREFS_KEY = "stakeout-map";
+const PREFS_KEY = "stakeout-map-v2";
 const PREFS_EVENT = "stakeout-map-prefs";
 
 export const readPrefs = (): MapPrefs => {

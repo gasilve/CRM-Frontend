@@ -417,30 +417,40 @@
   margin-top: 0;
 }
 
-.vd-original.sky-v6 {
-  position: fixed;
-  inset: 0;
+/* Gallery shell: Original sits in the same stack as the other three designs. */
+.vd-stack .vd-original.sky-v6 {
+  position: relative;
+  inset: auto;
   z-index: 1;
-  height: 100%;
+  width: auto;
+  height: auto;
   background: transparent;
 }
 
-.vd-original .video-sheet {
-  width: min(1040px, 96vw);
-  height: min(860px, 86vh);
+.vd-stack .vd-original .confirm-layer {
+  position: static;
+  inset: auto;
+  z-index: auto;
 }
 
-.vd-stack.original .vd-switch {
-  position: fixed;
-  top: 14px;
-  left: 50%;
-  z-index: 50;
-  transform: translateX(-50%);
+.vd-stack .vd-original .confirm-back {
+  display: none;
+}
+
+.vd-stack .vd-original .video-sheet {
+  position: relative;
+  left: auto;
+  top: auto;
+  transform: none;
+  width: min(64rem, 96vw);
+  height: min(48rem, 88vh);
+  animation: none;
 }
 
 .vd-switch {
   position: relative;
   z-index: 50;
+  flex: none;
   display: flex;
   gap: 6px;
   padding: 4px;
