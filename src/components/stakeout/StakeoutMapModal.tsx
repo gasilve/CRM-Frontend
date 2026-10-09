@@ -980,7 +980,7 @@ export function StakeoutMapModal({
                     <p className="stk-muted">No spot within 300 m has a clear and safe view. Click the map to test one by hand.</p>
                   )}
                   {doubtfulSuggestions > 0 && (
-                    <p className="stk-muted">⚠ {doubtfulSuggestions} may have a building in the way: check the view before using them.</p>
+                    <p className="stk-muted">⚠ No spot has a fully clear view: these may have a building in the way, check before using them.</p>
                   )}
                   <ol className="stk-list">
                     {suggestions.map((s, i) => (

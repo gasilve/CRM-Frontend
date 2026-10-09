@@ -263,9 +263,11 @@ export const spotKey = (p: LatLng) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`;
 
 export const SUGGESTIONS_SHOWN = 6;
 
-/** Clear views first, in the server's order; flagged ones fill the remaining places. */
+/**
+ * Only spots with a clear view, in the server's order. Flagged ones (a house in
+ * the way) show up only when nothing else is left, so the map is never empty.
+ */
 export const rankSuggestions = <S extends LatLng>(all: S[], blocked: Set<string>): S[] => {
   const clear = all.filter((s) => !blocked.has(spotKey(s)));
-  const flagged = all.filter((s) => blocked.has(spotKey(s)));
-  return [...clear, ...flagged].slice(0, SUGGESTIONS_SHOWN);
+  return (clear.length ? clear : all).slice(0, SUGGESTIONS_SHOWN);
 };
