@@ -217,15 +217,14 @@ const lengthInside = (a: XY, b: XY, ring: XY[]) => {
 /**
  * Checks spots against the buildings drawn on the map (Mapbox has far more US
  * houses than OpenStreetMap, which the server planner reads). Returns the keys
- * of spots whose straight line to the target crosses a building. The subject's
- * house and any building the spot itself sits in are ignored.
+ * of spots whose straight line to the target crosses a building, the subject's
+ * own house included. A building the spot itself sits in is ignored.
  */
-export function blockedSpots(map: MapLibre, target: LatLng, address: LatLng, spots: (LatLng & { key: string })[]): Set<string> {
+export function blockedSpots(map: MapLibre, target: LatLng, spots: (LatLng & { key: string })[]): Set<string> {
   const blocked = new Set<string>();
   if (!map.getSource("buildings") || spots.length === 0) return blocked;
   const toXY = projector(target);
   const t = toXY(target);
-  const home = toXY(address);
 
   const footprints: Footprint[] = [];
   for (const feature of map.querySourceFeatures("buildings", { sourceLayer: BUILDINGS.sourceLayer })) {
@@ -234,7 +233,8 @@ export function blockedSpots(map: MapLibre, target: LatLng, address: LatLng, spo
     for (const polygon of polygons) {
       const ring = (polygon[0] ?? []).map(([lng, lat]) => toXY({ lat, lng }));
       if (ring.length < 4 || areaOf(ring) < MIN_BLOCKING_M2) continue;
-      if (inside(t, ring) || inside(home, ring)) continue;
+      // The subject's own house still blocks: from behind it you only see the back.
+      if (inside(t, ring)) continue;
       const xs = ring.map((p) => p.x);
       const ys = ring.map((p) => p.y);
       footprints.push({ ring, minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) });

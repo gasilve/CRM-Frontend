@@ -102,7 +102,7 @@ export function StakeoutMiniMap({
     const p = plan?.plan;
     if (!map || !p) return;
     const spots = [...p.suggestions.filter(watchesHouse), ...positions].map((s) => ({ lat: s.lat, lng: s.lng, key: spotKey(s) }));
-    const hits = blockedSpots(map, p.target, p.house ?? p.address, spots);
+    const hits = blockedSpots(map, p.target, spots);
     setBlocked((prev) => {
       const fresh = [...hits].filter((k) => !prev.has(k));
       return fresh.length ? new Set([...prev, ...fresh]) : prev;

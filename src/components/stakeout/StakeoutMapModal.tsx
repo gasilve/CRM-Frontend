@@ -306,7 +306,7 @@ export function StakeoutMapModal({
       ...positions.map((pos) => (live?.id === pos.id ? live : pos)),
       ...(probe ? [probe] : []),
     ].map((s) => ({ lat: s.lat, lng: s.lng, key: spotKey(s) }));
-    const hits = blockedSpots(map, p.target, p.house ?? p.address, spots);
+    const hits = blockedSpots(map, p.target, spots);
     setBlocked((prev) => {
       const fresh = [...hits].filter((k) => !prev.has(k));
       return fresh.length ? new Set([...prev, ...fresh]) : prev;
