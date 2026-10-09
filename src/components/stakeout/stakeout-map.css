@@ -795,6 +795,49 @@ textarea.stk-input {
   color: #ff9f45;
 }
 
+.stk-house-check {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink2);
+}
+
+.stk-house-check strong {
+  font-size: 12.5px;
+}
+
+.stk-house-check.verified strong {
+  color: #3ecf8e;
+}
+
+.stk-house-check.likely {
+  border-color: rgba(255, 159, 69, 0.45);
+}
+
+.stk-house-check.likely strong {
+  color: #ff9f45;
+}
+
+.stk-house-check.unverified {
+  border-color: rgba(255, 92, 92, 0.6);
+  background: rgba(255, 92, 92, 0.1);
+}
+
+.stk-house-check.unverified strong {
+  color: #ff6b6b;
+}
+
+.stk-house-check.compact {
+  padding: 6px 8px;
+  margin: 0;
+}
+
 .stk-pin.mini {
   min-width: 24px;
   height: 24px;
@@ -916,6 +959,19 @@ textarea.stk-input {
 
 .stk-mini-tl { left: 10px; }
 .stk-mini-tr { right: 10px; }
+
+.stk-mini-bottom {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+}
+
+.stk-mini-bottom .stk-house-check {
+  background: rgba(40, 14, 18, 0.88);
+  backdrop-filter: blur(6px);
+}
 
 .stk-mini-btn {
   display: inline-grid;

@@ -995,6 +995,8 @@ export interface VisualComparisonResponse {
 
 export type StakeoutStatus = "proposed" | "actual" | "nogo";
 export type LatLng = { lat: number; lng: number };
+/** A house number label on the map, where Mapbox draws it. */
+export type HouseNumber = LatLng & { number: string };
 
 /** How a spot rates for watching the subject's house. Reasons are plain sentences. */
 export interface StakeoutAssessment extends LatLng {
@@ -1040,6 +1042,15 @@ export interface StakeoutPlan {
     exits: { name: string; path: LatLng[] }[];
     suggestions: StakeoutAssessment[];
     stats: { buildings: number; roads: number; trees: number };
+    /**
+     * How sure the plan is about which house to watch. `unverified`: the address
+     * does not match the map, so no spots are suggested.
+     */
+    houseCheck?: {
+      status: "verified" | "likely" | "unverified";
+      foundBy: "number" | "street" | "pin";
+      message: string;
+    };
   };
   positions: StakeoutPosition[];
   source: { name: string; fetchedAt: string; stale: boolean };
@@ -1058,10 +1069,15 @@ export const stakeoutApi = {
   plan: (caseId: string, addressId?: string | null) =>
     request<StakeoutPlan>(`/cases/${caseId}/stakeout/plan${toQuery({ addressId: addressId ?? undefined })}`),
   /** The same plan, judged against house outlines from the map ([lng, lat] rings). */
-  planWithBuildings: (caseId: string, addressId: string | null | undefined, buildings: [number, number][][]) =>
+  planWithBuildings: (
+    caseId: string,
+    addressId: string | null | undefined,
+    buildings: [number, number][][],
+    numbers: HouseNumber[] = [],
+  ) =>
     request<StakeoutPlan>(`/cases/${caseId}/stakeout/plan`, {
       method: "POST",
-      body: JSON.stringify({ addressId: addressId ?? null, buildings }),
+      body: JSON.stringify({ addressId: addressId ?? null, buildings, numbers }),
     }),
   score: (caseId: string, spot: LatLng & { addressId?: string | null }) =>
     request<{ assessment: StakeoutAssessment }>(`/cases/${caseId}/stakeout/score`, { method: "POST", body: JSON.stringify(spot) }),

@@ -21,6 +21,7 @@ import {
   tiltStep,
   writePrefs,
 } from "./map-core";
+import { HouseCheckNote } from "./HouseCheckNote";
 import { STAKEOUT_STATUS, suggestionColor, watchesHouse } from "./StakeoutMapModal";
 import "./stakeout-map.css";
 
@@ -211,6 +212,12 @@ export function StakeoutMiniMap({
           <Axis3d size={13} />
         </button>
       </div>
+
+      {plan?.plan.houseCheck?.status === "unverified" && (
+        <div className="stk-mini-bottom">
+          <HouseCheckNote check={plan.plan.houseCheck} compact />
+        </div>
+      )}
     </div>
   );
 }

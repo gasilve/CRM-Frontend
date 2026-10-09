@@ -15,6 +15,7 @@ import {
 } from "@/lib/crm-api";
 import { BASEMAPS, basemapById, type BasemapId } from "./basemaps";
 import { loadStakeoutPlan } from "./building-footprints";
+import { HouseCheckNote } from "./HouseCheckNote";
 import {
   PITCH_3D,
   SUGGESTIONS_SHOWN,
@@ -319,6 +320,7 @@ export function StakeoutMapModal({
   const isBlocked = (spot: LatLng) => blocked.has(spotKey(spot));
   const suggestions = useMemo(() => rankSuggestions(plan?.plan.suggestions ?? [], blocked), [plan, blocked]);
   const doubtfulSuggestions = suggestions.filter((s) => blocked.has(spotKey(s))).length;
+  const houseCheck = plan?.plan.houseCheck;
   const probeAssessment = useMemo(
     () => (probe?.assessment ? withMapSight(probe.assessment, blocked.has(spotKey(probe))) : null),
     [probe, blocked],
@@ -977,7 +979,8 @@ export function StakeoutMapModal({
                   <div className="stk-sec">
                     Suggested spots <span>{suggestions.length}</span>
                   </div>
-                  {plan && suggestions.length === 0 && (
+                  {houseCheck && <HouseCheckNote check={houseCheck} />}
+                  {plan && suggestions.length === 0 && houseCheck?.status !== "unverified" && (
                     <p className="stk-muted">No spot within 300 m has a clear and safe view. Click the map to test one by hand.</p>
                   )}
                   {doubtfulSuggestions > 0 && (

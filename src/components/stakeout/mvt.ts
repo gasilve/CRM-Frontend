@@ -133,16 +133,56 @@ export const tileOf = (lat: number, lng: number, z: number) => {
   };
 };
 
+const lngLatIn = (z: number, x: number, y: number, extent: number) => {
+  const n = 2 ** z;
+  return (px: number, py: number): [number, number] => {
+    const lng = ((x + px / extent) / n) * 360 - 180;
+    const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + py / extent)) / n))) * 180) / Math.PI;
+    return [Math.round(lng * 1e6) / 1e6, Math.round(lat * 1e6) / 1e6];
+  };
+};
+
+/** Points of `layerName` in tile z/x/y with their `property` value, e.g. house numbers. */
+export const pointsInTile = (
+  data: Uint8Array,
+  z: number,
+  x: number,
+  y: number,
+  layerName: string,
+  property: string,
+): { value: string; lng: number; lat: number }[] => {
+  const layer = readLayer(data, layerName);
+  if (!layer) return [];
+  const toLngLat = lngLatIn(z, x, y, layer.extent);
+  const points: { value: string; lng: number; lat: number }[] = [];
+  for (const feature of layer.features) {
+    if (feature.type !== 1) continue;
+    let value = "";
+    for (let i = 0; i < feature.tags.length; i += 2) {
+      if (layer.keys[feature.tags[i]] === property) value = layer.values[feature.tags[i + 1]];
+    }
+    if (!value) continue;
+    let px = 0;
+    let py = 0;
+    const g = feature.geometry;
+    for (let i = 0; i < g.length; ) {
+      const count = g[i++] >> 3;
+      for (let c = 0; c < count; c++) {
+        px += zigzag(g[i++]);
+        py += zigzag(g[i++]);
+        const [lng, lat] = toLngLat(px, py);
+        points.push({ value, lng, lat });
+      }
+    }
+  }
+  return points;
+};
+
 /** Polygon outlines of `layerName` in tile z/x/y, skipping parts tagged underground. */
 export const polygonsInTile = (data: Uint8Array, z: number, x: number, y: number, layerName: string): Ring[] => {
   const layer = readLayer(data, layerName);
   if (!layer) return [];
-  const n = 2 ** z;
-  const toLngLat = (px: number, py: number): [number, number] => {
-    const lng = ((x + px / layer.extent) / n) * 360 - 180;
-    const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + py / layer.extent)) / n))) * 180) / Math.PI;
-    return [Math.round(lng * 1e6) / 1e6, Math.round(lat * 1e6) / 1e6];
-  };
+  const toLngLat = lngLatIn(z, x, y, layer.extent);
   const rings: Ring[] = [];
   for (const feature of layer.features) {
     if (feature.type !== 3) continue;
