@@ -993,6 +993,102 @@ export interface VisualComparisonResponse {
   entry: CaseDayEntry;
 }
 
+export type StakeoutStatus = "proposed" | "actual" | "nogo";
+export type LatLng = { lat: number; lng: number };
+/** A house number label on the map, where Mapbox draws it. */
+export type HouseNumber = LatLng & { number: string };
+
+/** How a spot rates for watching the subject's house. Reasons are plain sentences. */
+export interface StakeoutAssessment extends LatLng {
+  /** 0–100. 0 means no usable shot from there. */
+  score: number;
+  distanceM: number;
+  lineOfSight: "clear" | "vegetation" | "blocked";
+  burnRisk: "low" | "medium" | "high";
+  kind: "street" | "parking" | "off-road";
+  /** `house`: films the front of the house. `departure`: sees the subject drive out, not the door. */
+  watch?: "house" | "departure";
+  road: string | null;
+  /** Which way to park to follow the subject out, e.g. "NE toward Main St". */
+  facing: string | null;
+  good: string[];
+  bad: string[];
+}
+
+export interface StakeoutPosition extends LatLng {
+  id: string;
+  caseId: string;
+  addressId: string | null;
+  label: string;
+  notes: string | null;
+  status: StakeoutStatus;
+  source: "manual" | "suggested";
+  score: number | null;
+  createdAt: string;
+  createdBy: { id: string; name: string } | null;
+  assessment?: StakeoutAssessment | null;
+}
+
+export interface StakeoutPlan {
+  address: { id: string; line: string };
+  plan: {
+    address: LatLng;
+    house: LatLng | null;
+    houseOutline: LatLng[] | null;
+    /** The point the camera has to see: front of the house. */
+    target: LatLng;
+    front: { bearing: number; compass: string; road: string | null } | null;
+    burnZones: { level: "high" | "medium"; ring: LatLng[] }[];
+    exits: { name: string; path: LatLng[] }[];
+    suggestions: StakeoutAssessment[];
+    stats: { buildings: number; roads: number; trees: number };
+    /**
+     * How sure the plan is about which house to watch. `unverified`: the address
+     * does not match the map, so no spots are suggested.
+     */
+    houseCheck?: {
+      status: "verified" | "likely" | "unverified";
+      foundBy: "number" | "street" | "pin";
+      message: string;
+    };
+  };
+  positions: StakeoutPosition[];
+  source: { name: string; fetchedAt: string; stale: boolean };
+}
+
+export interface StakeoutPositionInput extends LatLng {
+  label?: string;
+  notes?: string | null;
+  status?: StakeoutStatus;
+  source?: "manual" | "suggested";
+  addressId?: string | null;
+}
+
+export const stakeoutApi = {
+  list: (caseId: string) => request<{ positions: StakeoutPosition[] }>(`/cases/${caseId}/stakeout`),
+  plan: (caseId: string, addressId?: string | null) =>
+    request<StakeoutPlan>(`/cases/${caseId}/stakeout/plan${toQuery({ addressId: addressId ?? undefined })}`),
+  /** The same plan, judged against house outlines from the map ([lng, lat] rings). */
+  planWithBuildings: (
+    caseId: string,
+    addressId: string | null | undefined,
+    buildings: [number, number][][],
+    numbers: HouseNumber[] = [],
+  ) =>
+    request<StakeoutPlan>(`/cases/${caseId}/stakeout/plan`, {
+      method: "POST",
+      body: JSON.stringify({ addressId: addressId ?? null, buildings, numbers }),
+    }),
+  score: (caseId: string, spot: LatLng & { addressId?: string | null }) =>
+    request<{ assessment: StakeoutAssessment }>(`/cases/${caseId}/stakeout/score`, { method: "POST", body: JSON.stringify(spot) }),
+  add: (caseId: string, body: StakeoutPositionInput) =>
+    request<{ position: StakeoutPosition }>(`/cases/${caseId}/stakeout`, { method: "POST", body: JSON.stringify(body) }),
+  update: (caseId: string, positionId: string, body: Partial<Omit<StakeoutPositionInput, "source" | "addressId">>) =>
+    request<{ position: StakeoutPosition }>(`/cases/${caseId}/stakeout/${positionId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  remove: (caseId: string, positionId: string) =>
+    request<null>(`/cases/${caseId}/stakeout/${positionId}`, { method: "DELETE" }),
+};
+
 export const casesApi = {
   list: (params: CasesListParams = {}) =>
     request<{ cases: CaseListItem[]; total: number; page: number; pageSize: number }>(`/cases${toQuery(params)}`),
