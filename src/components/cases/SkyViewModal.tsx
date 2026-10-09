@@ -4,6 +4,7 @@ import { Maximize2, ScanFace } from "lucide-react";
 import { VideoDesignGallery } from "@/components/cases/video-designs/VideoDesignGallery";
 import { StakeoutMapModal } from "@/components/stakeout/StakeoutMapModal";
 import { StakeoutMiniMap } from "@/components/stakeout/StakeoutMiniMap";
+import { loadStakeoutPlan } from "@/components/stakeout/building-footprints";
 import { useCasePhoto } from "@/hooks/useCasePhoto";
 import { useAuth } from "@/contexts/AuthContext";
 import { ScheduleAssignmentModal, type AssignInvestigatorFlow } from "@/components/schedule/ScheduleAssignmentModal";
@@ -564,7 +565,7 @@ export default function SkyViewPage() {
   const [stakeoutOpen, setStakeoutOpen] = useState(false);
   const stakeouts = useQuery(id ? `case:${id}:stakeout` : null, () => stakeoutApi.list(id));
   const stakeoutPositions = useMemo(() => stakeouts.data?.positions ?? [], [stakeouts.data]);
-  const stakeoutPlan = useQuery(id ? `case:${id}:stakeout-plan` : null, () => stakeoutApi.plan(id));
+  const stakeoutPlan = useQuery(id ? `case:${id}:stakeout-plan` : null, () => loadStakeoutPlan(id!));
   const [stakeoutShown, setStakeoutShown] = useState(0);
   const stakeoutHome = useMemo(() => {
     const addresses = kase?.addresses ?? [];

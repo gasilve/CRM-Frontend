@@ -14,6 +14,7 @@ import {
   type StakeoutStatus,
 } from "@/lib/crm-api";
 import { BASEMAPS, basemapById, type BasemapId } from "./basemaps";
+import { loadStakeoutPlan } from "./building-footprints";
 import {
   PITCH_3D,
   SUGGESTIONS_SHOWN,
@@ -196,7 +197,7 @@ export function StakeoutMapModal({
       setPlanError(null);
       setSelection(null);
       try {
-        const data = await stakeoutApi.plan(caseId, forAddress);
+        const data = await loadStakeoutPlan(caseId, forAddress);
         setPlan(data);
         setPositions(data.positions);
       } catch (err) {

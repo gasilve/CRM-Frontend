@@ -1057,6 +1057,12 @@ export const stakeoutApi = {
   list: (caseId: string) => request<{ positions: StakeoutPosition[] }>(`/cases/${caseId}/stakeout`),
   plan: (caseId: string, addressId?: string | null) =>
     request<StakeoutPlan>(`/cases/${caseId}/stakeout/plan${toQuery({ addressId: addressId ?? undefined })}`),
+  /** The same plan, judged against house outlines from the map ([lng, lat] rings). */
+  planWithBuildings: (caseId: string, addressId: string | null | undefined, buildings: [number, number][][]) =>
+    request<StakeoutPlan>(`/cases/${caseId}/stakeout/plan`, {
+      method: "POST",
+      body: JSON.stringify({ addressId: addressId ?? null, buildings }),
+    }),
   score: (caseId: string, spot: LatLng & { addressId?: string | null }) =>
     request<{ assessment: StakeoutAssessment }>(`/cases/${caseId}/stakeout/score`, { method: "POST", body: JSON.stringify(spot) }),
   add: (caseId: string, body: StakeoutPositionInput) =>
