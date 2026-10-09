@@ -6,6 +6,8 @@ const PATTERN_LAB_EMAILS = [
   "valentin@accenty.com",
   "valentin@accenty.ai",
   "valentindeveloper@", // prefix match fallback handled below
+  "guillermo@accenty.com",
+  "guillermo@accenty.ai",
 ];
 
 export function canAccessPatternLab(email: string | undefined | null): boolean {
