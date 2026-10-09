@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ScanFace } from "lucide-react";
-import { CaseMap } from "@/components/case/CaseMap";
+import { Maximize2, ScanFace } from "lucide-react";
 import { VideoDesignGallery } from "@/components/cases/video-designs/VideoDesignGallery";
+import { StakeoutMapModal } from "@/components/stakeout/StakeoutMapModal";
+import { StakeoutMiniMap } from "@/components/stakeout/StakeoutMiniMap";
+import { loadStakeoutPlan } from "@/components/stakeout/building-footprints";
 import { useCasePhoto } from "@/hooks/useCasePhoto";
 import { useAuth } from "@/contexts/AuthContext";
 import { ScheduleAssignmentModal, type AssignInvestigatorFlow } from "@/components/schedule/ScheduleAssignmentModal";
@@ -11,9 +13,11 @@ import {
   casesApi,
   investigatorsApi,
   scheduleApi,
+  stakeoutApi,
   type CaseDetail,
   type CaseVehicle,
   type InvestigatorListItem,
+  type StakeoutPosition,
 } from "@/lib/crm-api";
 import { SERVICE_LABELS } from "@/lib/mock-data";
 import { ageFromDob, calendarDateKey } from "@/lib/dates";
@@ -528,10 +532,24 @@ function buildLedger(kase: CaseDetail): { rows: LedgerRow[]; sections: Map<strin
   return { rows, sections };
 }
 
+function stakeoutSummary(positions: StakeoutPosition[], suggestions: number, planning: boolean) {
+  const parts: string[] = [];
+  if (positions.length) {
+    const live = positions.filter((p) => p.status === "actual").length;
+    const best = Math.max(...positions.map((p) => p.score ?? 0));
+    parts.push(`${positions.length} saved spot${positions.length === 1 ? "" : "s"}`);
+    if (live) parts.push(`${live} in use`);
+    if (best > 0) parts.push(`best ${best}/100`);
+  }
+  if (suggestions) parts.push(`${suggestions} suggested`);
+  else if (planning) parts.push("Finding spots…");
+  return parts.length ? parts.join(" · ") : "Home address. Expand the map to plan the stakeout.";
+}
+
 export default function SkyViewPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const { user, can } = useAuth();
+  const { user, can, canAny } = useAuth();
   const query = useQuery(id ? `case:${id}` : null, () => casesApi.get(id));
   const investigators = useQuery("investigators:list", () => investigatorsApi.list());
   const kase = query.data?.case;
@@ -544,6 +562,16 @@ export default function SkyViewPage() {
   const [openDayId, setOpenDayId] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] = useState<LedgerRow | null>(null);
   const [designsOpen, setDesignsOpen] = useState(false);
+  const [stakeoutOpen, setStakeoutOpen] = useState(false);
+  const stakeouts = useQuery(id ? `case:${id}:stakeout` : null, () => stakeoutApi.list(id));
+  const stakeoutPositions = useMemo(() => stakeouts.data?.positions ?? [], [stakeouts.data]);
+  const stakeoutPlan = useQuery(id ? `case:${id}:stakeout-plan` : null, () => loadStakeoutPlan(id!));
+  const [stakeoutShown, setStakeoutShown] = useState(0);
+  const stakeoutHome = useMemo(() => {
+    const addresses = kase?.addresses ?? [];
+    const home = addresses.find((a) => a.isPrimary && a.lat != null) ?? addresses.find((a) => a.lat != null);
+    return home?.lat != null && home.lng != null ? { lat: home.lat, lng: home.lng } : null;
+  }, [kase?.addresses]);
 
   const ledger = useMemo(() => (kase ? buildLedger(kase) : { rows: [], sections: new Map<string, DaySection>() }), [kase]);
   const rows = ledger.rows;
@@ -984,15 +1012,42 @@ export default function SkyViewPage() {
           </div>
 
           <div className="g stake">
-            <div className="sec">Stakeout</div>
-            <div className="stake-map">
-              <CaseMap addresses={kase.addresses} frameClassName="h-full min-h-0 rounded-none border-0" />
+            <div className="stake-head">
+              <div className="sec">Stakeout</div>
+              <button
+                type="button"
+                className="stake-expand"
+                title="Open the investigator map"
+                aria-label="Open the investigator map"
+                onClick={() => setStakeoutOpen(true)}
+              >
+                <Maximize2 size={14} strokeWidth={2} />
+              </button>
             </div>
-            <p className="wait">Home address. Stakeout positions are not placed yet.</p>
+            <div className="stake-map">
+              <StakeoutMiniMap
+                plan={stakeoutPlan.data ?? null}
+                positions={stakeoutPositions}
+                home={stakeoutHome}
+                onSuggestionsShown={setStakeoutShown}
+              />
+            </div>
+            <p className="wait">{stakeoutSummary(stakeoutPositions, stakeoutShown, stakeoutPlan.loading)}</p>
           </div>
 
         </div>
       </div>
+
+      {stakeoutOpen && (
+        <StakeoutMapModal
+          caseId={kase.id}
+          subjectName={kase.subjectName}
+          addresses={kase.addresses}
+          canEdit={canAny("cases.edit", "cases.work", "cases.journal.write")}
+          onChanged={(positions) => stakeouts.mutate({ positions })}
+          onClose={() => setStakeoutOpen(false)}
+        />
+      )}
 
       {designsOpen && (
         <VideoDesignGallery

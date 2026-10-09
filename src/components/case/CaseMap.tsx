@@ -1,11 +1,13 @@
 import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, ZoomControl, CircleMarker, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
-import type { CaseAddress } from "@/lib/crm-api";
+import type { CaseAddress, StakeoutPosition } from "@/lib/crm-api";
+
+const STAKEOUT_COLOR = { proposed: "#ffc857", actual: "#3ee08a", nogo: "#ff5c63" } as const;
 
 const defaultIcon = L.icon({
   iconUrl: markerIcon,
@@ -34,15 +36,36 @@ function FlyToFocus({ lat, lng }: { lat: number; lng: number }) {
   return null;
 }
 
+/** Zooms in on the house and its stakeout spots: at city zoom they sit on top of each other. */
+function FitStakeout({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  const key = points.map((p) => p.join(",")).join(";");
+  useEffect(() => {
+    if (points.length < 2) return;
+    map.fitBounds(L.latLngBounds(points), { padding: [24, 24], maxZoom: 17 });
+    // Refit only when the spots change.
+  }, [key, map]);
+  return null;
+}
+
 export function CaseMap({
   addresses,
   focusAddressId,
   frameClassName,
+  stakeouts,
+  suggestions,
+  fitToStakeout = false,
 }: {
   addresses: CaseAddress[];
   /** When set, the map flies to this geocoded address. */
   focusAddressId?: string | null;
   frameClassName?: string;
+  /** Saved stakeout spots, drawn as small dots coloured by status. */
+  stakeouts?: StakeoutPosition[];
+  /** Planner suggestions, drawn as small blue dots. */
+  suggestions?: { lat: number; lng: number; score: number }[];
+  /** Frame the house and the stakeout spots instead of the whole city. */
+  fitToStakeout?: boolean;
 }) {
   const pinned = addresses.filter((a): a is CaseAddress & { lat: number; lng: number } => a.lat != null && a.lng != null);
 
@@ -80,6 +103,40 @@ export function CaseMap({
               {a.city ? `, ${a.city}` : ""} {a.state ?? ""}
             </Popup>
           </Marker>
+        ))}
+        {fitToStakeout && (
+          <FitStakeout
+            points={[
+              [primary.lat, primary.lng],
+              ...(stakeouts ?? []).map((s): [number, number] => [s.lat, s.lng]),
+              ...(suggestions ?? []).map((s): [number, number] => [s.lat, s.lng]),
+            ]}
+          />
+        )}
+        {suggestions?.map((s, i) => (
+          <CircleMarker
+            key={`suggestion-${s.lat},${s.lng}`}
+            center={[s.lat, s.lng]}
+            radius={5}
+            pathOptions={{ color: "#0a0d16", weight: 1.5, fillColor: "#5aa9ff", fillOpacity: 0.95 }}
+          >
+            <Tooltip>
+              Suggested spot {i + 1} · {s.score}/100
+            </Tooltip>
+          </CircleMarker>
+        ))}
+        {stakeouts?.map((s) => (
+          <CircleMarker
+            key={s.id}
+            center={[s.lat, s.lng]}
+            radius={6}
+            pathOptions={{ color: "#0a0d16", weight: 2, fillColor: STAKEOUT_COLOR[s.status], fillOpacity: 1 }}
+          >
+            <Tooltip>
+              {s.label}
+              {s.score != null ? ` · ${s.score}/100` : ""}
+            </Tooltip>
+          </CircleMarker>
         ))}
       </MapContainer>
     </div>

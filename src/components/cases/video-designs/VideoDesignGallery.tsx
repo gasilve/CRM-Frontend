@@ -43,10 +43,7 @@ export function VideoDesignGallery({
 
   return createPortal(
     <div className="dashboard-modal-backdrop" role="presentation" onClick={onClose}>
-      <div
-        className={design === "original" ? "vd-stack original flex max-h-full flex-col items-center gap-3" : "vd-stack flex max-h-full flex-col items-center gap-3"}
-        onClick={(event) => event.stopPropagation()}
-      >
+      <div className="vd-stack flex max-h-full flex-col items-center gap-3" onClick={(event) => event.stopPropagation()}>
         <div className="vd-switch" role="tablist" aria-label="Choose a video modal">
           {TABS.map((tab) => (
             <button key={tab.id} type="button" className={design === tab.id ? "on" : ""} onClick={() => setDesign(tab.id)}>
