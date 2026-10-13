@@ -85,6 +85,8 @@ type Props = {
   onDateChange?: (iso: string) => void;
   /** Save a named, colored day on the case being scheduled. */
   onCreateSpecial?: (input: { date: string; name: string; color: string }) => Promise<void>;
+  /** Use the Sky View modal veil (sky-modal.css) instead of the app's default. */
+  skyVeil?: boolean;
 };
 
 function SignalBadge({
@@ -129,6 +131,7 @@ export function ScheduleAssignmentModal({
   dateValue,
   onDateChange,
   onCreateSpecial,
+  skyVeil,
 }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -189,7 +192,10 @@ export function ScheduleAssignmentModal({
 
   return (
     <>
-      <div className="anim-backdrop fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className={skyVeil ? "sky-modal-veil fixed z-40" : "anim-backdrop fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"}
+        onClick={onClose}
+      />
       <div className="fixed left-1/2 top-1/2 z-50 flex h-[min(42rem,90vh)] w-[min(48rem,94vw)] -translate-x-1/2 -translate-y-1/2 flex-col">
         <div className="surface flex h-full min-h-0 flex-1 flex-col gap-5 overflow-hidden rounded-[1rem] p-7 sm:p-8">
           <div className="flex shrink-0 items-start justify-between gap-3">

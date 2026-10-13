@@ -1,0 +1,59 @@
+/*
+ * One look for every modal opened from Sky View: the same veil, the same glass,
+ * the same three sizes. The case stays faintly visible behind all of them.
+ */
+:root {
+  --sky-veil: rgba(4, 7, 14, 0.58);
+  --sky-veil-blur: 12px;
+  --sky-modal-radius: 30px;
+  --sky-modal-edge: rgba(255, 255, 255, 0.24);
+  --sky-modal-glass: rgba(14, 16, 26, 0.76);
+  --sky-modal-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.8);
+  /* Large: video, map. Medium: forms. Small: confirmations. */
+  --sky-modal-lg-w: min(1440px, 94vw);
+  --sky-modal-lg-h: min(900px, 92vh);
+  --sky-modal-md-w: min(48rem, 94vw);
+  --sky-modal-md-h: min(42rem, 90vh);
+  --sky-modal-sm-w: min(26rem, 92vw);
+}
+
+.sky-modal-veil {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: var(--sky-veil);
+  backdrop-filter: blur(var(--sky-veil-blur)) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--sky-veil-blur)) saturate(120%);
+  animation: sky-veil-in 180ms ease-out both;
+}
+.sky-modal-veil.fixed { position: fixed; }
+
+.sky-modal-frame {
+  position: relative;
+  border-radius: var(--sky-modal-radius);
+  border: 1px solid var(--sky-modal-edge);
+  background: var(--sky-modal-glass);
+  backdrop-filter: blur(36px) saturate(180%);
+  -webkit-backdrop-filter: blur(36px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    var(--sky-modal-shadow);
+  animation: sky-frame-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.sky-modal-frame.lg { width: var(--sky-modal-lg-w); height: var(--sky-modal-lg-h); }
+.sky-modal-frame.md { width: var(--sky-modal-md-w); height: var(--sky-modal-md-h); }
+.sky-modal-frame.sm { width: var(--sky-modal-sm-w); }
+
+@keyframes sky-veil-in { from { opacity: 0; } }
+@keyframes sky-frame-in { from { opacity: 0; transform: translateY(14px) scale(0.99); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sky-modal-veil, .sky-modal-frame { animation: none; }
+}
+
+@media (max-width: 900px) {
+  .sky-modal-frame.lg { width: 100vw; height: 100dvh; border-radius: 0; }
+}
