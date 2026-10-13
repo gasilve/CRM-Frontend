@@ -171,12 +171,12 @@ html[data-glass] .surveil-shell .sky-v6 :where(h1, h2, h3, p, span, a, button, l
   }
 
   .sky-v6-scale {
-    --sky-w: calc(1rem / 16px);
-    --sky-h: calc((100cqh - 8px) / 1080px);
-    --sky-fit: min(var(--sky-w), var(--sky-h));
-    width: calc(100% / var(--sky-w));
-    height: calc(100% / var(--sky-fit));
-    transform: scale(var(--sky-fit));
+    /* --sky-w / --sky-fit are unitless numbers set by useSkyScale() in
+       SkyViewModal.tsx. Typed calc division (1rem / 16px) only exists in very
+       recent browsers; elsewhere it made the height collapse to 0. */
+    width: calc(100% / var(--sky-w, 1));
+    height: calc(100% / var(--sky-fit, 1));
+    transform: scale(var(--sky-fit, 1));
     transform-origin: top left;
   }
 }
@@ -533,18 +533,26 @@ html[data-glass] .surveil-shell .sky-v6 :where(h1, h2, h3, p, span, a, button, l
 }
 .sky-v6 .x:hover { color: var(--burned); }
 .sky-v6 .confirm-layer { position: fixed; inset: 0; z-index: 40; }
-.sky-v6 .confirm-back { position: absolute; inset: 0; border: 0; background: rgba(0, 0, 0, 0.55); cursor: pointer; }
+.sky-v6 .confirm-back {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  cursor: pointer;
+  background: var(--sky-veil);
+  backdrop-filter: blur(var(--sky-veil-blur)) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--sky-veil-blur)) saturate(120%);
+}
 .sky-v6 .confirm {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(24rem, 92vw);
+  width: var(--sky-modal-sm-w);
   padding: 22px 24px;
-  border-radius: 20px;
+  border-radius: 22px;
   background: #141824;
-  border: 1px solid var(--edge);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--sky-modal-edge);
+  box-shadow: var(--sky-modal-shadow);
 }
 .sky-v6 .confirm h2 { margin: 0; font-size: 20px; font-weight: 560; color: var(--ink); }
 .sky-v6 .confirm p { margin: 10px 0 0; color: var(--ink2); font-size: 14px; line-height: 1.45; }
@@ -1295,4 +1303,144 @@ html[data-glass] .surveil-shell .sky-v6 :where(h1, h2, h3, p, span, a, button, l
 .sky-v6 .video-sheet input:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--tail) 75%, white);
   outline-offset: 2px;
+}
+
+/* -- Skyview loading skeleton ----------------------------------------------- */
+.sky-v6 .sky-skel-panel {
+  min-height: 8rem;
+  padding: 34px 36px;
+}
+.sky-v6 .sky-skel-bar {
+  border-radius: 10px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.14) 45%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: sky-skel-shimmer 1.4s ease-in-out infinite;
+}
+.sky-v6 .sky-skel-name {
+  height: 3.2rem;
+  width: 72%;
+  margin-bottom: 1.1rem;
+}
+.sky-v6 .sky-skel-line {
+  height: 0.85rem;
+  width: 88%;
+  margin-top: 0.7rem;
+}
+.sky-v6 .sky-skel-line.short { width: 54%; }
+.sky-v6 .sky-skel-facts {
+  margin-top: 2.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.sky-v6 .sky-skel-block {
+  height: 3.6rem;
+  width: 100%;
+  border-radius: 16px;
+}
+.sky-v6 .sky-skel-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
+}
+.sky-v6 .sky-skel-wheel {
+  width: min(22rem, 100%);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(18, 22, 34, 0.55) 0 38%, transparent 39%),
+    conic-gradient(
+      from 0deg,
+      rgba(62, 224, 138, 0.22),
+      rgba(255, 200, 87, 0.18),
+      rgba(177, 140, 255, 0.2),
+      rgba(90, 169, 255, 0.18),
+      rgba(255, 159, 69, 0.18),
+      rgba(62, 224, 138, 0.22)
+    );
+  animation: sky-skel-spin 6s linear infinite;
+}
+.sky-v6 .sky-skel-assign {
+  width: 100%;
+  padding: 1.25rem 1.5rem;
+}
+.sky-v6 .sky-skel-row {
+  height: 2.6rem;
+  width: 100%;
+  border-radius: 14px;
+}
+.sky-v6 .sky-skel-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.sky-v6 .sky-skel-status p {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  text-align: center;
+  max-width: 22rem;
+}
+.sky-v6 .sky-skel-beam {
+  position: relative;
+  width: min(10rem, 42vw);
+  height: 1px;
+  overflow: hidden;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22) 18%, rgba(255, 255, 255, 0.22) 82%, transparent);
+}
+.sky-v6 .sky-skel-beam span {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 38%;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(90, 169, 255, 0.35), #5aa9ff, rgba(90, 169, 255, 0.35), transparent);
+  filter: drop-shadow(0 0 8px rgba(90, 169, 255, 0.45));
+  animation: sky-skel-beam 1.85s ease-in-out infinite;
+}
+.sky-v6 .sky-skel-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.sky-v6 .sky-skel-photo {
+  aspect-ratio: 3 / 4;
+  min-height: 14rem;
+  padding: 0;
+}
+.sky-v6 .sky-skel-map {
+  min-height: 11rem;
+  padding: 0;
+}
+
+@keyframes sky-skel-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+@keyframes sky-skel-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes sky-skel-beam {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sky-v6 .sky-skel-bar,
+  .sky-v6 .sky-skel-wheel,
+  .sky-v6 .sky-skel-beam span {
+    animation: none;
+  }
 }
