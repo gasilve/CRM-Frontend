@@ -4,6 +4,7 @@ import RequireAuth from "./components/auth/RequireAuth";
 import RequirePermission from "./components/auth/RequirePermission";
 import RequirePatternLab from "./components/auth/RequirePatternLab";
 import FullScreenLoader from "./components/auth/FullScreenLoader";
+import { PanelLoader } from "./components/ui/LoadingState";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import AcceptInvite from "./pages/auth/AcceptInvite";
@@ -38,6 +39,13 @@ const Reports = lazy(() => import("./pages/Reports"));
 const VideoPlayer = lazy(() => import("./pages/VideoPlayer"));
 
 function LazyRoute({ children }: { children: ReactNode }) {
+  // Panel loader only — the full boot screen was remounting on every route
+  // chunk fetch and felt like the whole app was reloading.
+  return <Suspense fallback={<PanelLoader message="Loading" />}>{children}</Suspense>;
+}
+
+function ShellRoute({ children }: { children: ReactNode }) {
+  // First shell mount can keep the boot screen; later navigations stay in-app.
   return <Suspense fallback={<FullScreenLoader message="Loading" />}>{children}</Suspense>;
 }
 
@@ -58,9 +66,9 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route
           element={
-            <LazyRoute>
+            <ShellRoute>
               <AppShell />
-            </LazyRoute>
+            </ShellRoute>
           }
         >
           <Route
