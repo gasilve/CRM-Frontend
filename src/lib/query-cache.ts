@@ -172,7 +172,9 @@ export type QueryState<T> = {
 };
 
 export function useQuery<T>(key: string | null, fetcher: () => Promise<T>, options?: QueryOptions): QueryState<T> {
-  const { staleMs = 15_000, enabled = true } = options ?? {};
+  // 30s default: navigating back within a session should not flash a skeleton
+  // while the same payload re-downloads over a high-latency Neon link.
+  const { staleMs = 30_000, enabled = true } = options ?? {};
 
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;

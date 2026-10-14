@@ -49,7 +49,7 @@ import {
 import { WeatherStrip } from "@/components/cases/WeatherStrip";
 import { CaseGlanceCard, glanceFromListItem } from "@/components/cases/CaseGlanceCard";
 import { TableSkeleton } from "@/components/ui/LoadingState";
-import { useQuery } from "@/lib/query-cache";
+import { fetchQuery, useQuery } from "@/lib/query-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   CASE_COLUMNS,
@@ -155,6 +155,13 @@ function useDismiss<T extends HTMLElement>(open: boolean, onDismiss: () => void)
 export default function Cases() {
   const navigate = useNavigate();
   const { isSuperadmin, can } = useAuth();
+
+  /** Start the skyview payload + chunk while the route transition runs. */
+  const openSkyview = (id: string) => {
+    void fetchQuery(`case:${id}:sky`, () => casesApi.get(id, { view: "sky" }));
+    void import("@/components/cases/SkyViewModal");
+    navigate(`/cases/${id}/skyview`);
+  };
 
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -376,7 +383,7 @@ export default function Cases() {
               <TableSkeleton colClass={ROW_BASE} colStyle={rowStyle} headers={columns.map((c) => c.label)} />
             )
           ) : view === "cards" ? (
-            <CaseCardBoard items={items ?? []} onOpen={(id) => navigate(`/cases/${id}/skyview`)} />
+            <CaseCardBoard items={items ?? []} onOpen={openSkyview} />
           ) : (
             <CasesTable
               key={`cases-${page}`}
@@ -385,7 +392,7 @@ export default function Cases() {
               rowStyle={rowStyle}
               sort={sort}
               onSort={toggleSort}
-              onRowClick={(id) => navigate(`/cases/${id}/skyview`)}
+              onRowClick={openSkyview}
               editing={editingColumns}
               draft={draft}
               onDraftChange={setDraft}

@@ -853,11 +853,13 @@ export interface CreateCasePayload {
   address?: CaseAddressInput;
 }
 
-export type UpdateCasePayload = Partial<CreateCasePayload> & {
+export type UpdateCasePayload = Omit<Partial<CreateCasePayload>, "subjectDob" | "dueDate"> & {
   status?: CaseStatus;
   reopened?: boolean;
   dateClosed?: string | null;
   subjectPhotoUrl?: string | null;
+  subjectDob?: string | null;
+  dueDate?: string | null;
 };
 
 export interface AddDayEntryPayload {
@@ -1108,6 +1110,11 @@ export const casesApi = {
     request<{ id: string; imeAt: string | null }>(`/cases/${id}/ime`, {
       method: "PATCH",
       body: JSON.stringify({ imeAt }),
+    }),
+  setEarliestActive: (id: string, earliestActiveAt: string | null) =>
+    request<{ id: string; earliestActiveAt: string | null }>(`/cases/${id}/earliest-active`, {
+      method: "PATCH",
+      body: JSON.stringify({ earliestActiveAt }),
     }),
   addOpenDay: (id: string, date: string) =>
     request<{ openDay: { id: string; caseId: string; date: string; createdAt: string } }>(`/cases/${id}/open-days`, {
