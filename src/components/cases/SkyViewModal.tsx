@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Maximize2, ScanFace } from "lucide-react";
-import { VideoDesignGallery } from "@/components/cases/video-designs/VideoDesignGallery";
+import { VideoUploadModal } from "@/components/cases/video-upload/VideoUploadModal";
 import { StakeoutMapModal } from "@/components/stakeout/StakeoutMapModal";
 import { StakeoutMiniMap } from "@/components/stakeout/StakeoutMiniMap";
 import { loadStakeoutPlan } from "@/components/stakeout/building-footprints";
@@ -22,6 +22,7 @@ import {
 import { SERVICE_LABELS } from "@/lib/mock-data";
 import { ageFromDob, calendarDateKey } from "@/lib/dates";
 import { useQuery } from "@/lib/query-cache";
+import "./sky-modal.css";
 import "./sky-v6.css";
 
 const CX = 230;
@@ -546,12 +547,49 @@ function stakeoutSummary(positions: StakeoutPosition[], suggestions: number, pla
   return parts.length ? parts.join(" · ") : "Home address. Expand the map to plan the stakeout.";
 }
 
+/**
+ * Unitless scale numbers for the 1101-1860px layout (see sky-v6.css). Computed
+ * in JS because CSS typed division (1rem / 16px) is unsupported in many
+ * browsers, which collapsed the page and left only the background visible.
+ */
+function useSkyScale() {
+  const [vars, setVars] = useState<CSSProperties>({});
+  const cleanup = useRef<(() => void) | null>(null);
+  const ref = useCallback((node: HTMLDivElement | null) => {
+    cleanup.current?.();
+    cleanup.current = null;
+    const host = node?.parentElement;
+    if (!host) return;
+    const update = () => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const byWidth = rem / 16;
+      const byHeight = Math.max(0.1, (host.clientHeight - 8) / 1080);
+      const fit = Math.min(byWidth, byHeight);
+      setVars({ ["--sky-w" as string]: byWidth, ["--sky-fit" as string]: fit } as CSSProperties);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(host);
+    window.addEventListener("resize", update);
+    cleanup.current = () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+  return { ref, vars };
+}
+
 export default function SkyViewPage() {
   const { id = "" } = useParams();
+  const sky = useSkyScale();
   const navigate = useNavigate();
   const { user, can, canAny } = useAuth();
-  const query = useQuery(id ? `case:${id}` : null, () => casesApi.get(id));
-  const investigators = useQuery("investigators:list", () => investigatorsApi.list());
+  const query = useQuery(id ? `case:${id}:sky` : null, () => casesApi.get(id, { view: "sky" }), {
+    staleMs: 60_000,
+  });
+  const investigators = useQuery("investigators:list", () => investigatorsApi.list(), {
+    staleMs: 5 * 60_000,
+  });
   const kase = query.data?.case;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -563,15 +601,41 @@ export default function SkyViewPage() {
   const [pendingRemove, setPendingRemove] = useState<LedgerRow | null>(null);
   const [designsOpen, setDesignsOpen] = useState(false);
   const [stakeoutOpen, setStakeoutOpen] = useState(false);
-  const stakeouts = useQuery(id ? `case:${id}:stakeout` : null, () => stakeoutApi.list(id));
+  const stakeouts = useQuery(id ? `case:${id}:stakeout` : null, () => stakeoutApi.list(id), {
+    staleMs: 60_000,
+  });
   const stakeoutPositions = useMemo(() => stakeouts.data?.positions ?? [], [stakeouts.data]);
-  const stakeoutPlan = useQuery(id ? `case:${id}:stakeout-plan` : null, () => loadStakeoutPlan(id!));
+  // Plan hits Overpass/Mapbox after the case paints — do not contend with the critical path.
+  const [planReady, setPlanReady] = useState(false);
+  useEffect(() => {
+    if (!id || !query.data?.case) return;
+    const t = window.setTimeout(() => setPlanReady(true), 400);
+    return () => window.clearTimeout(t);
+  }, [id, query.data?.case]);
+  const stakeoutPlan = useQuery(
+    planReady && id ? `case:${id}:stakeout-plan` : null,
+    () => loadStakeoutPlan(id!),
+    { staleMs: 5 * 60_000 },
+  );
   const [stakeoutShown, setStakeoutShown] = useState(0);
   const stakeoutHome = useMemo(() => {
     const addresses = kase?.addresses ?? [];
     const home = addresses.find((a) => a.isPrimary && a.lat != null) ?? addresses.find((a) => a.lat != null);
     return home?.lat != null && home.lng != null ? { lat: home.lat, lng: home.lng } : null;
   }, [kase?.addresses]);
+
+  const videoFieldDays = useMemo(() => {
+    const byDay = new Map<string, Set<string>>();
+    for (const block of kase?.scheduleBlocks ?? []) {
+      const day = block.date.slice(0, 10);
+      byDay.set(day, (byDay.get(day) ?? new Set()).add(block.user.name));
+    }
+    return [...byDay].map(([day, names]) => ({ day, names: [...names] }));
+  }, [kase?.scheduleBlocks]);
+  const videoRecipients = useMemo(
+    () => (kase?.adjusterEmail ? [{ role: kase.client?.company ? `Adjuster · ${kase.client.company}` : "Adjuster", name: kase.adjusterName, email: kase.adjusterEmail }] : []),
+    [kase?.adjusterEmail, kase?.adjusterName, kase?.client],
+  );
 
   const ledger = useMemo(() => (kase ? buildLedger(kase) : { rows: [], sections: new Map<string, DaySection>() }), [kase]);
   const rows = ledger.rows;
@@ -772,11 +836,60 @@ export default function SkyViewPage() {
   };
 
   if (!kase) {
+    const failed = !!query.error;
     return (
       <div className="sky-v6">
-        <div className="sky-v6-scale">
-          <div className="page">
-            <p className="occ">{query.error ?? "Loading case…"}</p>
+        <div className="sky-v6-scale" ref={sky.ref} style={sky.vars}>
+          <div className="scene" aria-hidden>
+            <div className="scene-fill">
+              <div className="sky">
+                <div className="orb o1" />
+                <div className="orb o2" />
+                <div className="orb o3" />
+              </div>
+              <div className="scrim" />
+              <div className="grain" />
+            </div>
+          </div>
+
+          <div className="page sky-skel" role="status" aria-live="polite" aria-busy={!failed}>
+            <div className="g id sky-skel-panel">
+              <div className="sky-skel-bar sky-skel-name" />
+              <div className="sky-skel-bar sky-skel-line" />
+              <div className="sky-skel-bar sky-skel-line short" />
+              <div className="sky-skel-facts">
+                <div className="sky-skel-bar sky-skel-block" />
+                <div className="sky-skel-bar sky-skel-block" />
+                <div className="sky-skel-bar sky-skel-block" />
+              </div>
+            </div>
+
+            <div className="center sky-skel-center">
+              <div className="sky-skel-wheel g" aria-hidden />
+              <div className="g sky-skel-panel sky-skel-assign">
+                <div className="sky-skel-bar sky-skel-line" />
+                <div className="sky-skel-bar sky-skel-line short" />
+              </div>
+              {[0, 1, 2, 3].map((row) => (
+                <div className="sky-skel-bar sky-skel-row" key={row} />
+              ))}
+              <div className="sky-skel-status">
+                <div className="sky-skel-beam" aria-hidden>
+                  <span />
+                </div>
+                <p>{failed ? query.error : "Loading case"}</p>
+              </div>
+            </div>
+
+            <div className="rail sky-skel-rail">
+              <div className="g sky-skel-panel sky-skel-photo" />
+              <div className="g sky-skel-panel">
+                <div className="sky-skel-bar sky-skel-line" />
+                <div className="sky-skel-bar sky-skel-line" />
+                <div className="sky-skel-bar sky-skel-line short" />
+              </div>
+              <div className="g sky-skel-panel sky-skel-map" />
+            </div>
           </div>
         </div>
       </div>
@@ -824,7 +937,7 @@ export default function SkyViewPage() {
 
   return (
     <div className="sky-v6">
-      <div className="sky-v6-scale">
+      <div className="sky-v6-scale" ref={sky.ref} style={sky.vars}>
       <div className="scene" aria-hidden>
         <div className="scene-fill">
           <div className="sky">
@@ -1050,21 +1163,17 @@ export default function SkyViewPage() {
       )}
 
       {designsOpen && (
-        <VideoDesignGallery
+        <VideoUploadModal
           caseId={kase.id}
           subjectName={kase.subjectName}
           claimNumber={kase.claimNumber}
           caseNumber={kase.caseNumber}
           service={kase.service}
+          state={(kase.addresses.find((address) => address.isPrimary) ?? kase.addresses[0])?.state || kase.state}
           signerName={user?.name || "Investigator"}
-          crew={[
-            ...new Set(
-              kase.scheduleBlocks
-                .filter((block) => scheduleKey(block.date) === localKey(new Date()))
-                .map((block) => block.user.name)
-                .filter(Boolean),
-            ),
-          ]}
+          canManage={can("cases.edit")}
+          fieldDays={videoFieldDays}
+          recipients={videoRecipients}
           onClose={() => setDesignsOpen(false)}
         />
       )}
@@ -1092,6 +1201,7 @@ export default function SkyViewPage() {
         <ScheduleAssignmentModal
           flow={flow}
           canManage
+          skyVeil
           busy={busy}
           dateValue={assignDate}
           onDateChange={(iso) => void remapOpenDay(iso)}
