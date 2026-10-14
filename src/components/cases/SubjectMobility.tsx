@@ -55,10 +55,17 @@ export function SubjectMobilityControl({
   );
 }
 
-/** Read-only mobility chip. Hidden until how they get around is known. */
-export function MobilityMark({ transport }: { transport: SubjectTransport | null }) {
+/** Read-only mobility chip. Hidden until how they get around is known, unless `empty` asks for a placeholder. */
+export function MobilityMark({ transport, empty = false }: { transport: SubjectTransport | null; empty?: boolean }) {
   const opt = OPTIONS.find((o) => o.id === transport);
-  if (!opt) return null;
+  if (!opt) {
+    if (!empty) return null;
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/25 px-2 py-0.5 text-[0.625rem] font-semibold text-white/45">
+        Mode
+      </span>
+    );
+  }
   const Icon = opt.icon;
   return (
     <span
@@ -71,3 +78,5 @@ export function MobilityMark({ transport }: { transport: SubjectTransport | null
     </span>
   );
 }
+
+export const MOBILITY_CHOICES = OPTIONS.map((opt) => ({ value: opt.id, label: opt.label }));

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Maximize2, ScanFace } from "lucide-react";
 import { VideoUploadModal } from "@/components/cases/video-upload/VideoUploadModal";
@@ -22,6 +22,9 @@ import {
 import { SERVICE_LABELS } from "@/lib/mock-data";
 import { ageFromDob, calendarDateKey } from "@/lib/dates";
 import { useQuery } from "@/lib/query-cache";
+import { SkyFieldPop, useSkyFieldPop, type SkyEditor, type SkyFieldRequest, type SkyFields, type SkyMenuAction } from "@/components/cases/SkyFieldMenu";
+import { MOBILITY_CHOICES, MobilityMark } from "@/components/cases/SubjectMobility";
+import SkyCaseFile from "@/components/cases/SkyCaseFile";
 import "./sky-modal.css";
 import "./sky-v6.css";
 
@@ -31,7 +34,7 @@ const OUTER = 212;
 const GAP = 3;
 
 const NAV = [
-  { label: "Case", title: "Case", color: "#3ee08a", path: (id: string) => `/cases/${id}` },
+  { label: "Case", title: "Case details", color: "#3ee08a", details: true },
   { label: "Investigator view", title: "Investigator view", color: "#ffc857", path: (id: string) => `/cases/${id}/work` },
   { label: "Video", title: "Video", color: "#b18cff", video: true },
   { label: "Reports", title: "Reports", color: "#5aa9ff", path: (_id: string) => `/reports` },
@@ -39,7 +42,25 @@ const NAV = [
 ] as const;
 
 const SETTING_LABEL = { suburban: "suburban", rural: "rural", dense: "densely populated" } as const;
-const TRANSPORT_LABEL = { vehicle: "Drives", foot: "On foot", transit: "Transit", other: "Other" } as const;
+
+type SkyFieldId =
+  | "name"
+  | "age"
+  | "work"
+  | "address"
+  | "area"
+  | "client"
+  | "service"
+  | "eat"
+  | "transport"
+  | "vehicle"
+  | "place"
+  | "photo"
+  | "ime"
+  | "due"
+  | "summary";
+
+const CASE_FIELDS = new Set<SkyFieldId>(["name", "age", "work", "address", "client", "service", "due"]);
 
 const polar = (angle: number, radius: number): [number, number] => {
   const a = ((angle - 90) * Math.PI) / 180;
@@ -82,6 +103,21 @@ function clock(d: Date) {
 
 function eatClock(d: Date) {
   return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+function eatTimeValue(d: Date | null) {
+  if (!d) return "";
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** EAT is a clock time. Keep the stored day if there is one; otherwise use today. */
+function eatInstant(existing: Date | null, hhmm: string): string | null {
+  if (!hhmm) return null;
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  const base = existing ? new Date(existing.getTime()) : new Date();
+  base.setHours(hours, minutes, 0, 0);
+  return base.toISOString();
 }
 
 function ageYears(iso: string | null) {
@@ -155,12 +191,16 @@ function faceFromEntries(entries: { type: string; meta: Record<string, unknown> 
 
 function NavRing({
   caseId,
+  detailsOn,
   onGo,
   onVideo,
+  onDetails,
 }: {
   caseId: string;
+  detailsOn: boolean;
   onGo: (path: string) => void;
   onVideo: () => void;
+  onDetails: () => void;
 }) {
   const seg = 360 / NAV.length;
   return (
@@ -171,12 +211,17 @@ function NavRing({
         const mid = (a0 + a1) / 2;
         const [x, y] = polar(mid, OUTER + 20);
         const aim = ((mid - 90) * Math.PI) / 180;
+        const openDetails = "details" in item;
         return (
           <g
             key={item.label}
-            className="nav-g"
+            className={openDetails && detailsOn ? "nav-g on" : "nav-g"}
             style={{ ["--seg" as string]: item.color }}
-            onClick={() => ("video" in item ? onVideo() : onGo(item.path(caseId)))}
+            onClick={() => {
+              if ("details" in item) onDetails();
+              else if ("video" in item) onVideo();
+              else onGo(item.path(caseId));
+            }}
           >
             <title>{item.title}</title>
             <path
@@ -303,6 +348,75 @@ function ShotThumb({
         {score == null ? "—" : `${Math.round(score)}%`}
       </span>
     </button>
+  );
+}
+
+function CompareShotThumb({ caseId, url }: { caseId: string; url: string | null }) {
+  const src = useCasePhoto(caseId, url);
+  return <span className="cmp-shot">{src ? <img src={src} alt="" /> : null}</span>;
+}
+
+function CompareDetails({
+  caseId,
+  kase,
+  onClose,
+}: {
+  caseId: string;
+  kase: CaseDetail;
+  onClose: () => void;
+}) {
+  const records = kase.days
+    .flatMap((day) => day.entries)
+    .filter((entry) => entry.type === "face_match")
+    .map((entry) => {
+      const meta = entry.meta ?? {};
+      const text = (value: unknown) => (typeof value === "string" ? value : null);
+      return {
+        id: entry.id,
+        score: typeof meta.score === "number" ? meta.score : null,
+        verdict: text(meta.verdict) ?? entry.body ?? "—",
+        when: entry.createdAt,
+        author: entry.author?.name ?? null,
+        subjectUrl: text(meta.subjectPhotoUrl) ?? kase.subjectPhotoUrl,
+        probeUrl: text(meta.probePhotoUrl) ?? entry.photoUrl,
+      };
+    })
+    .sort((a, b) => b.when.localeCompare(a.when));
+
+  return (
+    <div className="confirm-layer">
+      <button type="button" className="confirm-back" aria-label="Close comparison details" onClick={onClose} />
+      <div className="confirm compare-sheet" role="dialog" aria-modal="true" aria-labelledby="compare-details-title">
+        <h2 id="compare-details-title">Visual comparison</h2>
+        {records.length === 0 ? (
+          <p>No comparison yet.</p>
+        ) : (
+          <div className="cmp-list">
+            {records.map((record) => {
+              const match = record.verdict.toUpperCase().startsWith("MATCH");
+              return (
+                <div className="cmp-row" key={record.id}>
+                  <CompareShotThumb caseId={caseId} url={record.subjectUrl} />
+                  <CompareShotThumb caseId={caseId} url={record.probeUrl} />
+                  <div className="cmp-copy">
+                    <b style={{ color: match ? "var(--active)" : "var(--burned)" }}>{record.verdict}</b>
+                    <span>
+                      {record.score == null ? "No score" : `${Math.round(record.score)}%`}
+                      {" · "}
+                      {new Date(record.when).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      {record.author ? ` · ${record.author}` : ""}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="confirm-actions">
+          <button type="button" className="btn" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -593,14 +707,48 @@ export default function SkyViewPage() {
   const kase = query.data?.case;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editingIme, setEditingIme] = useState(false);
-  const [imeDraft, setImeDraft] = useState("");
+  const fieldPop = useSkyFieldPop();
+  const canEditCase = can("cases.edit");
+  const canCaptureFields = canAny("cases.edit", "cases.work", "cases.journal.write");
   const [flow, setFlow] = useState<AssignInvestigatorFlow | null>(null);
   const [assignDate, setAssignDate] = useState("");
   const [openDayId, setOpenDayId] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] = useState<LedgerRow | null>(null);
   const [designsOpen, setDesignsOpen] = useState(false);
   const [stakeoutOpen, setStakeoutOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [detailsOn, setDetailsOn] = useState(false);
+  // The file stays mounted through its exit. Skyview only comes back once that exit has finished.
+  const [boardShown, setBoardShown] = useState(false);
+  const [fileLeaving, setFileLeaving] = useState(false);
+  // Same cache key as the case screen, so a visit there makes this instant.
+  const detailQuery = useQuery(id && boardShown ? `case:${id}` : null, () => casesApi.get(id), {
+    staleMs: 60_000,
+  });
+  const pageRef = useRef<HTMLDivElement>(null);
+  const toggleDetails = () => {
+    if (fileLeaving) return;
+    if (!detailsOn) {
+      pageRef.current?.parentElement?.scrollTo({ top: 0 });
+      setDetailsOn(true);
+      return;
+    }
+    setFileLeaving(true);
+  };
+  useEffect(() => {
+    if (!detailsOn) {
+      setBoardShown(false);
+      setFileLeaving(false);
+      return;
+    }
+    setBoardShown(true);
+  }, [detailsOn]);
+  useEffect(() => {
+    if (!fileLeaving) return;
+    const timer = window.setTimeout(() => setDetailsOn(false), 340);
+    return () => window.clearTimeout(timer);
+  }, [fileLeaving]);
+  const portraitInput = useRef<HTMLInputElement>(null);
   const stakeouts = useQuery(id ? `case:${id}:stakeout` : null, () => stakeoutApi.list(id), {
     staleMs: 60_000,
   });
@@ -693,21 +841,6 @@ export default function SkyViewPage() {
       await query.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not remove that date.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveIme = async (value: string | null) => {
-    if (!kase) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await casesApi.setIme(kase.id, value);
-      setEditingIme(false);
-      await query.refresh();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save the exam.");
     } finally {
       setBusy(false);
     }
@@ -915,6 +1048,9 @@ export default function SkyViewPage() {
     })),
   ];
   const age = ageYears(kase.subjectDob);
+  const nameWords = kase.subjectName.trim().split(/\s+/).filter(Boolean);
+  const nameLast = nameWords.pop() ?? "";
+  const nameLead = nameWords.join(" ");
   const eat = kase.earliestActiveAt ? new Date(kase.earliestActiveAt) : null;
   const exam = kase.imeAt ? new Date(kase.imeAt) : null;
   const examRemaining = exam ? exam.getTime() - Date.now() : null;
@@ -935,6 +1071,485 @@ export default function SkyViewPage() {
   const weekdayCount = kase.scheduleBlocks.filter((block) => !dayLabel(scheduleKey(block.date)).weekend).length;
   const weekendCount = kase.scheduleBlocks.filter((block) => dayLabel(scheduleKey(block.date)).weekend).length;
 
+  const editable = (id: SkyFieldId) => {
+    if (id === "photo") return true;
+    if (id === "place") return canCaptureFields || canEditCase;
+    return CASE_FIELDS.has(id) ? canEditCase : canCaptureFields;
+  };
+  const editClass = (id: SkyFieldId, base = "") => [base, editable(id) ? "sky-edit" : ""].filter(Boolean).join(" ");
+
+  const persist = (patch: (current: CaseDetail) => CaseDetail, work: () => Promise<unknown>) => {
+    const snapshot = query.data;
+    if (snapshot) query.mutate({ case: patch(snapshot.case) });
+    void (async () => {
+      try {
+        await work();
+        void query.refresh();
+      } catch (err) {
+        if (snapshot) query.mutate(snapshot);
+        setError(err instanceof Error ? err.message : "Could not save that.");
+      }
+    })();
+  };
+
+  const uploadPortrait = async (file: File) => {
+    const preview = URL.createObjectURL(file);
+    const snapshot = query.data;
+    if (snapshot) query.mutate({ case: { ...snapshot.case, subjectPhotoUrl: preview } });
+    try {
+      const uploaded = await casesApi.uploadCapturePhoto(kase.id, file);
+      await casesApi.update(kase.id, { subjectPhotoUrl: uploaded.url });
+      await query.refresh();
+      URL.revokeObjectURL(preview);
+    } catch (err) {
+      URL.revokeObjectURL(preview);
+      if (snapshot) query.mutate(snapshot);
+      setError(err instanceof Error ? err.message : "Could not upload that image.");
+    }
+  };
+
+  const openField = (event: ReactMouseEvent, id: SkyFieldId, direct = false) => {
+    if (id === "photo") {
+      const actions: SkyMenuAction[] = [];
+      if (canEditCase) {
+        actions.push({
+          id: "upload",
+          label: "Upload image",
+          mark: "image",
+          onRun: () => portraitInput.current?.click(),
+        });
+      }
+      actions.push({
+        id: "compare",
+        label: "Visual comparison details",
+        mark: "compare",
+        onRun: () => setCompareOpen(true),
+      });
+      fieldPop.open(event, { title: "Image", actions });
+      return;
+    }
+    if (!editable(id)) return;
+    const blank = "";
+    let request: SkyFieldRequest;
+    const addressEditor = (): SkyEditor => ({
+      kind: "address",
+      title: "Address",
+      line1: primary?.line1 ?? blank,
+      city: primary?.city ?? blank,
+      state: primary?.state ?? blank,
+      zip: primary?.zip ?? blank,
+    });
+    const saveAddress = async (fields: SkyFields) => {
+      const line1 = fields.line1.trim();
+      if (!line1) throw new Error("A street address is required.");
+      const body = {
+        line1,
+        city: fields.city.trim(),
+        state: fields.state.trim(),
+        zip: fields.zip.trim(),
+        isPrimary: true,
+      };
+      const next = {
+        id: primary?.id ?? `temp-address-${Date.now()}`,
+        label: primary?.label ?? null,
+        line1,
+        city: body.city || null,
+        state: body.state || null,
+        zip: body.zip || null,
+        lat: primary?.lat ?? null,
+        lng: primary?.lng ?? null,
+        isPrimary: true,
+      };
+      persist(
+        (current) => ({
+          ...current,
+          addresses: primary
+            ? current.addresses.map((item) => (item.id === primary.id ? { ...item, ...next } : { ...item, isPrimary: false }))
+            : [next, ...current.addresses],
+        }),
+        () => (primary ? casesApi.updateAddress(kase.id, primary.id, body) : casesApi.addAddress(kase.id, body)),
+      );
+    };
+    const clearAddress = primary
+      ? async () => {
+          persist(
+            (current) => ({ ...current, addresses: current.addresses.filter((item) => item.id !== primary.id) }),
+            () => casesApi.deleteAddress(kase.id, primary.id),
+          );
+        }
+      : undefined;
+
+    if (id === "name" || id === "age") {
+      const dobKey = kase.subjectDob ? calendarDateKey(kase.subjectDob) ?? blank : blank;
+      request = {
+        title: "Subject",
+        actions: [
+          {
+            id: "name",
+            label: "Name",
+            editor: { kind: "text", title: "Subject name", value: kase.subjectName, required: true },
+            onSave: async (fields) => {
+              const subjectName = fields.value.trim();
+              if (!subjectName) throw new Error("A subject name is required.");
+              persist((current) => ({ ...current, subjectName }), () => casesApi.update(kase.id, { subjectName }));
+            },
+          },
+          {
+            id: "age",
+            label: "Age",
+            editor: { kind: "date", title: "Date of birth", value: dobKey },
+            onSave: async (fields) => {
+              const subjectDob = fields.value ? `${fields.value}T00:00:00.000Z` : null;
+              persist((current) => ({ ...current, subjectDob }), () => casesApi.update(kase.id, { subjectDob: fields.value || null }));
+            },
+            onClear: kase.subjectDob
+              ? async () => {
+                  persist((current) => ({ ...current, subjectDob: null }), () => casesApi.update(kase.id, { subjectDob: null }));
+                }
+              : undefined,
+          },
+        ],
+      };
+    } else if (id === "work") {
+      request = {
+        title: "Work",
+        editor: { kind: "text", title: "Work", value: kase.subjectJobTitle ?? blank, placeholder: "Job title" },
+        onSave: async (fields) => {
+          const subjectJobTitle = fields.value.trim();
+          persist((current) => ({ ...current, subjectJobTitle }), () => casesApi.update(kase.id, { subjectJobTitle }));
+        },
+        onClear: kase.subjectJobTitle
+          ? async () => {
+              persist((current) => ({ ...current, subjectJobTitle: "" }), () => casesApi.update(kase.id, { subjectJobTitle: "" }));
+            }
+          : undefined,
+      };
+    } else if (id === "address") {
+      request = {
+        title: "Address",
+        editor: addressEditor(),
+        onSave: saveAddress,
+        onClear: clearAddress,
+      };
+    } else if (id === "area") {
+      request = {
+        title: "Area",
+        editor: {
+          kind: "choice",
+          title: "Area",
+          value: kase.subjectSetting ?? blank,
+          emptyLabel: "Not set",
+          options: (Object.entries(SETTING_LABEL) as [keyof typeof SETTING_LABEL, string][]).map(([value, label]) => ({ value, label })),
+        },
+        onSave: async (fields) => {
+          const subjectSetting = fields.value ? (fields.value as typeof kase.subjectSetting) : null;
+          persist(
+            (current) => ({ ...current, subjectSetting }),
+            () => casesApi.setSubjectSetting(kase.id, subjectSetting),
+          );
+        },
+        onClear: kase.subjectSetting
+          ? async () => {
+              persist((current) => ({ ...current, subjectSetting: null }), () => casesApi.setSubjectSetting(kase.id, null));
+            }
+          : undefined,
+      };
+    } else if (id === "client") {
+      request = {
+        title: "Client",
+        editor: { kind: "client", title: "Client", value: kase.clientId ?? blank },
+        onSave: async (fields) => {
+          const clientId = fields.value || null;
+          persist(
+            (current) => ({
+              ...current,
+              clientId,
+              client: clientId ? { id: clientId, company: fields.label || "Client" } : null,
+            }),
+            () => casesApi.update(kase.id, { clientId }),
+          );
+        },
+        onClear: kase.clientId
+          ? async () => {
+              persist(
+                (current) => ({ ...current, clientId: null, client: null }),
+                () => casesApi.update(kase.id, { clientId: null }),
+              );
+            }
+          : undefined,
+      };
+    } else if (id === "service") {
+      request = {
+        title: "Type",
+        editor: {
+          kind: "choice",
+          title: "Case type",
+          value: kase.service,
+          options: (Object.entries(SERVICE_LABELS) as [typeof kase.service, string][]).map(([value, label]) => ({ value, label })),
+        },
+        onSave: async (fields) => {
+          const service = fields.value as typeof kase.service;
+          persist((current) => ({ ...current, service }), () => casesApi.update(kase.id, { service }));
+        },
+      };
+    } else if (id === "eat") {
+      request = {
+        title: "EAT",
+        editor: { kind: "time", title: "Earliest active time", value: eatTimeValue(eat) },
+        onSave: async (fields) => {
+          const earliestActiveAt = eatInstant(eat, fields.value);
+          if (fields.value && !earliestActiveAt) throw new Error("Pick a time.");
+          persist(
+            (current) => ({ ...current, earliestActiveAt }),
+            () => casesApi.setEarliestActive(kase.id, earliestActiveAt),
+          );
+        },
+        onClear: eat
+          ? async () => {
+              persist(
+                (current) => ({ ...current, earliestActiveAt: null }),
+                () => casesApi.setEarliestActive(kase.id, null),
+              );
+            }
+          : undefined,
+      };
+    } else if (id === "transport" || id === "vehicle") {
+      const blankVehicle = (): SkyEditor => ({
+        kind: "vehicle",
+        title: "New vehicle",
+        color: blank,
+        year: blank,
+        make: blank,
+        model: blank,
+        plate: blank,
+        plateState: blank,
+      });
+      const saveVehicle = (existing: CaseVehicle | null, fields: SkyFields) => {
+        const yearText = fields.year.trim();
+        const year = yearText ? Number(yearText) : null;
+        if (yearText && !Number.isInteger(year)) throw new Error("Year should be a number.");
+        const body = {
+          color: fields.color.trim(),
+          year,
+          make: fields.make.trim(),
+          model: fields.model.trim(),
+          licensePlate: fields.plate.trim(),
+          state: fields.plateState.trim(),
+        };
+        const next: CaseVehicle = {
+          id: existing?.id ?? `temp-vehicle-${Date.now()}`,
+          make: body.make || null,
+          model: body.model || null,
+          year,
+          color: body.color || null,
+          licensePlate: body.licensePlate || null,
+          state: body.state || null,
+          vin: existing?.vin ?? null,
+          photoUrl: existing?.photoUrl ?? null,
+          notes: existing?.notes ?? null,
+          registeredOwner: existing?.registeredOwner ?? null,
+          seatCount: existing?.seatCount ?? 5,
+          kind: existing?.kind ?? "subject",
+          personLinks: existing?.personLinks,
+        };
+        persist(
+          (current) => ({
+            ...current,
+            vehicles: existing
+              ? current.vehicles.map((item) => (item.id === existing.id ? { ...item, ...next } : item))
+              : [...current.vehicles, next],
+          }),
+          () => (existing ? casesApi.updateVehicle(kase.id, existing.id, body) : casesApi.addVehicle(kase.id, body)),
+        );
+      };
+      const vehicleEditor = (existing: CaseVehicle): SkyEditor => ({
+        kind: "vehicle",
+        title: vehicleTitle(existing),
+        color: existing.color ?? blank,
+        year: existing.year != null ? String(existing.year) : blank,
+        make: existing.make ?? blank,
+        model: existing.model ?? blank,
+        plate: existing.licensePlate ?? blank,
+        plateState: existing.state ?? blank,
+      });
+      const actions: SkyMenuAction[] = [
+        {
+          id: "mode",
+          label: "Mode",
+          editor: {
+            kind: "choice",
+            title: "Mode",
+            value: kase.subjectTransport ?? blank,
+            emptyLabel: "Not set",
+            options: MOBILITY_CHOICES.map((choice) => ({ value: choice.value, label: choice.label })),
+          },
+          onSave: async (fields) => {
+            const subjectTransport = fields.value ? (fields.value as typeof kase.subjectTransport) : null;
+            persist(
+              (current) => ({ ...current, subjectTransport }),
+              () => casesApi.setTransport(kase.id, subjectTransport),
+            );
+          },
+        },
+        {
+          id: "new-vehicle",
+          label: "New vehicle",
+          mark: "new",
+          editor: blankVehicle(),
+          onSave: async (fields) => saveVehicle(null, fields),
+        },
+      ];
+      kase.vehicles.forEach((item, index) => {
+        actions.push({
+          id: item.id,
+          label: vehicleTitle(item),
+          ruleBefore: index === 0,
+          editor: vehicleEditor(item),
+          onSave: async (fields) => saveVehicle(item, fields),
+          onClear: async () => {
+            persist(
+              (current) => ({ ...current, vehicles: current.vehicles.filter((row) => row.id !== item.id) }),
+              () => casesApi.deleteVehicle(kase.id, item.id),
+            );
+          },
+        });
+      });
+      request = { title: "Transport", actions };
+    } else if (id === "place") {
+      const savePlace = (pattern: (typeof kase.patterns)[number] | null, fields: SkyFields) => {
+        const title = fields.name.trim();
+        const whenLabel = fields.when.trim();
+        if (!title) throw new Error("Give the place a name.");
+        if (!whenLabel) throw new Error("Say when they return.");
+        const body = { title, whenLabel, place: fields.place.trim() || null };
+        const next = {
+          id: pattern?.id ?? `temp-place-${Date.now()}`,
+          caseId: kase.id,
+          title,
+          place: body.place,
+          whenLabel,
+          detail: pattern?.detail ?? null,
+          travel: pattern?.travel ?? null,
+          source: pattern?.source ?? ("manual" as const),
+          createdAt: pattern?.createdAt ?? new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        persist(
+          (current) => ({
+            ...current,
+            patterns: pattern
+              ? current.patterns.map((item) => (item.id === pattern.id ? { ...item, ...next } : item))
+              : [...current.patterns, next],
+          }),
+          () => (pattern ? casesApi.updatePattern(kase.id, pattern.id, body) : casesApi.addPattern(kase.id, body)),
+        );
+      };
+      const placeEditor = (pattern: (typeof kase.patterns)[number] | null): SkyEditor => ({
+        kind: "place",
+        title: pattern ? pattern.title : "New place",
+        name: pattern?.title ?? blank,
+        when: pattern?.whenLabel ?? blank,
+        place: pattern?.place ?? blank,
+      });
+      const actions: SkyMenuAction[] = [];
+      if (canCaptureFields) {
+        actions.push({
+          id: "new-place",
+          label: "New place",
+          mark: "new",
+          editor: placeEditor(null),
+          onSave: async (fields) => savePlace(null, fields),
+        });
+      }
+      const records: SkyMenuAction[] = [];
+      if (canEditCase && knownPlaces.some((place) => place.id.startsWith("home-"))) {
+        records.push({
+          id: "home",
+          label: "Home",
+          editor: addressEditor(),
+          onSave: saveAddress,
+          onClear: clearAddress,
+        });
+      }
+      if (canCaptureFields) {
+        for (const pattern of kase.patterns) {
+          records.push({
+            id: pattern.id,
+            label: pattern.title,
+            editor: placeEditor(pattern),
+            onSave: async (fields) => savePlace(pattern, fields),
+            onClear: async () => {
+              persist(
+                (current) => ({ ...current, patterns: current.patterns.filter((item) => item.id !== pattern.id) }),
+                () => casesApi.deletePattern(kase.id, pattern.id),
+              );
+            },
+          });
+        }
+      }
+      if (records[0] && actions.length > 0) records[0].ruleBefore = true;
+      if (actions.length + records.length === 0) return;
+      request = { title: "Known places", actions: [...actions, ...records] };
+    } else if (id === "ime") {
+      request = {
+        title: "IME",
+        editor: { kind: "datetime", title: "Exam", value: exam ? toLocalInput(exam.toISOString()) : blank },
+        onSave: async (fields) => {
+          const imeAt = fields.value ? new Date(fields.value).toISOString() : null;
+          persist((current) => ({ ...current, imeAt }), () => casesApi.setIme(kase.id, imeAt));
+        },
+        onClear: exam
+          ? async () => {
+              persist((current) => ({ ...current, imeAt: null }), () => casesApi.setIme(kase.id, null));
+            }
+          : undefined,
+      };
+    } else if (id === "due") {
+      const dueKey = kase.dueDate ? calendarDateKey(kase.dueDate) ?? blank : blank;
+      request = {
+        title: "Due",
+        editor: { kind: "date", title: "Due date", value: dueKey },
+        onSave: async (fields) => {
+          const dueDate = fields.value ? `${fields.value}T00:00:00.000Z` : null;
+          persist((current) => ({ ...current, dueDate }), () => casesApi.update(kase.id, { dueDate: fields.value || null }));
+        },
+        onClear: kase.dueDate
+          ? async () => {
+              persist((current) => ({ ...current, dueDate: null }), () => casesApi.update(kase.id, { dueDate: null }));
+            }
+          : undefined,
+      };
+    } else {
+      request = {
+        title: "Summary",
+        editor: {
+          kind: "text",
+          title: "Summary",
+          value: kase.situationSummary ?? blank,
+          placeholder: "Where things stand",
+          multiline: true,
+        },
+        onSave: async (fields) => {
+          const situationSummary = fields.value.trim() || null;
+          persist(
+            (current) => ({ ...current, situationSummary }),
+            () => casesApi.updateSituationSummary(kase.id, situationSummary),
+          );
+        },
+        onClear: kase.situationSummary?.trim()
+          ? async () => {
+              persist(
+                (current) => ({ ...current, situationSummary: null }),
+                () => casesApi.updateSituationSummary(kase.id, null),
+              );
+            }
+          : undefined,
+      };
+    }
+
+    fieldPop.open(event, request, direct);
+  };
+
   return (
     <div className="sky-v6">
       <div className="sky-v6-scale" ref={sky.ref} style={sky.vars}>
@@ -950,40 +1565,86 @@ export default function SkyViewPage() {
         </div>
       </div>
 
-      <div className="page">
-        <div>
+      <div ref={pageRef} className={detailsOn ? "page details-on" : "page"}>
+        <div className="id-col">
           <div className="g id">
-            <h1 className="name">
-              {kase.subjectName}
-              {age != null && <span>{age}</span>}
+            <h1
+              className={editClass("name", "name")}
+              title={editable("name") ? "Right-click for options" : undefined}
+              onContextMenu={(event) => openField(event, "name")}
+            >
+              {nameLead ? <span className="name-lead">{nameLead} </span> : null}
+              <span className="name-end">
+                {nameLast}
+                <span className="age">{age ?? "—"}</span>
+              </span>
             </h1>
-            {kase.subjectJobTitle && <p className="occ">{kase.subjectJobTitle}</p>}
+            <p
+              className={editClass("work", kase.subjectJobTitle ? "occ" : "occ sky-empty")}
+              title={editable("work") ? "Right-click to edit" : undefined}
+              onContextMenu={(event) => openField(event, "work")}
+            >
+              {kase.subjectJobTitle || "No work on file"}
+            </p>
             <p className="addr">
-              <b>{address}</b>
-              {kase.subjectSetting && <span className="cap d">{SETTING_LABEL[kase.subjectSetting]}</span>}
+              <b
+                className={editClass("address", primary ? "" : "sky-empty")}
+                title={editable("address") ? "Right-click to edit" : undefined}
+                onContextMenu={(event) => openField(event, "address")}
+              >
+                {address}
+              </b>
+              <span
+                className={editClass("area", kase.subjectSetting ? "cap d" : "cap ghost")}
+                title={editable("area") ? "Right-click to edit" : undefined}
+                onContextMenu={(event) => openField(event, "area")}
+              >
+                {kase.subjectSetting ? SETTING_LABEL[kase.subjectSetting] : "area"}
+              </span>
             </p>
             <p className="client">
-              {kase.client?.company ?? "No client"}
-              <span className="cap c">{SERVICE_LABELS[kase.service]}</span>
+              <span
+                className={editClass("client", kase.client ? "" : "sky-empty")}
+                title={editable("client") ? "Right-click to edit" : undefined}
+                onContextMenu={(event) => openField(event, "client")}
+              >
+                {kase.client?.company ?? "No client"}
+              </span>
+              <span
+                className={editClass("service", "cap c")}
+                title={editable("service") ? "Right-click to edit" : undefined}
+                onContextMenu={(event) => openField(event, "service")}
+              >
+                {SERVICE_LABELS[kase.service]}
+              </span>
             </p>
 
             <div className="facts">
-              <div className="fact eat">
+              <div
+                className={editClass("eat", "fact eat")}
+                title={editable("eat") ? "Right-click to edit" : undefined}
+                onContextMenu={(event) => openField(event, "eat")}
+              >
                 <div className="big">
                   <span>{eat ? eatClock(eat) : "—"}</span>
                   <span className="eat-lab">EAT</span>
                 </div>
               </div>
 
-              <div className="fact">
-                <div className="sec">Transport</div>
-                {kase.subjectTransport && (
+              <div
+                className={editClass("transport", "fact")}
+                title={editable("transport") ? "Right-click for options" : undefined}
+                onContextMenu={(event) => openField(event, "transport")}
+              >
+                <div className="sec transport-head">
+                  <span>Transport</span>
+                  <MobilityMark transport={kase.subjectTransport} empty />
+                </div>
+                {kase.vehicles.length === 0 && (
                   <div className="pl">
-                    <span className="k">{TRANSPORT_LABEL[kase.subjectTransport]}</span>
-                    <span className="t">Mode</span>
+                    <span className="a">No vehicles on file</span>
                   </div>
                 )}
-                {kase.vehicles.length === 0 && <div className="pl"><span className="a">No vehicles on file</span></div>}
                 {kase.vehicles.map((vehicle) => (
                   <div className="pl" key={vehicle.id}>
                     <span className="k">{vehicleTitle(vehicle)}</span>
@@ -992,18 +1653,25 @@ export default function SkyViewPage() {
                 ))}
               </div>
 
-              {knownPlaces.length > 0 && (
-                <div className="fact">
-                  <div className="sec">Known places — returns to</div>
-                  {knownPlaces.map((place) => (
-                    <div className="pl" key={place.id}>
-                      <span className="k">{place.title}</span>
-                      <span className="t">{place.when}</span>
-                      {place.place && <span className="a">{place.place}</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div
+                className={editClass("place", "fact")}
+                title={editable("place") ? "Right-click for options" : undefined}
+                onContextMenu={(event) => openField(event, "place")}
+              >
+                <div className="sec">Known places — returns to</div>
+                {knownPlaces.length === 0 && (
+                  <div className="pl">
+                    <span className="a">No known places</span>
+                  </div>
+                )}
+                {knownPlaces.map((place) => (
+                  <div className="pl" key={place.id}>
+                    <span className="k">{place.title}</span>
+                    <span className="t">{place.when}</span>
+                    {place.place && <span className="a">{place.place}</span>}
+                  </div>
+                ))}
+              </div>
 
             </div>
           </div>
@@ -1013,55 +1681,42 @@ export default function SkyViewPage() {
           <div className="wheel">
             <NavRing
               caseId={kase.id}
+              detailsOn={detailsOn}
               onGo={(path) => navigate(path)}
               onVideo={() => {
                 if (can("video.use")) setDesignsOpen(true);
               }}
+              onDetails={toggleDetails}
             />
             <div className="core g">
-              {editingIme ? (
-                <form
-                  className="ime-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void saveIme(imeDraft ? new Date(imeDraft).toISOString() : null);
-                  }}
-                >
-                  <div className="ime-core">IME</div>
-                  <input type="datetime-local" value={imeDraft} onChange={(event) => setImeDraft(event.target.value)} />
-                  <button type="submit" className="btn" disabled={busy}>Save</button>
-                  <button type="button" className="btn" onClick={() => setEditingIme(false)}>Cancel</button>
-                </form>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImeDraft(exam ? toLocalInput(exam.toISOString()) : "");
-                    setEditingIme(true);
-                  }}
-                  style={{ background: "none", border: 0, color: "inherit", cursor: "pointer", font: "inherit" }}
-                >
-                  <div className="ime-core">IME</div>
-                  {exam ? (
-                    <>
-                      <div className="n">{exam.toLocaleDateString("en-US", { weekday: "short" })} {exam.getDate()}</div>
-                      <div className="l">
-                        {exam.toLocaleDateString("en-US", { month: "short" })} · {clock(exam)}
-                        {until ? ` · ${until}` : ""}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="n">—</div>
-                      <div className="l">Set exam</div>
-                    </>
-                  )}
-                </button>
-              )}
+              <button
+                type="button"
+                className={editClass("ime")}
+                title={editable("ime") ? "Right-click to edit" : undefined}
+                onClick={(event) => openField(event, "ime", true)}
+                onContextMenu={(event) => openField(event, "ime")}
+                style={{ background: "none", border: 0, color: "inherit", cursor: editable("ime") ? "pointer" : "default", font: "inherit" }}
+              >
+                <div className="ime-core">IME</div>
+                {exam ? (
+                  <>
+                    <div className="n">{exam.toLocaleDateString("en-US", { weekday: "short" })} {exam.getDate()}</div>
+                    <div className="l">
+                      {exam.toLocaleDateString("en-US", { month: "short" })} · {clock(exam)}
+                      {until ? ` · ${until}` : ""}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="n">—</div>
+                    <div className="l">Set exam</div>
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
-          <div className="g assign">
+          <div className="assign">
             <div className="items">
               <span className="ai done">{weekdayCount} weekday{weekdayCount === 1 ? "" : "s"}</span>
               <span className="ai done">{weekendCount} weekend day{weekendCount === 1 ? "" : "s"}</span>
@@ -1071,7 +1726,11 @@ export default function SkyViewPage() {
                 </span>
               )}
             </div>
-            <div className="rem">
+            <div
+              className={editClass("due", "rem")}
+              title={editable("due") ? "Right-click to edit the due date" : undefined}
+              onContextMenu={(event) => openField(event, "due")}
+            >
               <div>
                 <div className="n">{daysLeft ?? "—"}</div>
                 <div className="l">days</div>
@@ -1118,10 +1777,33 @@ export default function SkyViewPage() {
         </div>
 
         <div className="rail">
-          <PhotoCompare caseId={kase.id} subjectUrl={kase.subjectPhotoUrl} shots={comparisonShots(kase)} />
+          <div
+            className={editClass("photo", "photo-stack")}
+            title="Right-click for options"
+            onContextMenu={(event) => openField(event, "photo")}
+          >
+            <PhotoCompare caseId={kase.id} subjectUrl={kase.subjectPhotoUrl} shots={comparisonShots(kase)} />
+            <input
+              ref={portraitInput}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void uploadPortrait(file);
+              }}
+            />
+          </div>
           <div className="g idl">
             <div className="sec">Summary</div>
-            <p className="sum">{kase.situationSummary?.trim() || "No case summary yet."}</p>
+            <p
+              className={editClass("summary", kase.situationSummary?.trim() ? "sum" : "sum sky-empty")}
+              title={editable("summary") ? "Right-click to edit" : undefined}
+              onContextMenu={(event) => openField(event, "summary")}
+            >
+              {kase.situationSummary?.trim() || "No case summary yet."}
+            </p>
           </div>
 
           <div className="g stake">
@@ -1149,6 +1831,7 @@ export default function SkyViewPage() {
           </div>
 
         </div>
+        {boardShown && <SkyCaseFile kase={detailQuery.data?.case ?? kase} leaving={fileLeaving} />}
       </div>
 
       {stakeoutOpen && (
@@ -1177,6 +1860,8 @@ export default function SkyViewPage() {
           onClose={() => setDesignsOpen(false)}
         />
       )}
+
+      {compareOpen && <CompareDetails caseId={kase.id} kase={kase} onClose={() => setCompareOpen(false)} />}
 
       {pendingRemove && (
         <div className="confirm-layer">
@@ -1216,10 +1901,21 @@ export default function SkyViewPage() {
           onConfirmAssign={confirmAssign}
           onSaveNotes={async () => {}}
           onRemove={() => setFlow(null)}
-          onGoToCase={() => navigate(`/cases/${kase.id}`)}
+          onGoToCase={() => setDetailsOn(true)}
         />
       )}
       </div>
+      <SkyFieldPop
+        pop={fieldPop.pop}
+        busy={fieldPop.busy}
+        fault={fieldPop.fault}
+        onEdit={fieldPop.toEdit}
+        onNew={fieldPop.toNew}
+        onPick={fieldPop.pick}
+        onClear={fieldPop.clear}
+        onCommit={fieldPop.commit}
+        onClose={fieldPop.close}
+      />
     </div>
   );
 }
