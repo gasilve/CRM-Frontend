@@ -25,6 +25,7 @@ import { useQuery } from "@/lib/query-cache";
 import { SkyFieldPop, useSkyFieldPop, type SkyEditor, type SkyFieldRequest, type SkyFields, type SkyMenuAction } from "@/components/cases/SkyFieldMenu";
 import { MOBILITY_CHOICES, MobilityMark } from "@/components/cases/SubjectMobility";
 import SkyCaseFile from "@/components/cases/SkyCaseFile";
+import SkyOnboardingToast from "@/components/cases/SkyOnboardingToast";
 import "./sky-modal.css";
 import "./sky-v6.css";
 
@@ -1552,6 +1553,7 @@ export default function SkyViewPage() {
 
   return (
     <div className="sky-v6">
+      <SkyOnboardingToast caseId={kase.id} />
       <div className="sky-v6-scale" ref={sky.ref} style={sky.vars}>
       <div className="scene" aria-hidden>
         <div className="scene-fill">
