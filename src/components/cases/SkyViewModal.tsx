@@ -24,6 +24,7 @@ import { ageFromDob, calendarDateKey } from "@/lib/dates";
 import { useQuery } from "@/lib/query-cache";
 import { SkyFieldPop, useSkyFieldPop, type SkyEditor, type SkyFieldRequest, type SkyFields, type SkyMenuAction } from "@/components/cases/SkyFieldMenu";
 import { MOBILITY_CHOICES, MobilityMark } from "@/components/cases/SubjectMobility";
+import SkyCaseFile from "@/components/cases/SkyCaseFile";
 import "./sky-modal.css";
 import "./sky-v6.css";
 
@@ -33,7 +34,7 @@ const OUTER = 212;
 const GAP = 3;
 
 const NAV = [
-  { label: "Case", title: "Case", color: "#3ee08a", path: (id: string) => `/cases/${id}` },
+  { label: "Case", title: "Case details", color: "#3ee08a", details: true },
   { label: "Investigator view", title: "Investigator view", color: "#ffc857", path: (id: string) => `/cases/${id}/work` },
   { label: "Video", title: "Video", color: "#b18cff", video: true },
   { label: "Reports", title: "Reports", color: "#5aa9ff", path: (_id: string) => `/reports` },
@@ -190,12 +191,16 @@ function faceFromEntries(entries: { type: string; meta: Record<string, unknown> 
 
 function NavRing({
   caseId,
+  detailsOn,
   onGo,
   onVideo,
+  onDetails,
 }: {
   caseId: string;
+  detailsOn: boolean;
   onGo: (path: string) => void;
   onVideo: () => void;
+  onDetails: () => void;
 }) {
   const seg = 360 / NAV.length;
   return (
@@ -206,12 +211,17 @@ function NavRing({
         const mid = (a0 + a1) / 2;
         const [x, y] = polar(mid, OUTER + 20);
         const aim = ((mid - 90) * Math.PI) / 180;
+        const openDetails = "details" in item;
         return (
           <g
             key={item.label}
-            className="nav-g"
+            className={openDetails && detailsOn ? "nav-g on" : "nav-g"}
             style={{ ["--seg" as string]: item.color }}
-            onClick={() => ("video" in item ? onVideo() : onGo(item.path(caseId)))}
+            onClick={() => {
+              if ("details" in item) onDetails();
+              else if ("video" in item) onVideo();
+              else onGo(item.path(caseId));
+            }}
           >
             <title>{item.title}</title>
             <path
@@ -707,6 +717,37 @@ export default function SkyViewPage() {
   const [designsOpen, setDesignsOpen] = useState(false);
   const [stakeoutOpen, setStakeoutOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
+  const [detailsOn, setDetailsOn] = useState(false);
+  // The file stays mounted through its exit. Skyview only comes back once that exit has finished.
+  const [boardShown, setBoardShown] = useState(false);
+  const [fileLeaving, setFileLeaving] = useState(false);
+  // Same cache key as the case screen, so a visit there makes this instant.
+  const detailQuery = useQuery(id && boardShown ? `case:${id}` : null, () => casesApi.get(id), {
+    staleMs: 60_000,
+  });
+  const pageRef = useRef<HTMLDivElement>(null);
+  const toggleDetails = () => {
+    if (fileLeaving) return;
+    if (!detailsOn) {
+      pageRef.current?.parentElement?.scrollTo({ top: 0 });
+      setDetailsOn(true);
+      return;
+    }
+    setFileLeaving(true);
+  };
+  useEffect(() => {
+    if (!detailsOn) {
+      setBoardShown(false);
+      setFileLeaving(false);
+      return;
+    }
+    setBoardShown(true);
+  }, [detailsOn]);
+  useEffect(() => {
+    if (!fileLeaving) return;
+    const timer = window.setTimeout(() => setDetailsOn(false), 340);
+    return () => window.clearTimeout(timer);
+  }, [fileLeaving]);
   const portraitInput = useRef<HTMLInputElement>(null);
   const stakeouts = useQuery(id ? `case:${id}:stakeout` : null, () => stakeoutApi.list(id), {
     staleMs: 60_000,
@@ -1524,8 +1565,8 @@ export default function SkyViewPage() {
         </div>
       </div>
 
-      <div className="page">
-        <div>
+      <div ref={pageRef} className={detailsOn ? "page details-on" : "page"}>
+        <div className="id-col">
           <div className="g id">
             <h1
               className={editClass("name", "name")}
@@ -1640,10 +1681,12 @@ export default function SkyViewPage() {
           <div className="wheel">
             <NavRing
               caseId={kase.id}
+              detailsOn={detailsOn}
               onGo={(path) => navigate(path)}
               onVideo={() => {
                 if (can("video.use")) setDesignsOpen(true);
               }}
+              onDetails={toggleDetails}
             />
             <div className="core g">
               <button
@@ -1788,6 +1831,7 @@ export default function SkyViewPage() {
           </div>
 
         </div>
+        {boardShown && <SkyCaseFile kase={detailQuery.data?.case ?? kase} leaving={fileLeaving} />}
       </div>
 
       {stakeoutOpen && (
@@ -1857,7 +1901,7 @@ export default function SkyViewPage() {
           onConfirmAssign={confirmAssign}
           onSaveNotes={async () => {}}
           onRemove={() => setFlow(null)}
-          onGoToCase={() => navigate(`/cases/${kase.id}`)}
+          onGoToCase={() => setDetailsOn(true)}
         />
       )}
       </div>
