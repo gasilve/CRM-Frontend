@@ -1098,7 +1098,8 @@ export const casesApi = {
     request<{ assignments: MyAssignment[] }>(`/cases/mine${toQuery({ from, to })}`),
   /** Investigator caseload for My Day — today / current / past / closed buckets. */
   myCaseload: () => request<MyCaseloadResponse>("/cases/mine/caseload"),
-  get: (id: string) => request<{ case: CaseDetail }>(`/cases/${id}`),
+  get: (id: string, opts?: { view?: "full" | "sky" }) =>
+    request<{ case: CaseDetail }>(`/cases/${id}${opts?.view === "sky" ? "?view=sky" : ""}`),
   create: (body: CreateCasePayload) =>
     request<{ case: CaseDetail }>("/cases", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: UpdateCasePayload) =>
