@@ -123,10 +123,10 @@ export function UploadView({
               <ArrowLeft size={14} strokeWidth={1.8} />
               Back
             </button>
-            <span className="vu-foot-note">{up.error ?? (up.canCertify ? "Ready to sign." : "Tap all three, then sign.")}</span>
+            <span className="vu-foot-note">{up.error ?? up.notice ?? (up.canCertify ? "Ready to sign." : "Tap all three, then sign.")}</span>
             <button type="button" className="vu-btn go" disabled={!up.canCertify} onClick={() => void up.certify()}>
               <ShieldCheck size={15} strokeWidth={1.7} />
-              Certify &amp; upload
+              Certify
             </button>
           </>
         )}

@@ -6,12 +6,12 @@ import {
   clearDraft,
   draftKey,
   getDraft,
-  listBatches,
-  updateBatch,
   type DraftStep,
   type LeftOutReason,
   type SavedBatch,
+  type SavedClip,
 } from "@/components/cases/video-library";
+import { videoApi, type RemoteVideoBatch } from "@/lib/crm-api";
 import { caseTypeLabel, dayKeyOf } from "@/components/cases/video-upload/checks";
 import { batchSends, buildLedger, narrowToClips, type DayRow, type FieldDay } from "@/components/cases/video-upload/ledger";
 import { useSealJobs } from "@/components/cases/video-upload/sealing";
@@ -78,7 +78,8 @@ export function VideoUploadModal({
 
   const reload = useCallback(async () => {
     try {
-      setBatches(await listBatches(caseId));
+      const listed = await videoApi.list(caseId);
+      setBatches(listed.batches.map(asSaved));
     } catch {
       setError("Could not open the video on this case.");
       setBatches([]);
@@ -108,7 +109,20 @@ export function VideoUploadModal({
 
   const change = async (ids: string[], edit: (batch: SavedBatch) => SavedBatch) => {
     try {
-      for (const id of ids) await updateBatch(id, edit);
+      for (const id of ids) {
+        const current = (batches ?? []).find((batch) => batch.id === id);
+        if (!current) continue;
+        const next = edit(current);
+        await videoApi.patchBatch(id, {
+          flag: next.flag ?? null,
+          sends: next.sends ?? [],
+          clips: next.clips.map((clip) => ({
+            id: clip.id,
+            inClientVideo: clip.inClientVideo !== false,
+            leftOutReason: clip.leftOutReason ?? null,
+          })),
+        });
+      }
       setError(null);
     } catch {
       setError("That change could not be saved. Try again.");
@@ -128,14 +142,13 @@ export function VideoUploadModal({
   };
 
   const coldClips = async (clipIds: string[]) => {
-    const at = new Date().toISOString();
-    const ids = new Set(clipIds);
-    const batchIds = [...new Set(rows.flatMap((row) => row.batches.filter((batch) => batch.clips.some((clip) => ids.has(clip.id))).map((batch) => batch.id)))];
-    await change(batchIds, (batch) => {
-      const clips = batch.clips.map((clip) => (ids.has(clip.id) ? { ...clip, coldAt: clip.coldAt ?? at } : clip));
-      const allLocked = clips.every((clip) => clip.coldAt);
-      return { ...batch, clips, storage: allLocked ? "cold" : batch.storage, coldAt: allLocked ? (batch.coldAt ?? at) : batch.coldAt };
-    });
+    try {
+      const moved = await videoApi.moveCold(caseId, clipIds);
+      setBatches(moved.batches.map(asSaved));
+      setError(null);
+    } catch {
+      setError("Those files could not be moved to storage. Try again.");
+    }
     setOverlay(null);
   };
 
@@ -330,4 +343,44 @@ export function VideoUploadModal({
     </div>,
     document.body,
   );
+}
+
+function asSaved(batch: RemoteVideoBatch): SavedBatch {
+  return {
+    id: batch.id,
+    caseId: batch.caseId,
+    signerName: batch.signerName,
+    certifiedAt: batch.certifiedAt ?? "",
+    minutes: Math.max(1, Math.round((batch.declared?.seconds ?? 0) / 60)),
+    measured: batch.measuredSeconds == null ? null : Math.max(1, Math.round(batch.measuredSeconds / 60)),
+    sentOn: {},
+    workDate: batch.workDate,
+    camera: batch.camera ?? undefined,
+    declared: batch.declared ?? undefined,
+    declaredFirst: batch.declaredFirst ?? undefined,
+    measuredSeconds: batch.measuredSeconds,
+    series: batch.series ?? undefined,
+    attest: batch.attest,
+    signature: batch.signature ?? undefined,
+    service: (batch.service ?? undefined) as SavedBatch["service"],
+    state: batch.state,
+    flag: batch.flag,
+    storage: batch.storage,
+    coldAt: batch.coldAt,
+    sends: batch.sends,
+    clips: batch.clips.map((clip): SavedClip => ({
+      id: clip.id,
+      name: clip.name,
+      kind: clip.kind,
+      seconds: clip.seconds,
+      recordedAt: clip.recordedAt,
+      blob: null,
+      sizeBytes: clip.sizeBytes,
+      number: clip.number,
+      sha256: clip.sha256,
+      inClientVideo: clip.inClientVideo,
+      leftOutReason: clip.leftOutReason,
+      coldAt: clip.coldAt,
+    })),
+  };
 }
