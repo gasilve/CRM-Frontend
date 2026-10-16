@@ -97,6 +97,7 @@ export function useVideoUpload({
   const [signature, setSignature] = useState<string | null>(null);
   const [signKey, setSignKey] = useState(0);
   const [sealing, setSealing] = useState(false);
+  const [sealProgress, setSealProgress] = useState<{ current: number; total: number; phase: "upload" | "certify" } | null>(null);
   const [batchId, setBatchId] = useState<string | null>(start?.batchId ?? null);
   const [error, setError] = useState<string | null>(null);
   const batchRef = useRef<string | null>(start?.batchId ?? null);
@@ -258,20 +259,24 @@ export function useVideoUpload({
     setSealing(true);
     setError(null);
     const jobId = newId();
-    startJob({ id: jobId, caseId, day: workDate, files: ordered.length });
+    const pending = clipsRef.current.filter((clip) => clip.status !== "failed");
+    const alreadySent = (clip: UploadClip) =>
+      (clip.status === "staged" || clip.status === "stored" || clip.status === "verifying") && !clip.id.startsWith("local-");
+    const queued = pending.filter((clip) => !alreadySent(clip));
+    startJob({ id: jobId, caseId, day: workDate, files: Math.max(queued.length, 1) });
+    if (queued.length > 0) setSealProgress({ current: 1, total: queued.length, phase: "upload" });
     try {
       const id = await ensureBatch();
-      const pending = clipsRef.current.filter((clip) => clip.status !== "failed");
-      const clipIds = await Promise.all(
-        pending.map((clip) =>
-          (clip.status === "staged" || clip.status === "stored" || clip.status === "verifying") && !clip.id.startsWith("local-")
-            ? clip.id
-            : uploadClip(id, clip),
-        ),
-      );
-      const ready = await waitUntilStaged(id, clipIds);
+      const clipIds = pending.filter(alreadySent).map((clip) => clip.id);
+      for (let index = 0; index < queued.length; index += 1) {
+        setSealProgress({ current: index + 1, total: queued.length, phase: "upload" });
+        stepJob(jobId, index);
+        clipIds.push(await uploadClip(id, queued[index]));
+      }
+      setSealProgress({ current: queued.length, total: queued.length, phase: "certify" });
+      stepJob(jobId, queued.length);
+      await waitUntilStaged(id, clipIds);
       if (abortSeal.current) return;
-      stepJob(jobId, ready.length);
       await videoApi.certify(id, {
         workDate,
         camera,
@@ -298,6 +303,7 @@ export function useVideoUpload({
       setError(err instanceof Error ? err.message : "Could not certify these clips. Nothing was lost. Try again.");
     } finally {
       endJob(jobId);
+      setSealProgress(null);
       setSealing(false);
     }
   };
@@ -394,6 +400,7 @@ export function useVideoUpload({
     notice,
     measuredSeconds,
     sealing,
+    sealProgress,
     error,
     dragging,
     setDragging,
