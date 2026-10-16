@@ -37,7 +37,7 @@ export type UploadClip = {
   sizeBytes: number;
   url: string;
   blob: Blob | null;
-  status: "uploading" | "verifying" | "staged" | "stored" | "failed";
+  status: "local" | "uploading" | "verifying" | "staged" | "stored" | "failed";
   videoId?: string | null;
   number: number | null;
   seconds: number | null;
@@ -152,8 +152,7 @@ export function useVideoUpload({
 
   const needsExplanation = series.kind === "mixed" || (series.kind === "run" && series.missing.length > 0);
   const canContinue = checks.length > 0 && checks.every((check) => check.tone === "ok" || check.tone === "warn");
-  const filesReady = clips.length > 0 && clips.every((clip) => clip.status === "staged" || clip.status === "stored");
-  const canCertify = canContinue && filesReady && attest.every(Boolean) && Boolean(signature);
+  const canCertify = canContinue && clips.length > 0 && clips.every((clip) => clip.status !== "failed") && attest.every(Boolean) && Boolean(signature);
   const notice = clips.some((clip) => clip.status === "uploading")
     ? "Sending the files."
     : clips.some((clip) => clip.status === "verifying")
@@ -227,14 +226,13 @@ export function useVideoUpload({
     if (fresh.length === 0) return;
     if (!declaredFirst && declared) setDeclaredFirst(declared);
     setEditing(false);
-    void (async () => {
-      try {
-        const id = await ensureBatch();
-        for (const file of fresh) void sendFile(id, file);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "The upload could not be started.");
-      }
-    })();
+    setClips((current) => [...current, ...fresh.map((file) => toClip(`local-${file.name}:${file.size}`, file.name, file.size, file, "local"))]);
+    for (const file of fresh) {
+      const id = `local-${file.name}:${file.size}`;
+      void readRecordedAt(file).then((at) => {
+        if (at) patchClip(id, (item) => (item.recordedAt ? item : { ...item, recordedAt: at.toISOString() }));
+      });
+    }
   };
 
   const ensureBatch = async () => {
@@ -250,34 +248,26 @@ export function useVideoUpload({
     return created.batch.id;
   };
 
-  const sendFile = async (id: string, file: File) => {
-    const local = toClip(`local-${file.name}:${file.size}`, file.name, file.size, file);
-    setClips((current) => [...current, local]);
-    if (local.blob) {
-      void readRecordedAt(local.blob).then((at) => {
-        if (at) patchClip(local.id, (item) => (item.recordedAt ? item : { ...item, recordedAt: at.toISOString() }));
-      });
-    }
+  const uploadClip = async (batch: string, clip: UploadClip) => {
+    if (!clip.blob) throw new Error("That file is no longer on this page. Add it again.");
+    patchClip(clip.id, (item) => ({ ...item, status: "uploading" }));
     let startedId: string | null = null;
     try {
-      const started = await videoApi.startClip(id, {
-        filename: file.name,
-        contentType: file.type,
-        sizeBytes: file.size,
-        number: local.number,
+      const started = await videoApi.startClip(batch, {
+        filename: clip.name,
+        contentType: clip.blob.type,
+        sizeBytes: clip.sizeBytes,
+        number: clip.number,
       });
       startedId = started.clip.id;
-      const parts = await putVideoToWasabi(file, started.upload);
+      const parts = await putVideoToWasabi(clip.blob, started.upload);
       await videoApi.completeClip(started.clip.id, parts);
-      setClips((current) =>
-        current.map((clip) =>
-          clip.id === local.id ? { ...clip, id: started.clip.id, status: "verifying", videoId: started.clip.videoId } : clip,
-        ),
-      );
+      patchClip(clip.id, (item) => ({ ...item, id: started.clip.id, status: "verifying", videoId: started.clip.videoId }));
+      return started.clip.id;
     } catch (err) {
       if (startedId) void videoApi.deleteClip(startedId).catch(() => {});
-      setClips((current) => current.map((clip) => (clip.id === local.id ? { ...clip, status: "failed" } : clip)));
-      setError(err instanceof Error ? err.message : "A file could not be sent.");
+      patchClip(clip.id, (item) => ({ ...item, status: "local" }));
+      throw err;
     }
   };
 
@@ -308,17 +298,19 @@ export function useVideoUpload({
     stopped.current = true;
     setSealing(true);
     setError(null);
-    const id = batchRef.current;
-    if (!id) {
-      stopped.current = false;
-      setSealing(false);
-      setError("The files have not been sent yet.");
-      return;
-    }
     const jobId = newId();
     startJob({ id: jobId, caseId, day: workDate, files: ordered.length });
     try {
-      const ready = await waitUntilStaged(id, ordered.map((clip) => clip.id));
+      const id = await ensureBatch();
+      const pending = clipsRef.current.filter((clip) => clip.status !== "failed");
+      const clipIds = await Promise.all(
+        pending.map((clip) =>
+          (clip.status === "staged" || clip.status === "stored" || clip.status === "verifying") && !clip.id.startsWith("local-")
+            ? clip.id
+            : uploadClip(id, clip),
+        ),
+      );
+      const ready = await waitUntilStaged(id, clipIds);
       if (abortSeal.current) return;
       stepJob(jobId, ready.length);
       await videoApi.certify(id, {
@@ -327,7 +319,7 @@ export function useVideoUpload({
         declaredFiles: declared.files,
         declaredSeconds: declared.seconds,
         declaredFirst: declaredFirst ?? declared,
-        measuredSeconds,
+        measuredSeconds: measuredSeconds == null ? null : Math.round(measuredSeconds),
         series: {
           first: series.kind === "run" ? series.first : null,
           last: series.kind === "run" ? series.last : null,

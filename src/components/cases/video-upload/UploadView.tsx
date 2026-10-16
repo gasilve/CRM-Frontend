@@ -116,7 +116,7 @@ export function UploadView({
         {up.step === "identify" ? (
           <IdentifyFoot up={up} />
         ) : up.sealing ? (
-          <span className="vu-foot-note">Sealing each file. Stay on this step until it finishes.</span>
+          <span className="vu-foot-note">Sending the files, then certifying. Stay on this step.</span>
         ) : (
           <>
             <button type="button" className="vu-btn ghost" onClick={() => up.setStep("identify")}>
