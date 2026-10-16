@@ -2174,6 +2174,32 @@ export const videoApi = {
     request<{ batches: RemoteVideoBatch[] }>(`/video/cases/${caseId}/cold`, { method: "POST", body: JSON.stringify({ clipIds }) }),
 };
 
+export type StorageBucketId = "staging" | "cold";
+
+export type StorageFolder = { name: string; prefix: string };
+
+export type StorageFile = { name: string; key: string; size: number; modified: string | null };
+
+export type StorageListing = {
+  bucket: StorageBucketId;
+  label: string;
+  name: string;
+  prefix: string;
+  truncated: boolean;
+  local?: boolean;
+  folders: StorageFolder[];
+  files: StorageFile[];
+};
+
+export type StorageOpen = { url: string; name: string; contentType: string; key: string };
+
+export const storageApi = {
+  list: (bucket: StorageBucketId, prefix = "") =>
+    request<StorageListing>(`/storage${toQuery({ bucket, prefix })}`),
+  open: (bucket: StorageBucketId, key: string) =>
+    request<StorageOpen>(`/storage/play${toQuery({ bucket, key })}`),
+};
+
 /** PUT the file straight to Wasabi. crm-api never sees the bytes. */
 export async function putVideoToWasabi(file: Blob, upload: VideoUploadTarget) {
   if (upload.mode === "single") {

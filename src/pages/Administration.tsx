@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { HelpCircle, Loader2, Mail, Plus, ShieldAlert, ShieldCheck, Shield, UserPlus, Users2 } from "lucide-react";
+import { HardDrive, HelpCircle, Loader2, Mail, Plus, ShieldAlert, ShieldCheck, Shield, UserPlus, Users2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getInitials, roleChipStyle, roleColor } from "@/lib/format";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,6 +9,7 @@ import { PendingInvitations } from "@/components/team/PendingInvitations";
 import { ErrorBanner } from "@/components/admin/primitives";
 import { RoleEditor } from "@/components/admin/RoleEditor";
 import { QuestionBankTab } from "@/components/admin/QuestionBankTab";
+import { StorageBrowser } from "@/components/admin/StorageBrowser";
 import {
   ApiError,
   rolesApi,
@@ -19,7 +20,7 @@ import {
   type RolePayload,
 } from "@/lib/crm-api";
 
-type Tab = "roles" | "people" | "invitations" | "questions";
+type Tab = "roles" | "people" | "invitations" | "questions" | "storage";
 
 export default function Administration() {
   const { can } = useAuth();
@@ -33,6 +34,7 @@ export default function Administration() {
     if (canAssignRoles) out.push({ id: "people", label: "People", icon: Users2 });
     if (can("team.invite")) out.push({ id: "invitations", label: "Invitations", icon: Mail });
     if (canManageQuestions) out.push({ id: "questions", label: "Question bank", icon: HelpCircle });
+    if (canEditRoles || canAssignRoles) out.push({ id: "storage", label: "Video storage", icon: HardDrive });
     return out;
   }, [canEditRoles, canAssignRoles, canManageQuestions, can]);
 
@@ -63,7 +65,9 @@ export default function Administration() {
       <div className="shrink-0">
         <h1 className="editorial text-[2.25rem] leading-none text-[var(--color-text-hi)]">Administration</h1>
         <p className="mt-1 font-mono text-[0.6875rem] text-[var(--color-text-lo)]">
-          Who is on the team, and what each of them is allowed to see and do
+          {tab === "storage"
+            ? "Staging on the left, cold storage on the right. Double-click a video to play it."
+            : "Who is on the team, and what each of them is allowed to see and do"}
         </p>
       </div>
 
@@ -100,6 +104,12 @@ export default function Administration() {
       {tab === "invitations" && <InvitationsTab />}
 
       {tab === "questions" && <QuestionBankTab />}
+
+      {tab === "storage" && (
+        <div className="min-h-0 flex-1">
+          <StorageBrowser />
+        </div>
+      )}
     </div>
   );
 }
