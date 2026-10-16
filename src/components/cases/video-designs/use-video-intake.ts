@@ -237,12 +237,13 @@ export function useVideoIntake({
 export type VideoIntake = ReturnType<typeof useVideoIntake>;
 
 function withUrl(clip: SavedClip, cache: Map<string, string>): VideoClip {
+  const blob = clip.blob ?? new Blob();
   let url = cache.get(clip.id);
-  if (!url) {
+  if (!url && clip.blob) {
     url = URL.createObjectURL(clip.blob);
     cache.set(clip.id, url);
   }
-  return { ...clip, url };
+  return { ...clip, blob, url: url ?? "" };
 }
 
 function dayRows(batches: SavedBatch[]): VideoDayRow[] {

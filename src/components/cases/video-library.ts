@@ -14,7 +14,7 @@ export type SavedClip = {
   kind: string;
   seconds: number | null;
   recordedAt: string | null;
-  blob: Blob;
+  blob: Blob | null;
   sizeBytes?: number;
   /** Clip number read from the camera's file name. */
   number?: number | null;
@@ -85,6 +85,8 @@ export type VideoDraft = {
   declaredFirst: Declared | null;
   explanation: string;
   attest: boolean[];
+  /** Server batch, once the files have started uploading. */
+  batchId?: string;
   /** Clip ids in the order they were added; the files themselves are in DRAFT_CLIPS. */
   clipIds: string[];
   clipMeta: Record<string, { seconds: number | null; recordedAt: string | null; unreadable: boolean; inClientVideo: boolean; leftOutReason: LeftOutReason | null }>;

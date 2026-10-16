@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Archive, Check, ChevronLeft, Clock, FileCheck2, Flag, Lock, Play, Send, Upload, X } from "lucide-react";
 import type { LeftOutReason, SavedBatch, SavedClip } from "@/components/cases/video-library";
+import { videoApi } from "@/lib/crm-api";
 import { LEFT_OUT_LABEL, clock, dayName } from "@/components/cases/video-upload/checks";
 import { clipLocked, clipSent, shortAt, shortDay, type DayRow, type FieldDay } from "@/components/cases/video-upload/ledger";
 import type { SealJob } from "@/components/cases/video-upload/sealing";
@@ -70,6 +71,7 @@ export function WatchView({
   const [flagging, setFlagging] = useState(false);
   const [note, setNote] = useState("");
   const [discarding, setDiscarding] = useState(false);
+  const [fetched, setFetched] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (justSealed) setDate(justSealed);
@@ -79,7 +81,7 @@ export function WatchView({
   for (const row of rows) {
     for (const batch of row.batches) {
       for (const clip of batch.clips) {
-        if (!urls.current.has(clip.id)) urls.current.set(clip.id, URL.createObjectURL(clip.blob));
+        if (clip.blob && !urls.current.has(clip.id)) urls.current.set(clip.id, URL.createObjectURL(clip.blob));
       }
     }
   }
@@ -90,9 +92,35 @@ export function WatchView({
 
   const cards: Card[] = rows.flatMap((row) =>
     row.batches.flatMap((batch) =>
-      batch.clips.map((clip) => ({ clip, batch, day: row.day, url: urls.current.get(clip.id) ?? "" })),
+      batch.clips.map((clip) => ({ clip, batch, day: row.day, url: urls.current.get(clip.id) ?? fetched[clip.id] ?? "" })),
     ),
   );
+  const missingPlayback = cards.filter((card) => !card.url).map((card) => card.clip.id).join(" ");
+  useEffect(() => {
+    const ids = missingPlayback.split(" ").filter(Boolean).slice(0, 6);
+    if (ids.length === 0) return;
+    let live = true;
+    void Promise.all(
+      ids.map(async (id) => {
+        try {
+          const link = await videoApi.download(id);
+          return [id, link.url] as const;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((pairs) => {
+      if (!live) return;
+      setFetched((current) => {
+        const next = { ...current };
+        for (const pair of pairs) if (pair) next[pair[0]] = pair[1];
+        return next;
+      });
+    });
+    return () => {
+      live = false;
+    };
+  }, [missingPlayback]);
   const shown = cards.filter((card) => {
     if (date && card.day !== date) return false;
     const locked = clipLocked(card.clip, card.batch);

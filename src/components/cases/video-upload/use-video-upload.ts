@@ -5,8 +5,6 @@ import {
   clearDraft,
   deleteDraftClip,
   draftKey,
-  putDraftClip,
-  saveBatch,
   saveDraft,
   type CameraKind,
   type Declared,
@@ -16,8 +14,8 @@ import {
   type SavedBatch,
   type VideoDraft,
 } from "@/components/cases/video-library";
+import { putVideoToWasabi, videoApi, type RemoteVideoClip } from "@/lib/crm-api";
 import {
-  ATTEST,
   dayKeyOf,
   dayName,
   filesCheck,
@@ -38,7 +36,9 @@ export type UploadClip = {
   kind: string;
   sizeBytes: number;
   url: string;
-  blob: Blob;
+  blob: Blob | null;
+  status: "uploading" | "verifying" | "staged" | "stored" | "failed";
+  videoId?: string | null;
   number: number | null;
   seconds: number | null;
   recordedAt: string | null;
@@ -49,9 +49,6 @@ export type UploadClip = {
 };
 
 export type Resume = { draft: VideoDraft; clips: DraftClip[] };
-
-/** Browsers hash in memory; anything bigger is fingerprinted when it reaches the server. */
-const HASH_LIMIT_BYTES = 768 * 1024 * 1024;
 
 export function useVideoUpload({
   caseId,
@@ -102,7 +99,10 @@ export function useVideoUpload({
   const [signature, setSignature] = useState<string | null>(null);
   const [signKey, setSignKey] = useState(0);
   const [sealing, setSealing] = useState(false);
+  const [batchId, setBatchId] = useState<string | null>(start?.batchId ?? null);
   const [error, setError] = useState<string | null>(null);
+  const batchRef = useRef<string | null>(start?.batchId ?? null);
+  const resumedId = useRef(start?.batchId ?? null);
   const [skipped, setSkipped] = useState(0);
   const [dragging, setDragging] = useState(false);
   clipsRef.current = clips;
@@ -152,7 +152,13 @@ export function useVideoUpload({
 
   const needsExplanation = series.kind === "mixed" || (series.kind === "run" && series.missing.length > 0);
   const canContinue = checks.length > 0 && checks.every((check) => check.tone === "ok" || check.tone === "warn");
-  const canCertify = canContinue && attest.every(Boolean) && Boolean(signature);
+  const filesReady = clips.length > 0 && clips.every((clip) => clip.status === "staged" || clip.status === "stored");
+  const canCertify = canContinue && filesReady && attest.every(Boolean) && Boolean(signature);
+  const notice = clips.some((clip) => clip.status === "uploading")
+    ? "Sending the files."
+    : clips.some((clip) => clip.status === "verifying")
+      ? "Checking the files on the server."
+      : null;
   const measuredSeconds = clips.some((clip) => clip.seconds == null)
     ? null
     : clips.reduce((sum, clip) => sum + (clip.seconds ?? 0), 0);
@@ -177,6 +183,7 @@ export function useVideoUpload({
         signerName,
         updatedAt: new Date().toISOString(),
         step,
+        batchId: batchRef.current ?? undefined,
         workDate,
         camera,
         filesText,
@@ -195,7 +202,7 @@ export function useVideoUpload({
       };
     latest.current = {
       draft,
-      clips: clips.map((clip) => ({ id: clip.id, draftKey: key, name: clip.name, sizeBytes: clip.sizeBytes, blob: clip.blob })),
+      clips: [],
     };
     const timer = window.setTimeout(() => {
       if (stopped.current || !latest.current) return;
@@ -203,7 +210,7 @@ export function useVideoUpload({
       draftRef.current(latest.current);
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [started, key, caseId, signerName, step, workDate, camera, filesText, minText, secText, declaredFirst, explanation, attest, clips]);
+  }, [started, key, caseId, signerName, step, batchId, workDate, camera, filesText, minText, secText, declaredFirst, explanation, attest, clips]);
 
   const addFiles = (list: FileList | null) => {
     const picked = list ? [...list] : [];
@@ -220,15 +227,57 @@ export function useVideoUpload({
     if (fresh.length === 0) return;
     if (!declaredFirst && declared) setDeclaredFirst(declared);
     setEditing(false);
-    const next: UploadClip[] = fresh.map((file) => toClip(newId(), file.name, file.size, file));
-    setClips((current) => [...current, ...next]);
-    for (const clip of next) {
-      void putDraftClip({ id: clip.id, draftKey: key, name: clip.name, sizeBytes: clip.sizeBytes, blob: clip.blob }).catch(() =>
-        setError("A file could not be kept for later. It is still here for now."),
-      );
-      void readRecordedAt(clip.blob).then((at) => {
-        if (at) patchClip(clip.id, (item) => (item.recordedAt ? item : { ...item, recordedAt: at.toISOString() }));
+    void (async () => {
+      try {
+        const id = await ensureBatch();
+        for (const file of fresh) void sendFile(id, file);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "The upload could not be started.");
+      }
+    })();
+  };
+
+  const ensureBatch = async () => {
+    if (batchRef.current) return batchRef.current;
+    const created = await videoApi.createBatch(caseId, {
+      workDate,
+      camera,
+      declaredFiles: declared?.files ?? null,
+      declaredSeconds: declared?.seconds ?? null,
+    });
+    batchRef.current = created.batch.id;
+    setBatchId(created.batch.id);
+    return created.batch.id;
+  };
+
+  const sendFile = async (id: string, file: File) => {
+    const local = toClip(`local-${file.name}:${file.size}`, file.name, file.size, file);
+    setClips((current) => [...current, local]);
+    if (local.blob) {
+      void readRecordedAt(local.blob).then((at) => {
+        if (at) patchClip(local.id, (item) => (item.recordedAt ? item : { ...item, recordedAt: at.toISOString() }));
       });
+    }
+    let startedId: string | null = null;
+    try {
+      const started = await videoApi.startClip(id, {
+        filename: file.name,
+        contentType: file.type,
+        sizeBytes: file.size,
+        number: local.number,
+      });
+      startedId = started.clip.id;
+      const parts = await putVideoToWasabi(file, started.upload);
+      await videoApi.completeClip(started.clip.id, parts);
+      setClips((current) =>
+        current.map((clip) =>
+          clip.id === local.id ? { ...clip, id: started.clip.id, status: "verifying", videoId: started.clip.videoId } : clip,
+        ),
+      );
+    } catch (err) {
+      if (startedId) void videoApi.deleteClip(startedId).catch(() => {});
+      setClips((current) => current.map((clip) => (clip.id === local.id ? { ...clip, status: "failed" } : clip)));
+      setError(err instanceof Error ? err.message : "A file could not be sent.");
     }
   };
 
@@ -248,6 +297,7 @@ export function useVideoUpload({
       return current.filter((item) => item.id !== id);
     });
     void deleteDraftClip(id).catch(() => {});
+    if (!id.startsWith("local-")) void videoApi.deleteClip(id).catch(() => {});
   };
 
   const setLeftOut = (id: string, reason: LeftOutReason | null) =>
@@ -258,30 +308,24 @@ export function useVideoUpload({
     stopped.current = true;
     setSealing(true);
     setError(null);
+    const id = batchRef.current;
+    if (!id) {
+      stopped.current = false;
+      setSealing(false);
+      setError("The files have not been sent yet.");
+      return;
+    }
     const jobId = newId();
-    const list = ordered;
-    const now = new Date().toISOString();
-    startJob({ id: jobId, caseId, day: workDate, files: list.length });
+    startJob({ id: jobId, caseId, day: workDate, files: ordered.length });
     try {
-      const sealed: UploadClip[] = [];
-      for (const clip of list) {
-        if (abortSeal.current) return;
-        sealed.push({ ...clip, sha256: await sha256(clip.blob) });
-        stepJob(jobId, sealed.length);
-      }
+      const ready = await waitUntilStaged(id, ordered.map((clip) => clip.id));
       if (abortSeal.current) return;
-      const batch: SavedBatch = {
-        id: newId(),
-        caseId,
-        signerName,
-        certifiedAt: now,
-        minutes: Math.max(1, Math.round(declared.seconds / 60)),
-        measured: measuredSeconds == null ? null : Math.max(1, Math.round(measuredSeconds / 60)),
-        sentOn: {},
-        storeOn: {},
+      stepJob(jobId, ready.length);
+      await videoApi.certify(id, {
         workDate,
         camera,
-        declared,
+        declaredFiles: declared.files,
+        declaredSeconds: declared.seconds,
         declaredFirst: declaredFirst ?? declared,
         measuredSeconds,
         series: {
@@ -290,47 +334,69 @@ export function useVideoUpload({
           missing: series.kind === "run" ? series.missing : [],
           explanation: needsExplanation ? explanation.trim() : null,
         },
-        attest: [...ATTEST],
-        signature: signature ?? "",
+        explanation: needsExplanation ? explanation.trim() : "",
+        signatureDataUrl: signature,
         service,
         state,
-        flag: null,
-        storage: "staging",
-        coldAt: null,
-        sends: [],
-        clips: sealed.map((clip) => ({
-          id: clip.id,
-          name: clip.name,
-          kind: clip.kind,
-          sizeBytes: clip.sizeBytes,
-          number: clip.number,
-          seconds: clip.seconds,
-          recordedAt: clip.recordedAt,
-          sha256: clip.sha256,
-          inClientVideo: clip.inClientVideo,
-          leftOutReason: clip.leftOutReason,
-          blob: clip.blob,
-        })),
-      };
-      await saveBatch(batch);
+      });
       await clearDraft(key).catch(() => {});
       latest.current = null;
       draftRef.current(null);
       sealedRef.current(workDate);
-    } catch {
+    } catch (err) {
       stopped.current = false;
-      setError("Could not keep these clips on the case. Nothing was lost. Try again.");
+      setError(err instanceof Error ? err.message : "Could not certify these clips. Nothing was lost. Try again.");
     } finally {
       endJob(jobId);
       setSealing(false);
     }
   };
 
+  useEffect(() => {
+    const id = resumedId.current;
+    if (!id) return;
+    let live = true;
+    void videoApi.getBatch(id).then(({ batch }) => {
+      if (!live || batch.certifiedAt) return;
+      setClips(batch.clips.map(fromRemote));
+      setEditing(batch.clips.length === 0);
+    }).catch(() => setError("The files already sent could not be opened."));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!batchId || !clips.some((clip) => clip.status === "verifying")) return;
+    let live = true;
+    const timer = window.setInterval(() => {
+      void videoApi.getBatch(batchId).then(({ batch }) => {
+        if (!live) return;
+        setClips((current) =>
+          current.map((clip) => {
+            const remote = batch.clips.find((item) => item.id === clip.id);
+            if (!remote || (remote.status !== "staged" && remote.status !== "stored" && remote.status !== "failed")) return clip;
+            return { ...clip, status: remote.status === "failed" ? "failed" : remote.status, sha256: remote.sha256, seconds: remote.seconds ?? clip.seconds, recordedAt: remote.recordedAt ?? clip.recordedAt };
+          }),
+        );
+      }).catch(() => {});
+    }, 4000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [batchId, clips]);
+
   const discard = async () => {
     abortSeal.current = true;
     stopped.current = true;
     latest.current = null;
+    const id = batchRef.current;
     await clearDraft(key).catch(() => {});
+    if (id) {
+      const current = clipsRef.current;
+      await Promise.all(current.filter((clip) => !clip.id.startsWith("local-")).map((clip) => videoApi.deleteClip(clip.id).catch(() => {})));
+    }
     draftRef.current(null);
   };
 
@@ -376,6 +442,7 @@ export function useVideoUpload({
       setSignKey((value) => value + 1);
     },
     canCertify,
+    notice,
     measuredSeconds,
     sealing,
     error,
@@ -407,14 +474,15 @@ function restore({ draft, clips }: Resume): UploadClip[] {
   });
 }
 
-function toClip(id: string, name: string, sizeBytes: number, blob: Blob): UploadClip {
+function toClip(id: string, name: string, sizeBytes: number, blob: Blob | null, status: UploadClip["status"] = "uploading"): UploadClip {
   return {
     id,
     name,
     kind: kindLabel(name),
     sizeBytes,
-    url: URL.createObjectURL(blob),
+    url: blob ? URL.createObjectURL(blob) : "",
     blob,
+    status,
     number: readNumber(name)?.number ?? null,
     seconds: null,
     recordedAt: null,
@@ -425,13 +493,37 @@ function toClip(id: string, name: string, sizeBytes: number, blob: Blob): Upload
   };
 }
 
-async function sha256(blob: Blob) {
-  if (blob.size > HASH_LIMIT_BYTES || typeof crypto === "undefined" || !crypto.subtle) return null;
-  try {
-    const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
-    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  } catch {
-    return null;
+function fromRemote(clip: RemoteVideoClip): UploadClip {
+  const status =
+    clip.status === "pending_upload" || clip.status === "failed"
+      ? "failed"
+      : clip.status === "staged" || clip.status === "stored"
+        ? clip.status
+        : "verifying";
+  return {
+    ...toClip(clip.id, clip.name, clip.sizeBytes, null, status),
+    number: clip.number,
+    seconds: clip.seconds,
+    recordedAt: clip.recordedAt,
+    unreadable: clip.seconds == null,
+    sha256: clip.sha256,
+    inClientVideo: clip.inClientVideo,
+    leftOutReason: clip.leftOutReason,
+    videoId: clip.videoId,
+  };
+}
+
+async function waitUntilStaged(batchId: string, clipIds: string[]) {
+  const want = new Set(clipIds);
+  const deadline = Date.now() + 15 * 60 * 1000;
+  for (;;) {
+    const { batch } = await videoApi.getBatch(batchId);
+    const mine = batch.clips.filter((clip) => want.has(clip.id));
+    const failed = mine.find((clip) => clip.status === "failed");
+    if (failed) throw new Error(failed.error || "A file failed verification.");
+    if (mine.length === want.size && mine.every((clip) => clip.status === "staged" || clip.status === "stored")) return mine;
+    if (Date.now() > deadline) throw new Error("The files are still being checked. Leave this open and try again in a minute.");
+    await new Promise((resolve) => window.setTimeout(resolve, 4000));
   }
 }
 

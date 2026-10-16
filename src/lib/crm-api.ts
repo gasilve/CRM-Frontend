@@ -2097,3 +2097,113 @@ export const voiceIntakeApi = {
   hangup: (caseId: string, sessionId: string) =>
     request<{ session: VoiceIntakeSession }>(`/cases/${caseId}/voice-intakes/${sessionId}/hangup`, { method: "POST" }),
 };
+
+export type VideoUploadTarget =
+  | { mode: "single"; url: string; headers: Record<string, string> }
+  | { mode: "multipart"; part_size: number; parts: { part_number: number; url: string }[] };
+
+export interface RemoteVideoClip {
+  id: string;
+  name: string;
+  kind: string;
+  sizeBytes: number;
+  number: number | null;
+  seconds: number | null;
+  recordedAt: string | null;
+  sha256: string | null;
+  inClientVideo: boolean;
+  leftOutReason: "wrong_person" | "too_dark" | "other" | null;
+  coldAt: string | null;
+  videoId: string | null;
+  status: string;
+  location: string;
+  error: string | null;
+}
+
+export interface RemoteVideoBatch {
+  id: string;
+  caseId: string;
+  signerName: string;
+  certifiedAt: string | null;
+  workDate: string;
+  camera: "covert" | "camcorder" | null;
+  declared: { files: number; seconds: number } | null;
+  declaredFirst: { files: number; seconds: number } | null;
+  measuredSeconds: number | null;
+  series: { first: number | null; last: number | null; missing: number[]; explanation: string | null } | null;
+  attest: string[];
+  signature: string | null;
+  service: string | null;
+  state: string | null;
+  flag: { at: string; note: string } | null;
+  sends: { at: string; to: string[]; note: string; by: string; clipIds?: string[] }[];
+  storage: "staging" | "cold";
+  coldAt: string | null;
+  clips: RemoteVideoClip[];
+}
+
+export const videoApi = {
+  list: (caseId: string) => request<{ batches: RemoteVideoBatch[] }>(`/video/cases/${caseId}`),
+  createBatch: (caseId: string, body: { workDate: string; camera?: string | null; declaredFiles?: number | null; declaredSeconds?: number | null }) =>
+    request<{ batch: RemoteVideoBatch }>(`/video/cases/${caseId}/batches`, { method: "POST", body: JSON.stringify(body) }),
+  getBatch: (batchId: string) => request<{ batch: RemoteVideoBatch }>(`/video/batches/${batchId}`),
+  patchBatch: (
+    batchId: string,
+    body: {
+      flag?: { at: string; note: string } | null;
+      sends?: RemoteVideoBatch["sends"];
+      clips?: { id: string; inClientVideo: boolean; leftOutReason: RemoteVideoClip["leftOutReason"] }[];
+    },
+  ) => request<{ batch: RemoteVideoBatch }>(`/video/batches/${batchId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  startClip: (batchId: string, body: { filename: string; contentType?: string; sizeBytes: number; number?: number | null }) =>
+    request<{ clip: RemoteVideoClip; upload: VideoUploadTarget }>(`/video/batches/${batchId}/clips`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  completeClip: (clipId: string, parts: { part_number: number; etag: string }[] | null) =>
+    request<{ clip: RemoteVideoClip }>(`/video/clips/${clipId}/complete`, {
+      method: "POST",
+      body: JSON.stringify(parts ? { parts } : {}),
+    }),
+  deleteClip: (clipId: string) => request<{ ok: boolean }>(`/video/clips/${clipId}`, { method: "DELETE" }),
+  download: (clipId: string, disposition: "inline" | "attachment" = "inline") =>
+    request<{ url: string }>(`/video/clips/${clipId}/download`, { method: "POST", body: JSON.stringify({ disposition }) }),
+  certify: (batchId: string, body: Record<string, unknown>) =>
+    request<{ batch: RemoteVideoBatch }>(`/video/batches/${batchId}/certify`, { method: "POST", body: JSON.stringify(body) }),
+  moveCold: (caseId: string, clipIds: string[]) =>
+    request<{ batches: RemoteVideoBatch[] }>(`/video/cases/${caseId}/cold`, { method: "POST", body: JSON.stringify({ clipIds }) }),
+};
+
+/** PUT the file straight to Wasabi. crm-api never sees the bytes. */
+export async function putVideoToWasabi(file: Blob, upload: VideoUploadTarget) {
+  if (upload.mode === "single") {
+    let response: Response;
+    try {
+      response = await fetch(upload.url, { method: "PUT", body: file, headers: upload.headers });
+    } catch {
+      throw new Error("The browser blocked the upload to storage.");
+    }
+    if (!response.ok) throw new Error(`The file did not reach storage (${response.status}).`);
+    return null;
+  }
+  const size = upload.part_size;
+  const queue = [...upload.parts];
+  const done: { part_number: number; etag: string }[] = [];
+  const worker = async () => {
+    for (let part = queue.shift(); part; part = queue.shift()) {
+      const chunk = file.slice((part.part_number - 1) * size, part.part_number * size);
+      let response: Response;
+      try {
+        response = await fetch(part.url, { method: "PUT", body: chunk });
+      } catch {
+        throw new Error(`The browser blocked part ${part.part_number} of the upload.`);
+      }
+      if (!response.ok) throw new Error(`Part ${part.part_number} did not reach storage (${response.status}).`);
+      const etag = response.headers.get("ETag");
+      if (!etag) throw new Error(`Part ${part.part_number} came back without an ETag.`);
+      done.push({ part_number: part.part_number, etag });
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  return done;
+}

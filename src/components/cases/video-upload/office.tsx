@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Archive, Check, Copy, Plus, Send, X } from "lucide-react";
-import type { CaseService } from "@/lib/crm-api";
+import { videoApi, type CaseService } from "@/lib/crm-api";
 import type { SavedBatch, SavedClip } from "@/components/cases/video-library";
 import { CAMERA, clock, dayName, packageNote, stampNote, timeOf } from "@/components/cases/video-upload/checks";
 import { batchSends, clipSent, type DayRow } from "@/components/cases/video-upload/ledger";
@@ -51,9 +51,39 @@ function ClipPreview({ items }: { items: PreviewClip[] }) {
 
   useEffect(() => {
     const next = new Map<string, string>();
-    for (const item of items) next.set(item.clip.id, URL.createObjectURL(item.clip.blob));
-    setUrls(next);
-    return () => next.forEach((url) => URL.revokeObjectURL(url));
+    const made: string[] = [];
+    let live = true;
+    for (const item of items) {
+      if (!item.clip.blob) continue;
+      const url = URL.createObjectURL(item.clip.blob);
+      next.set(item.clip.id, url);
+      made.push(url);
+    }
+    setUrls(new Map(next));
+    const missing = items.filter((item) => !item.clip.blob).slice(0, 8);
+    if (missing.length > 0) {
+      void Promise.all(
+        missing.map(async (item) => {
+          try {
+            const link = await videoApi.download(item.clip.id);
+            return [item.clip.id, link.url] as const;
+          } catch {
+            return null;
+          }
+        }),
+      ).then((pairs) => {
+        if (!live) return;
+        setUrls((current) => {
+          const copy = new Map(current);
+          for (const pair of pairs) if (pair) copy.set(pair[0], pair[1]);
+          return copy;
+        });
+      });
+    }
+    return () => {
+      live = false;
+      for (const url of made) URL.revokeObjectURL(url);
+    };
     // The id list is the identity of this preview.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
