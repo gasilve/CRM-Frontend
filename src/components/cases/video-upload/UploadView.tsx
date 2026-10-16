@@ -116,7 +116,7 @@ export function UploadView({
         {up.step === "identify" ? (
           <IdentifyFoot up={up} />
         ) : up.sealing ? (
-          <span className="vu-foot-note">Sending the files, then certifying. Stay on this step.</span>
+          <SealFoot progress={up.sealProgress} />
         ) : (
           <>
             <button type="button" className="vu-btn ghost" onClick={() => up.setStep("identify")}>
@@ -147,6 +147,34 @@ export function UploadView({
         hidden
         onChange={(event) => up.addFiles(event.target.files)}
       />
+    </div>
+  );
+}
+
+function SealFoot({ progress }: { progress: VideoUpload["sealProgress"] }) {
+  const uploading = progress?.phase === "upload" && progress.total > 0;
+  const fraction = uploading ? progress.current / progress.total : 1;
+  const label = uploading ? "Sending the files. Stay on this step." : "Certifying. Stay on this step.";
+  return (
+    <div className="vu-seal">
+      <div className="vu-seal-top">
+        <span>{label}</span>
+        {uploading && (
+          <b className="vu-seal-count">
+            {progress.current}/{progress.total}
+          </b>
+        )}
+      </div>
+      <div
+        className="vu-seal-track"
+        role="progressbar"
+        aria-valuemin={uploading ? 1 : 0}
+        aria-valuemax={uploading ? progress.total : 1}
+        aria-valuenow={uploading ? progress.current : 1}
+        aria-label={uploading ? `Sending file ${progress.current} of ${progress.total}` : "Certifying"}
+      >
+        <div className={uploading ? "vu-seal-fill" : "vu-seal-fill done"} style={{ width: `${Math.round(fraction * 100)}%` }} />
+      </div>
     </div>
   );
 }

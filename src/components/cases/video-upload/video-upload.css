@@ -934,6 +934,31 @@ button.vu-card { width: 100%; text-align: left; color: inherit; font: inherit; c
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 .vu-foot-note { flex: 1; font-size: 13px; color: var(--ink3); text-align: center; }
+.vu-seal { display: flex; flex-direction: column; gap: 8px; width: 100%; min-width: 0; }
+.vu-seal-top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; font-size: 13px; color: var(--ink3); }
+.vu-seal-count { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 14px; color: var(--ink); letter-spacing: 0.02em; }
+.vu-seal-track { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.vu-seal-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(62, 224, 138, 0.45), var(--ok));
+  transition: width 280ms ease;
+  position: relative;
+  overflow: hidden;
+}
+.vu-seal-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  animation: vu-seal-sheen 1.15s ease-in-out infinite;
+}
+.vu-seal-fill.done::after { animation: none; opacity: 0.35; }
+@keyframes vu-seal-sheen { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .vu-seal-fill { transition: none; }
+  .vu-seal-fill::after { animation: none; }
+}
 .vu-checks-wrap { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 .vu-checks { display: flex; flex-wrap: wrap; gap: 8px; }
 .vu-pill {
