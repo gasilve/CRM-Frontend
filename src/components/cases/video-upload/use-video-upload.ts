@@ -5,7 +5,6 @@ import {
   clearDraft,
   deleteDraftClip,
   draftKey,
-  saveDraft,
   type CameraKind,
   type Declared,
   type DraftClip,
@@ -78,7 +77,6 @@ export function useVideoUpload({
   const clipsRef = useRef<UploadClip[]>([]);
   const stopped = useRef(false);
   const abortSeal = useRef(false);
-  const latest = useRef<Resume | null>(null);
   const sealedRef = useRef(onSealed);
   sealedRef.current = onSealed;
   const draftRef = useRef(onDraft);
@@ -164,52 +162,13 @@ export function useVideoUpload({
 
   useEffect(() => () => {
     for (const clip of clipsRef.current) URL.revokeObjectURL(clip.url);
-    const last = latest.current;
-    if (last && !stopped.current) {
-      void saveDraft(last.draft).catch(() => {});
-      draftRef.current(last);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!started || stopped.current) {
-      latest.current = null;
-      return;
-    }
-    const draft: VideoDraft = {
-        key,
-        caseId,
-        signerName,
-        updatedAt: new Date().toISOString(),
-        step,
-        batchId: batchRef.current ?? undefined,
-        workDate,
-        camera,
-        filesText,
-        minText,
-        secText,
-        declaredFirst,
-        explanation,
-        attest,
-        clipIds: clips.map((clip) => clip.id),
-        clipMeta: Object.fromEntries(
-          clips.map((clip) => [
-            clip.id,
-            { seconds: clip.seconds, recordedAt: clip.recordedAt, unreadable: clip.unreadable, inClientVideo: clip.inClientVideo, leftOutReason: clip.leftOutReason },
-          ]),
-        ),
-      };
-    latest.current = {
-      draft,
-      clips: [],
-    };
-    const timer = window.setTimeout(() => {
-      if (stopped.current || !latest.current) return;
-      void saveDraft(draft).catch(() => setError("Your answers could not be kept for later."));
-      draftRef.current(latest.current);
-    }, 400);
-    return () => window.clearTimeout(timer);
-  }, [started, key, caseId, signerName, step, batchId, workDate, camera, filesText, minText, secText, declaredFirst, explanation, attest, clips]);
+    void clearDraft(key).catch(() => {});
+    if (stopped.current) return;
+    const id = batchRef.current;
+    if (!id) return;
+    const remote = clipsRef.current.filter((clip) => !clip.id.startsWith("local-"));
+    void Promise.all(remote.map((clip) => videoApi.deleteClip(clip.id).catch(() => {})));
+  }, [key]);
 
   const addFiles = (list: FileList | null) => {
     const picked = list ? [...list] : [];
@@ -332,7 +291,6 @@ export function useVideoUpload({
         state,
       });
       await clearDraft(key).catch(() => {});
-      latest.current = null;
       draftRef.current(null);
       sealedRef.current(workDate);
     } catch (err) {
@@ -382,7 +340,6 @@ export function useVideoUpload({
   const discard = async () => {
     abortSeal.current = true;
     stopped.current = true;
-    latest.current = null;
     const id = batchRef.current;
     await clearDraft(key).catch(() => {});
     if (id) {

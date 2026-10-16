@@ -5,7 +5,6 @@ import type { CaseService } from "@/lib/crm-api";
 import {
   clearDraft,
   draftKey,
-  getDraft,
   type DraftStep,
   type LeftOutReason,
   type SavedBatch,
@@ -91,15 +90,12 @@ export function VideoUploadModal({
   }, [reload, jobs.length]);
 
   useEffect(() => {
-    if (jobs.length > 0) return;
-    let live = true;
-    void getDraft(key)
-      .then((found) => live && setDraft(found))
-      .catch(() => {});
+    void clearDraft(key).catch(() => {});
+    setDraft(null);
     return () => {
-      live = false;
+      void clearDraft(key).catch(() => {});
     };
-  }, [key, jobs.length]);
+  }, [key]);
 
   useEffect(() => sheetRef.current?.focus(), []);
 

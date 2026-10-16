@@ -70,7 +70,7 @@ export type VideoSend = { at: string; to: string[]; note: string; by: string; cl
 
 export type DraftStep = "identify" | "certify";
 
-/** An upload that hasn't been signed yet. Kept so closing the modal never loses work. */
+/** An upload that hasn't been signed yet. Dropped when the modal closes or the page refreshes. */
 export type VideoDraft = {
   key: string;
   caseId: string;
