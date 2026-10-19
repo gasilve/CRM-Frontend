@@ -95,7 +95,7 @@ export default function SkyCaseFile({ kase, leaving }: { kase: CaseDetail | null
       root.style.height = `${view}px`;
       const wheel = page.querySelector<HTMLElement>(":scope > .center > .wheel");
       if (!wheel) return;
-      const gap = wheel.offsetTop + wheel.offsetHeight + 16;
+      const gap = wheel.offsetTop + wheel.offsetHeight + 48;
       const room = view - 40 - 28 - 260;
       root.style.setProperty("--sky-wheel-h", `${Math.max(180, Math.min(gap, room))}px`);
     };
