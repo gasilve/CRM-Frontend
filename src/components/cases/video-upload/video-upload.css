@@ -1461,6 +1461,7 @@ button.vu-card { width: 100%; text-align: left; color: inherit; font: inherit; c
 .vu-copy-switch { display: inline-flex; gap: 4px; margin: 0 0 10px; padding: 3px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 999px; }
 .vu-copy-switch button { padding: 5px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--ink3); font: inherit; font-size: 13px; cursor: pointer; }
 .vu-copy-switch button.on { background: rgba(255, 255, 255, 0.14); color: inherit; }
+.vu-copy-switch button:disabled { opacity: 0.4; cursor: default; }
 .vu-processing { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0 0; font-size: 13px; line-height: 1.45; color: var(--ink3); }
 .vu-processing.ok { color: #8fe3b0; }
 .vu-processing.warn { color: #ffd27a; }

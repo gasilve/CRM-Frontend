@@ -2160,6 +2160,8 @@ export interface RemoteVideoClip {
   error: string | null;
   /** The viewing copy (clock, title page, trailer). Null when processing is not set up. */
   processing?: VideoProcessing | null;
+  /** Activity reel. Null when highlights have not been asked for. */
+  highlights?: VideoProcessing | null;
 }
 
 export interface VideoProcessing {
@@ -2172,7 +2174,15 @@ export interface VideoProcessing {
   /** Nothing needed changing, so the original is the viewing copy. */
   unchanged: boolean;
   hasCopy: boolean;
-  steps: { stamp?: boolean; color?: boolean; trailer?: string | null; trailer_match?: string | null; encoder?: string | null } | null;
+  steps: {
+    stamp?: boolean;
+    color?: boolean;
+    trailer?: string | null;
+    trailer_match?: string | null;
+    encoder?: string | null;
+    windows?: number;
+    moments?: number;
+  } | null;
   outputSha256: string | null;
   finishedAt: string | null;
 }
@@ -2226,10 +2236,12 @@ export const videoApi = {
       body: JSON.stringify(parts ? { parts } : {}),
     }),
   deleteClip: (clipId: string) => request<{ ok: boolean }>(`/video/clips/${clipId}`, { method: "DELETE" }),
-  download: (clipId: string, disposition: "inline" | "attachment" = "inline", copy: "original" | "processed" = "original") =>
+  download: (clipId: string, disposition: "inline" | "attachment" = "inline", copy: "original" | "processed" | "highlights" = "original") =>
     request<{ url: string }>(`/video/clips/${clipId}/download`, { method: "POST", body: JSON.stringify({ disposition, copy }) }),
   retryProcessing: (clipId: string) =>
     request<{ batch: RemoteVideoBatch }>(`/video/clips/${clipId}/process`, { method: "POST", body: "{}" }),
+  retryHighlights: (clipId: string) =>
+    request<{ batch: RemoteVideoBatch }>(`/video/clips/${clipId}/highlights`, { method: "POST", body: "{}" }),
   certify: (batchId: string, body: Record<string, unknown>) =>
     request<{ batch: RemoteVideoBatch }>(`/video/batches/${batchId}/certify`, { method: "POST", body: JSON.stringify(body) }),
   moveCold: (caseId: string, clipIds: string[]) =>
