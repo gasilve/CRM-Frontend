@@ -1,4 +1,4 @@
-import type { CaseService } from "@/lib/crm-api";
+import { claimLabel, type ClaimType } from "@/lib/case-kind";
 import type { CameraKind, Declared, LeftOutReason } from "@/components/cases/video-library";
 
 export const ATTEST = [
@@ -19,6 +19,8 @@ export const LEFT_OUT_LABEL: Record<LeftOutReason, string> = {
 export const CAMERA = {
   covert: { label: "Covert", note: "Its own time stamp stays" },
   camcorder: { label: "Camcorder", note: "We add the time stamp" },
+  // The pet carrier with a GoPro. Todd has not said whether it gets a burned-in time yet.
+  ultra: { label: "Ultra", note: "Time stamp to be confirmed" },
 } as const satisfies Record<CameraKind, { label: string; note: string }>;
 
 export type Tone = "ok" | "warn" | "bad" | "wait";
@@ -143,20 +145,21 @@ export function repeatCheck(repeats: { name: string; day: string }[]): Check | n
 }
 
 export function stampNote(camera: CameraKind) {
-  return camera === "camcorder" ? "Time stamp will be added" : "Camera's own time stamp kept";
+  if (camera === "camcorder") return "Time stamp will be added";
+  if (camera === "covert") return "Camera's own time stamp kept";
+  return "Time stamp rule not decided yet";
 }
 
-export function packageNote(service: CaseService | string, state: string | null) {
-  if (service === "WC") return state ? `Title page and ${state} trailer will be added` : "Title page and trailer will be added";
-  if (service === "LIA") return "No title page or trailer";
+/** Reads the claim type (workers' comp, liability), not the work on the case. */
+export function packageNote(claim: ClaimType | null, state: string | null) {
+  if (claim === "WC") return state ? `Title page and ${state} trailer will be added` : "Title page and trailer will be added";
+  if (claim === "LIA") return "No title page or trailer";
+  if (!claim) return "Claim type is not set on this case";
   return "Office will choose the title page";
 }
 
-export function caseTypeLabel(service: CaseService | string) {
-  if (service === "WC") return "Workers' comp";
-  if (service === "LIA") return "Liability";
-  if (service === "SURV") return "Surveillance";
-  return service;
+export function caseTypeLabel(claim: ClaimType | null) {
+  return claimLabel(claim);
 }
 
 export function clock(seconds: number) {

@@ -10,6 +10,7 @@ import {
   dayName,
   timeOf,
 } from "@/components/cases/video-upload/checks";
+import { US_STATES } from "@/lib/us-states";
 import type { VideoUpload } from "@/components/cases/video-upload/use-video-upload";
 
 /** What the player and the clip cards need, whether the clip is new or already on the case. */
@@ -36,10 +37,14 @@ export function Player({ clip, onDuration, onUnreadable }: { clip: PlayClip; onD
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(clip.seconds ?? 0);
   const [muted, setMuted] = useState(mutedChoice);
+  // The browser could not decode this file (or the link failed).
+  const [failed, setFailed] = useState(false);
+  const unreadable = clip.unreadable || failed;
 
   useEffect(() => {
     setPlaying(false);
     setCurrent(0);
+    setFailed(false);
     setDuration(clip.seconds ?? 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clip.id]);
@@ -79,7 +84,7 @@ export function Player({ clip, onDuration, onUnreadable }: { clip: PlayClip; onD
   return (
     <>
       <div className={clip.inClientVideo ? "vu-stage" : "vu-stage out"}>
-        {clip.unreadable ? (
+        {unreadable ? (
           <div className="vu-stage-msg">
             <strong>{clip.kind} can't play in this browser</strong>
             <span>It still uploads as recorded. The server checks its length.</span>
@@ -100,7 +105,11 @@ export function Player({ clip, onDuration, onUnreadable }: { clip: PlayClip; onD
                   onDuration?.(value);
                 }
               }}
-              onError={onUnreadable}
+              onError={() => {
+                if (!clip.url) return;
+                setFailed(true);
+                onUnreadable?.();
+              }}
               onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
@@ -118,13 +127,13 @@ export function Player({ clip, onDuration, onUnreadable }: { clip: PlayClip; onD
 
       <div className="vu-bar">
         <div className="vu-controls">
-          <button type="button" className="vu-icon big" aria-label={playing ? "Pause" : "Play"} onClick={toggle} disabled={clip.unreadable}>
+          <button type="button" className="vu-icon big" aria-label={playing ? "Pause" : "Play"} onClick={toggle} disabled={unreadable}>
             {playing ? <Pause size={20} strokeWidth={1.8} fill="currentColor" /> : <Play size={20} strokeWidth={1.8} fill="currentColor" />}
           </button>
-          <button type="button" className="vu-icon" aria-label="Back to start" onClick={restart} disabled={clip.unreadable}>
+          <button type="button" className="vu-icon" aria-label="Back to start" onClick={restart} disabled={unreadable}>
             <SkipBack size={18} strokeWidth={1.8} />
           </button>
-          <button type="button" className="vu-icon" aria-label="Skip 10 seconds" onClick={skip} disabled={clip.unreadable}>
+          <button type="button" className="vu-icon" aria-label="Skip 10 seconds" onClick={skip} disabled={unreadable}>
             <SkipForward size={18} strokeWidth={1.8} />
           </button>
         </div>
@@ -149,7 +158,7 @@ export function Player({ clip, onDuration, onUnreadable }: { clip: PlayClip; onD
             step={0.001}
             value={progress}
             aria-label="Seek"
-            disabled={clip.unreadable}
+            disabled={unreadable}
             onChange={(event) => seek(Number(event.target.value))}
             style={{ "--vu-progress": `${progress * 100}%` } as CSSProperties}
           />
@@ -162,7 +171,7 @@ export function Player({ clip, onDuration, onUnreadable }: { clip: PlayClip; onD
           aria-pressed={muted}
           title={muted ? "Turn sound on" : "Mute"}
           onClick={() => setMuted((value) => !value)}
-          disabled={clip.unreadable}
+          disabled={unreadable}
         >
           {muted ? <VolumeX size={18} strokeWidth={1.8} /> : <Volume2 size={18} strokeWidth={1.8} />}
         </button>
@@ -327,6 +336,20 @@ export function Questions({ up }: { up: VideoUpload }) {
       </div>
 
       <div className="vu-q">
+        <label className="vu-state-field">
+          <span className="vu-q-label">State you recorded in</span>
+          <select value={up.recordedState ?? ""} onChange={(event) => up.setRecordedState(event.target.value || null)}>
+            <option value="">Choose a state</option>
+            {US_STATES.map(([code, name]) => (
+              <option key={code} value={code}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="vu-q">
         <span className="vu-q-label">Camera</span>
         <div className="vu-cams">
           {(Object.keys(CAMERA) as (keyof typeof CAMERA)[]).map((kind) => (
@@ -340,13 +363,13 @@ export function Questions({ up }: { up: VideoUpload }) {
 
       <div className="vu-q vu-q-row">
         <label className="vu-num-field">
-          <span className="vu-q-label">Files</span>
+          <span className="vu-q-label">Number of files</span>
           <span className="vu-box">
             <input inputMode="numeric" placeholder="0" value={up.filesText} onChange={(event) => up.setFilesText(digits(event.target.value, 4))} />
           </span>
         </label>
         <div className="vu-num-field">
-          <span className="vu-q-label">Total length</span>
+          <span className="vu-q-label">Total duration</span>
           <span className="vu-box">
             <input inputMode="numeric" aria-label="Minutes" placeholder="0" value={up.minText} onChange={(event) => up.setMinText(digits(event.target.value, 4))} />
             <em>min</em>

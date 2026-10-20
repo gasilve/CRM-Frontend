@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUp, ChevronLeft, ChevronRight, File, FileImage, FileText, FileVideo, Folder, Loader2, Play, RefreshCw, X } from "lucide-react";
-import { ApiError, storageApi, type StorageBucketId, type StorageFile, type StorageFolder, type StorageListing } from "@/lib/crm-api";
+import { ApiError, storageApi, type StagingSummary, type StorageBucketId, type StorageFile, type StorageFolder, type StorageListing } from "@/lib/crm-api";
 import "./storage-browser.css";
 
 const PANES: { id: StorageBucketId; title: string }[] = [
@@ -20,9 +20,32 @@ type Playing = { bucket: StorageBucketId; bucketLabel: string; file: StorageFile
 
 export function StorageBrowser() {
   const [playing, setPlaying] = useState<Playing | null>(null);
+  const [staging, setStaging] = useState<StagingSummary | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    storageApi
+      .staging()
+      .then((next) => {
+        if (live) setStaging(next);
+      })
+      .catch(() => {
+        if (live) setStaging(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   return (
     <div className="ex-stage">
+      <p className="ex-feed">
+        {staging == null
+          ? "Checking what is still in staging."
+          : staging.folders === 0
+            ? "Nothing is waiting in staging."
+            : `${staging.folders} ${staging.folders === 1 ? "folder" : "folders"} still in staging. ${staging.cases.map((item) => `${item.name} (${item.days.join(", ")})`).join(" · ")}`}
+      </p>
       {PANES.map((pane) => (
         <Explorer key={pane.id} id={pane.id} title={pane.title} onPlay={(file) => setPlaying({ bucket: pane.id, bucketLabel: pane.title, file })} />
       ))}

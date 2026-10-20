@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Archive, Check, Copy, Plus, Send, X } from "lucide-react";
-import { videoApi, type CaseService } from "@/lib/crm-api";
+import { videoApi } from "@/lib/crm-api";
+import type { ClaimType } from "@/lib/case-kind";
 import type { SavedBatch, SavedClip } from "@/components/cases/video-library";
 import { CAMERA, clock, dayName, packageNote, stampNote, timeOf } from "@/components/cases/video-upload/checks";
 import { batchSends, clipSent, type DayRow } from "@/components/cases/video-upload/ledger";
@@ -111,14 +112,14 @@ function ClipPreview({ items }: { items: PreviewClip[] }) {
 export function SendPanel({
   rows,
   recipients,
-  service,
+  claimType,
   state,
   onClose,
   onSend,
 }: {
   rows: DayRow[];
   recipients: Recipient[];
-  service: CaseService;
+  claimType: ClaimType | null;
   state: string | null;
   onClose: () => void;
   onSend: (to: string[], note: string) => Promise<void>;
@@ -199,7 +200,7 @@ export function SendPanel({
         <h4>These videos go to the client</h4>
         <ClipPreview items={going} />
         <p className="vu-p-note">
-          {packageNote(service, state)}
+          {packageNote(claimType, state)}
           {left > 0 ? ` ${left} ${left === 1 ? "clip stays" : "clips stay"} on the case and out of this send.` : ""}
         </p>
       </section>
