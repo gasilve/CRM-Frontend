@@ -14,6 +14,7 @@ import {
   type VideoDraft,
 } from "@/components/cases/video-library";
 import { putVideoToWasabi, videoApi, type RemoteVideoClip } from "@/lib/crm-api";
+import { stateCode } from "@/lib/us-states";
 import {
   dayKeyOf,
   dayName,
@@ -85,6 +86,8 @@ export function useVideoUpload({
   const [step, setStep] = useState<DraftStep>(start?.step ?? "identify");
   const [workDate, setWorkDate] = useState(start?.workDate ?? presetDay ?? dayKeyOf(new Date()));
   const [camera, setCamera] = useState<CameraKind | null>(start?.camera ?? null);
+  // Picks the trailer for workers' comp. Starts at the case's state; the investigator can change it.
+  const [recordedState, setRecordedState] = useState<string | null>(() => stateCode(state));
   const [filesText, setFilesText] = useState(start?.filesText ?? "");
   const [minText, setMinText] = useState(start?.minText ?? "");
   const [secText, setSecText] = useState(start?.secText ?? "");
@@ -218,6 +221,8 @@ export function useVideoUpload({
         contentType: clip.blob.type,
         sizeBytes: clip.sizeBytes,
         number: clip.number,
+        seconds: clip.seconds,
+        recordedAt: clip.recordedAt,
       });
       startedId = started.clip.id;
       const parts = await putVideoToWasabi(clip.blob, started.upload);
@@ -293,7 +298,7 @@ export function useVideoUpload({
         explanation: needsExplanation ? explanation.trim() : "",
         signatureDataUrl: signature,
         service,
-        state,
+        state: recordedState,
       });
       await clearDraft(key).catch(() => {});
       draftRef.current(null);
@@ -363,6 +368,8 @@ export function useVideoUpload({
     setWorkDate,
     camera,
     setCamera,
+    recordedState,
+    setRecordedState,
     filesText,
     setFilesText,
     minText,
@@ -461,7 +468,7 @@ function fromRemote(clip: RemoteVideoClip): UploadClip {
     number: clip.number,
     seconds: clip.seconds,
     recordedAt: clip.recordedAt,
-    unreadable: clip.seconds == null,
+    unreadable: false,
     sha256: clip.sha256,
     inClientVideo: clip.inClientVideo,
     leftOutReason: clip.leftOutReason,

@@ -12,6 +12,7 @@ export type SkyEditor =
   | { kind: "time"; title: string; value: string }
   | { kind: "datetime"; title: string; value: string }
   | { kind: "choice"; title: string; value: string; options: { value: string; label: string }[]; emptyLabel?: string }
+  | { kind: "checks"; title: string; value: string; options: { value: string; label: string }[] }
   | { kind: "address"; title: string; line1: string; city: string; state: string; zip: string }
   | { kind: "vehicle"; title: string; color: string; year: string; make: string; model: string; plate: string; plateState: string }
   | { kind: "place"; title: string; name: string; when: string; place: string }
@@ -313,6 +314,47 @@ function ActionMark({ mark }: { mark?: SkyMenuAction["mark"] }) {
   return null;
 }
 
+function ChecksEditor({
+  editor,
+  busy,
+  fault,
+  onCommit,
+}: {
+  editor: Extract<SkyEditor, { kind: "checks" }>;
+  busy: boolean;
+  fault: string | null;
+  onCommit: (fields: SkyFields) => void;
+}) {
+  const [picked, setPicked] = useState(() => new Set(editor.value.split(",").filter(Boolean)));
+  const toggle = (value: string) => {
+    setPicked((current) => {
+      const next = new Set(current);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  };
+  return (
+    <>
+      <div className="sky-pop-kicker">Edit</div>
+      <h2 className="sky-pop-title">{editor.title}</h2>
+      <div className="sky-pop-list">
+        {editor.options.map((option) => (
+          <button key={option.value} type="button" className={picked.has(option.value) ? "on" : ""} disabled={busy} onClick={() => toggle(option.value)}>
+            {option.label}
+          </button>
+        ))}
+      </div>
+      {fault && <p className="sky-pop-fault">{fault}</p>}
+      <div className="sky-pop-actions">
+        <button type="button" className="sky-pop-btn save" disabled={busy} onClick={() => onCommit({ value: [...picked].join(",") })}>
+          Save
+        </button>
+      </div>
+    </>
+  );
+}
+
 function EditorBody({
   editor,
   busy,
@@ -354,6 +396,10 @@ function EditorBody({
         {fault && <p className="sky-pop-fault">{fault}</p>}
       </>
     );
+  }
+
+  if (editor.kind === "checks") {
+    return <ChecksEditor editor={editor} busy={busy} fault={fault} onCommit={onCommit} />;
   }
 
   if (editor.kind === "client") {
@@ -585,6 +631,7 @@ function initialFields(editor: Exclude<SkyEditor, { kind: "choice" } | { kind: "
       plateState: editor.plateState,
     };
   }
+  if (editor.kind === "checks") return { value: editor.value };
   return { name: editor.name, when: editor.when, place: editor.place };
 }
 
