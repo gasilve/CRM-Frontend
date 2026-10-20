@@ -27,6 +27,8 @@ export type SavedClip = {
   coldAt?: string | null;
   /** The viewing copy built after certify. */
   processing?: VideoProcessing | null;
+  /** Activity reel built after the viewing copy. */
+  highlights?: VideoProcessing | null;
 };
 
 export type Declared = { files: number; seconds: number };
