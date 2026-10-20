@@ -478,6 +478,12 @@ html[data-glass] .surveil-shell .sky-v6 :where(h1, h2, h3, p, span, a, button, l
   font-size: 13px;
 }
 .sky-v6 .sky-osint .client { margin: 4px 0 0; }
+.sky-v6 .sky-osint .sky-osint-load-msg {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--possible, #ffc857);
+}
 .sky-v6 .sky-osint .fact { padding: 10px 12px; }
 .sky-v6 .sky-osint .sec { margin-bottom: 4px; font-size: 10px; }
 .sky-v6 .sky-osint .sky-file-who {

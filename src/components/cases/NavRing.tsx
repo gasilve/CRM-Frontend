@@ -10,9 +10,11 @@ const BAND_MID_HOVER = 201;
 export const SKY_NAV = [
   { label: "Case", title: "Case details", color: "#3ee08a", details: true },
   { label: "Investigator view", title: "Investigator view", color: "#ffc857", path: (id: string) => `/cases/${id}/work` },
-  { label: "Video", title: "Video", color: "#b18cff", video: true },
+  { label: "Video", title: "Video upload", color: "#b18cff", video: true },
+  { label: "Audio Isolation", title: "Speaker isolation + transcript", color: "#22d3ee", audioIso: true },
   { label: "Medical Canvass", title: "Medical Canvass", color: "#f472b6", medical: true },
   { label: "OSINT", title: "OSINT identity", color: "#38bdf8", osint: true },
+  { label: "Forensic", title: "Forensic web collection", color: "#fbbf24", forensic: true },
   { label: "Reports", title: "Reports", color: "#5aa9ff", path: (_id: string) => `/reports` },
   { label: "Back", title: "Back to cases", color: "#ff9f45", path: (_id: string) => `/cases` },
 ] as const;
@@ -33,21 +35,29 @@ export function NavRing({
   detailsOn = false,
   osintOn = false,
   medicalOn = false,
+  forensicOn = false,
+  audioIsoOn = false,
   onGo,
-  onVideo,
   onDetails,
   onMedical,
   onOsint,
+  onForensic,
+  onVideo,
+  onAudioIso,
 }: {
   caseId: string;
   detailsOn?: boolean;
   osintOn?: boolean;
   medicalOn?: boolean;
+  forensicOn?: boolean;
+  audioIsoOn?: boolean;
   onGo: (path: string) => void;
-  onVideo: () => void;
   onDetails: () => void;
   onMedical: () => void;
   onOsint: () => void;
+  onForensic: () => void;
+  onVideo: () => void;
+  onAudioIso: () => void;
 }) {
   const seg = 360 / SKY_NAV.length;
   return (
@@ -61,7 +71,9 @@ export function NavRing({
         const active =
           ("details" in item && detailsOn) ||
           ("osint" in item && osintOn) ||
-          ("medical" in item && medicalOn);
+          ("medical" in item && medicalOn) ||
+          ("forensic" in item && forensicOn) ||
+          ("audioIso" in item && audioIsoOn);
         return (
           <g
             key={item.label}
@@ -70,8 +82,10 @@ export function NavRing({
             onClick={() => {
               if ("details" in item) onDetails();
               else if ("video" in item) onVideo();
+              else if ("audioIso" in item) onAudioIso();
               else if ("medical" in item) onMedical();
               else if ("osint" in item) onOsint();
+              else if ("forensic" in item) onForensic();
               else onGo(item.path(caseId));
             }}
           >

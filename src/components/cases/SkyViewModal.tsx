@@ -28,6 +28,8 @@ import SkyCaseFile from "@/components/cases/SkyCaseFile";
 import SkyOnboardingToast from "@/components/cases/SkyOnboardingToast";
 import SkyOsintFile from "@/components/cases/osint/SkyOsintFile";
 import SkyMedicalFile from "@/components/cases/medical/SkyMedicalFile";
+import SkyForensicFile from "@/components/cases/forensic/SkyForensicFile";
+import SkyAudioIsolationFile from "@/components/cases/audio-isolation/SkyAudioIsolationFile";
 import { NavRing } from "@/components/cases/NavRing";
 import "./sky-modal.css";
 import "./sky-v6.css";
@@ -626,6 +628,8 @@ export default function SkyViewPage() {
   const [detailsOn, setDetailsOn] = useState(false);
   const [osintOn, setOsintOn] = useState(false);
   const [medicalOn, setMedicalOn] = useState(false);
+  const [forensicOn, setForensicOn] = useState(false);
+  const [audioIsoOn, setAudioIsoOn] = useState(false);
   // The file stays mounted through its exit. Skyview only comes back once that exit has finished.
   const [boardShown, setBoardShown] = useState(false);
   const [fileLeaving, setFileLeaving] = useState(false);
@@ -633,13 +637,17 @@ export default function SkyViewPage() {
   const [osintLeaving, setOsintLeaving] = useState(false);
   const [medicalShown, setMedicalShown] = useState(false);
   const [medicalLeaving, setMedicalLeaving] = useState(false);
+  const [forensicShown, setForensicShown] = useState(false);
+  const [forensicLeaving, setForensicLeaving] = useState(false);
+  const [audioIsoShown, setAudioIsoShown] = useState(false);
+  const [audioIsoLeaving, setAudioIsoLeaving] = useState(false);
   // Same cache key as the case screen, so a visit there makes this instant.
   const detailQuery = useQuery(id && boardShown ? `case:${id}` : null, () => casesApi.get(id), {
     staleMs: 60_000,
   });
   const pageRef = useRef<HTMLDivElement>(null);
-  const boardActive = detailsOn || osintOn || medicalOn;
-  const boardBusy = fileLeaving || osintLeaving || medicalLeaving;
+  const boardActive = detailsOn || osintOn || medicalOn || forensicOn || audioIsoOn;
+  const boardBusy = fileLeaving || osintLeaving || medicalLeaving || forensicLeaving || audioIsoLeaving;
   const closeCaseBoard = () => {
     setDetailsOn(false);
     setBoardShown(false);
@@ -655,10 +663,26 @@ export default function SkyViewPage() {
     setMedicalShown(false);
     setMedicalLeaving(false);
   };
+  const closeForensicBoard = () => {
+    setForensicOn(false);
+    setForensicShown(false);
+    setForensicLeaving(false);
+  };
+  const closeAudioIsoBoard = () => {
+    setAudioIsoOn(false);
+    setAudioIsoShown(false);
+    setAudioIsoLeaving(false);
+  };
+  const closeSiblingBoards = (keep: "case" | "osint" | "medical" | "forensic" | "audioIso") => {
+    if (keep !== "case" && detailsOn) closeCaseBoard();
+    if (keep !== "osint" && osintOn) closeOsintBoard();
+    if (keep !== "medical" && medicalOn) closeMedicalBoard();
+    if (keep !== "forensic" && forensicOn) closeForensicBoard();
+    if (keep !== "audioIso" && audioIsoOn) closeAudioIsoBoard();
+  };
   const toggleDetails = () => {
     if (boardBusy) return;
-    if (osintOn) closeOsintBoard();
-    if (medicalOn) closeMedicalBoard();
+    closeSiblingBoards("case");
     if (!detailsOn) {
       pageRef.current?.parentElement?.scrollTo({ top: 0 });
       setDetailsOn(true);
@@ -668,8 +692,7 @@ export default function SkyViewPage() {
   };
   const toggleOsint = () => {
     if (boardBusy) return;
-    if (detailsOn) closeCaseBoard();
-    if (medicalOn) closeMedicalBoard();
+    closeSiblingBoards("osint");
     if (!osintOn) {
       pageRef.current?.parentElement?.scrollTo({ top: 0 });
       setOsintOn(true);
@@ -679,14 +702,37 @@ export default function SkyViewPage() {
   };
   const toggleMedical = () => {
     if (boardBusy) return;
-    if (detailsOn) closeCaseBoard();
-    if (osintOn) closeOsintBoard();
+    closeSiblingBoards("medical");
     if (!medicalOn) {
       pageRef.current?.parentElement?.scrollTo({ top: 0 });
       setMedicalOn(true);
       return;
     }
     setMedicalLeaving(true);
+  };
+  const toggleForensic = () => {
+    if (boardBusy) return;
+    closeSiblingBoards("forensic");
+    if (!forensicOn) {
+      pageRef.current?.parentElement?.scrollTo({ top: 0 });
+      setForensicOn(true);
+      return;
+    }
+    setForensicLeaving(true);
+  };
+  const openVideo = () => {
+    if (!can("video.use")) return;
+    setDesignsOpen(true);
+  };
+  const toggleAudioIso = () => {
+    if (boardBusy) return;
+    closeSiblingBoards("audioIso");
+    if (!audioIsoOn) {
+      pageRef.current?.parentElement?.scrollTo({ top: 0 });
+      setAudioIsoOn(true);
+      return;
+    }
+    setAudioIsoLeaving(true);
   };
   useEffect(() => {
     if (!detailsOn) {
@@ -727,6 +773,32 @@ export default function SkyViewPage() {
     const timer = window.setTimeout(() => setMedicalOn(false), 340);
     return () => window.clearTimeout(timer);
   }, [medicalLeaving]);
+  useEffect(() => {
+    if (!forensicOn) {
+      setForensicShown(false);
+      setForensicLeaving(false);
+      return;
+    }
+    setForensicShown(true);
+  }, [forensicOn]);
+  useEffect(() => {
+    if (!forensicLeaving) return;
+    const timer = window.setTimeout(() => setForensicOn(false), 340);
+    return () => window.clearTimeout(timer);
+  }, [forensicLeaving]);
+  useEffect(() => {
+    if (!audioIsoOn) {
+      setAudioIsoShown(false);
+      setAudioIsoLeaving(false);
+      return;
+    }
+    setAudioIsoShown(true);
+  }, [audioIsoOn]);
+  useEffect(() => {
+    if (!audioIsoLeaving) return;
+    const timer = window.setTimeout(() => setAudioIsoOn(false), 340);
+    return () => window.clearTimeout(timer);
+  }, [audioIsoLeaving]);
   const portraitInput = useRef<HTMLInputElement>(null);
   const stakeouts = useQuery(id ? `case:${id}:stakeout` : null, () => stakeoutApi.list(id), {
     staleMs: 60_000,
@@ -1664,13 +1736,15 @@ export default function SkyViewPage() {
               detailsOn={detailsOn}
               osintOn={osintOn}
               medicalOn={medicalOn}
+              forensicOn={forensicOn}
+              audioIsoOn={audioIsoOn}
               onGo={(path) => navigate(path)}
-              onVideo={() => {
-                if (can("video.use")) setDesignsOpen(true);
-              }}
               onDetails={toggleDetails}
               onMedical={toggleMedical}
               onOsint={toggleOsint}
+              onForensic={toggleForensic}
+              onVideo={openVideo}
+              onAudioIso={toggleAudioIso}
             />
             <div className="core g">
               <button
@@ -1816,8 +1890,14 @@ export default function SkyViewPage() {
 
         </div>
         {boardShown && <SkyCaseFile kase={detailQuery.data?.case ?? kase} leaving={fileLeaving} />}
-        {osintShown && <SkyOsintFile subjectName={kase.subjectName} leaving={osintLeaving} />}
-        {medicalShown && <SkyMedicalFile subjectName={kase.subjectName} leaving={medicalLeaving} />}
+        {osintShown && (
+          <SkyOsintFile caseId={kase.id} subjectName={kase.subjectName} leaving={osintLeaving} />
+        )}
+        {medicalShown && (
+          <SkyMedicalFile caseId={kase.id} subjectName={kase.subjectName} leaving={medicalLeaving} />
+        )}
+        {forensicShown && <SkyForensicFile subjectName={kase.subjectName} leaving={forensicLeaving} />}
+        {audioIsoShown && <SkyAudioIsolationFile subjectName={kase.subjectName} leaving={audioIsoLeaving} />}
       </div>
 
       {stakeoutOpen && (

@@ -1777,6 +1777,81 @@ export const weatherApi = {
   weekly: (start: string) => request<{ start: string; groups: WeeklyWeather[] }>(`/weather/weekly?start=${start}`),
 };
 
+/** Prodigy / proti-api proxy — Skyview OSINT + Medical Canvass. */
+export type ProtiLink = {
+  caseId: string;
+  investigationId: number | null;
+  source: "case" | "pending" | "none";
+};
+
+export const protiApi = {
+  link: (caseId: string) => request<ProtiLink>(`/proti/cases/${caseId}/link`),
+  setLink: (caseId: string, investigationId: number) =>
+    request<ProtiLink>(`/proti/cases/${caseId}/link`, {
+      method: "PATCH",
+      body: JSON.stringify({ investigationId }),
+    }),
+  osint: (caseId: string) => request<import("@/components/cases/osint/mock-data").OsintView>(`/proti/cases/${caseId}/osint`),
+  canvass: (caseId: string, params?: { types?: string[]; address?: string; search?: boolean }) =>
+    request<import("@/components/cases/medical/mock-data").MedicalCanvassView>(
+      `/proti/cases/${caseId}/canvass${toQuery({
+        types: params?.types?.join(","),
+        address: params?.address,
+        search: params?.search ? "1" : undefined,
+      })}`,
+    ),
+  searchCanvass: (
+    caseId: string,
+    body: { address: string; types: string[]; radius_mi?: number },
+  ) =>
+    request<import("@/components/cases/medical/mock-data").MedicalCanvassView>(
+      `/proti/cases/${caseId}/canvass/search`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  saveCanvassResult: (
+    caseId: string,
+    body: {
+      facility_id: string;
+      status: import("@/components/cases/medical/mock-data").MedicalFacilityStatus;
+      notes?: string;
+      facility?: {
+        name?: string;
+        address?: string;
+        phone?: string;
+        type?: string;
+        distance_mi?: number;
+      };
+    },
+  ) => request<{ ok: boolean }>(`/proti/cases/${caseId}/canvass/result`, { method: "POST", body: JSON.stringify(body) }),
+  reportCanvass: async (caseId: string, kind: "docx" | "pdf" | "share") => {
+    if (kind === "share") {
+      return { kind: "share" as const, data: await request<unknown>(`/proti/cases/${caseId}/canvass/report/share`, { method: "POST", body: "{}" }) };
+    }
+    const res = await fetch(`${CRM_API_URL}/proti/cases/${caseId}/canvass/report/${kind}`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (!res.ok) {
+      let message = `Report failed (${res.status})`;
+      try {
+        const json = (await res.json()) as ApiEnvelope<unknown>;
+        if (json?.message) message = json.message;
+      } catch {
+        /* ignore */
+      }
+      throw new ApiError(message, res.status);
+    }
+    const out = await res.blob();
+    const cd = res.headers.get("content-disposition") || "";
+    const match = /filename="?([^"]+)"?/i.exec(cd);
+    const filename = match?.[1] || `canvass_report.${kind}`;
+    return { kind, blob: out, filename };
+  },
+};
+
 export interface GeocodeResult {
   lat: number;
   lng: number;

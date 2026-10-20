@@ -1,6 +1,7 @@
 /**
  * OSINT identity board — same column layout as SkyCaseFile.
  * Wheel stays put; left/mid/rail boxes swap in when OSINT is on the ring.
+ * When `caseId` is set, loads from CRM → proti; falls back to mock on error / unlink.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, MessageCircle, User } from "lucide-react";
@@ -13,6 +14,7 @@ import {
 } from "@/components/cases/osint/mock-data";
 import { OsintPhotosModal } from "@/components/cases/osint/OsintPhotosModal";
 import { OsintStepModal } from "@/components/cases/osint/OsintStepModal";
+import { ApiError, protiApi } from "@/lib/crm-api";
 import "@/components/cases/osint/osint-modal.css";
 
 const SIGNAL_LABELS: Record<string, string> = {
@@ -121,13 +123,21 @@ function stepTone(status: OsintPipelineStep["status"]) {
 export default function SkyOsintFile({
   subjectName,
   leaving,
-  data = MOCK_OSINT,
+  caseId,
+  data: dataProp,
 }: {
   subjectName?: string;
   leaving: boolean;
+  /** CRM case UUID — when set, loads live proti OSINT (mock fallback). */
+  caseId?: string;
   data?: OsintView;
 }) {
   const rootRef = useRef<HTMLElement>(null);
+  const [live, setLive] = useState<OsintView | null>(null);
+  const [loadState, setLoadState] = useState<"idle" | "loading" | "live" | "mock">("idle");
+  const [loadMsg, setLoadMsg] = useState<string | null>(null);
+  const data = live ?? dataProp ?? MOCK_OSINT;
+
   const [photosOpen, setPhotosOpen] = useState(false);
   const [stepOpen, setStepOpen] = useState<OsintPipelineStep | null>(null);
   const [notes, setNotes] = useState(data.notes);
@@ -148,6 +158,39 @@ export default function SkyOsintFile({
   const sherlock = top ? Object.entries(top.sherlock ?? {}) : [];
   const previewPhotos = data.photos.slice(0, 4);
   const wa = data.whatsapp;
+
+  useEffect(() => {
+    if (!caseId || dataProp) {
+      setLoadState(dataProp ? "live" : "mock");
+      return;
+    }
+    let cancelled = false;
+    setLoadState("loading");
+    setLoadMsg(null);
+    void protiApi
+      .osint(caseId)
+      .then((view) => {
+        if (cancelled) return;
+        setLive(view);
+        setNotes(view.notes);
+        setLoadState("live");
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLive(null);
+        setLoadState("mock");
+        const msg =
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "Could not load OSINT from proti";
+        setLoadMsg(`${msg} — showing sample board.`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId, dataProp]);
 
   useEffect(() => {
     if (!leaving) return;
@@ -195,7 +238,11 @@ export default function SkyOsintFile({
             <span>{where || "—"}</span>
             {age != null && <span className="cap">{age} yrs</span>}
             <span className="cap d">Inv #{data.investigation_id}</span>
+            {loadState === "loading" && <span className="cap d">Loading proti…</span>}
+            {loadState === "live" && <span className="cap d">Live</span>}
+            {loadState === "mock" && caseId && <span className="cap d">Sample</span>}
           </p>
+          {loadMsg ? <p className="sky-osint-load-msg">{loadMsg}</p> : null}
 
           <div className="sky-osint-steps" aria-label="Investigation pipeline">
             {data.pipeline.map((step) => (

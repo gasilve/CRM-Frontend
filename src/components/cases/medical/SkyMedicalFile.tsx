@@ -2,6 +2,7 @@
  * Medical Canvass board — same column layout as SkyCaseFile / SkyOsintFile.
  * Address + type chips are editable; Google Places search is an explicit action.
  * Type chips also filter the facility list. Notes open in a modal (Prodigy-style).
+ * When `caseId` is set, loads/saves via CRM → proti; falls back to mock on unlink.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -15,6 +16,7 @@ import {
 import { MedicalNoteModal } from "@/components/cases/medical/MedicalNoteModal";
 import { MedicalCanvassMap } from "@/components/cases/medical/MedicalCanvassMap";
 import { OsintStepModal } from "@/components/cases/osint/OsintStepModal";
+import { ApiError, protiApi } from "@/lib/crm-api";
 import "@/components/cases/osint/osint-modal.css";
 
 const STATUS_LABEL: Record<MedicalFacilityStatus, string> = {
@@ -112,13 +114,22 @@ function FacilityCard({
 export default function SkyMedicalFile({
   subjectName,
   leaving,
-  data = MOCK_MEDICAL,
+  caseId,
+  data: dataProp,
 }: {
   subjectName?: string;
   leaving: boolean;
+  /** CRM case UUID — when set, wires search/notes/report to proti. */
+  caseId?: string;
   data?: MedicalCanvassView;
 }) {
   const rootRef = useRef<HTMLElement>(null);
+  const [live, setLive] = useState<MedicalCanvassView | null>(null);
+  const [loadState, setLoadState] = useState<"idle" | "loading" | "live" | "mock">("idle");
+  const [loadMsg, setLoadMsg] = useState<string | null>(null);
+  const data = live ?? dataProp ?? MOCK_MEDICAL;
+  const liveMode = Boolean(caseId) && loadState === "live";
+
   const [stepOpen, setStepOpen] = useState<MedicalPipelineStep | null>(null);
   const [noteFac, setNoteFac] = useState<MedicalFacility | null>(null);
   const [notes, setNotes] = useState(data.notes);
@@ -132,10 +143,52 @@ export default function SkyMedicalFile({
   const [reportMsg, setReportMsg] = useState<string | null>(null);
   const [reportDone, setReportDone] = useState(false);
   const [midTab, setMidTab] = useState<"all" | "pending" | "results">("all");
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   const title = subjectName || data.subject.name;
   const where = [data.subject.city, data.subject.state].filter(Boolean).join(", ");
   const claimSlug = title.replace(/\s+/g, "_");
+
+  const applyView = (view: MedicalCanvassView) => {
+    setLive(view);
+    setNotes(view.notes);
+    setAddress(view.address);
+    setRadius(view.radius_mi);
+    setSelectedTypes([...view.types]);
+    setFacilities(view.facilities);
+  };
+
+  useEffect(() => {
+    if (!caseId || dataProp) {
+      setLoadState(dataProp ? "live" : "mock");
+      return;
+    }
+    let cancelled = false;
+    setLoadState("loading");
+    setLoadMsg(null);
+    void protiApi
+      .canvass(caseId)
+      .then((view) => {
+        if (cancelled) return;
+        applyView(view);
+        setLoadState("live");
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLive(null);
+        setLoadState("mock");
+        const msg =
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "Could not load canvass from proti";
+        setLoadMsg(`${msg} — showing sample board.`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId, dataProp]);
 
   const pipeline = useMemo(() => {
     if (!reportDone) return data.pipeline;
@@ -147,12 +200,14 @@ export default function SkyMedicalFile({
             detail: "DOCX / PDF ready",
             hits: [
               ...step.hits.filter((h) => !h.startsWith("Waiting")),
-              `Generated mock canvass_report_${claimSlug}.docx`,
+              liveMode
+                ? `Generated canvass_report_${claimSlug}`
+                : `Generated mock canvass_report_${claimSlug}.docx`,
             ],
           }
         : step,
     );
-  }, [data.pipeline, reportDone, claimSlug]);
+  }, [data.pipeline, reportDone, claimSlug, liveMode]);
 
   const dirty =
     address.trim() !== data.address.trim() ||
@@ -191,6 +246,32 @@ export default function SkyMedicalFile({
     setSearchMsg(null);
   };
 
+  const persistStatus = async (facility: MedicalFacility, status: MedicalFacilityStatus, note?: string) => {
+    setFacilities((prev) =>
+      prev.map((f) => (f.id === facility.id ? { ...f, status, note: note ?? f.note } : f)),
+    );
+    if (!liveMode || !caseId) return;
+    setSavingId(facility.id);
+    try {
+      await protiApi.saveCanvassResult(caseId, {
+        facility_id: facility.id,
+        status,
+        notes: note ?? facility.note,
+        facility: {
+          name: facility.name,
+          address: facility.address,
+          phone: facility.phone,
+          type: facility.type,
+          distance_mi: facility.distance_mi,
+        },
+      });
+    } catch (err) {
+      setSearchMsg(err instanceof Error ? err.message : "Failed to save facility result");
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   const runReport = (kind: "docx" | "pdf" | "share") => {
     if (counts.with_record + counts.chart_only === 0) {
       setReportMsg("Mark at least one with_record / chart_only before generating.");
@@ -198,17 +279,41 @@ export default function SkyMedicalFile({
     }
     setReporting(kind);
     setReportMsg(null);
-    window.setTimeout(() => {
-      setReporting(null);
-      setReportDone(true);
-      if (kind === "docx") {
-        setReportMsg(`Would POST canvass-report-docx → download canvass_report_${claimSlug}.docx`);
-      } else if (kind === "pdf") {
-        setReportMsg(`Would POST canvass-report-pdf → download canvass_report_${claimSlug}.pdf`);
-      } else {
-        setReportMsg("Would POST canvass-report-save-to-share → W:\\…\\MEDICAL CANVASS");
-      }
-    }, 700);
+    if (!liveMode || !caseId) {
+      window.setTimeout(() => {
+        setReporting(null);
+        setReportDone(true);
+        if (kind === "docx") {
+          setReportMsg(`Would POST canvass-report-docx → download canvass_report_${claimSlug}.docx`);
+        } else if (kind === "pdf") {
+          setReportMsg(`Would POST canvass-report-pdf → download canvass_report_${claimSlug}.pdf`);
+        } else {
+          setReportMsg("Would POST canvass-report-save-to-share → W:\\…\\MEDICAL CANVASS");
+        }
+      }, 700);
+      return;
+    }
+    void protiApi
+      .reportCanvass(caseId, kind)
+      .then((result) => {
+        setReporting(null);
+        setReportDone(true);
+        if (result.kind === "share") {
+          setReportMsg("Saved to MEDICAL CANVASS share via proti.");
+          return;
+        }
+        const url = URL.createObjectURL(result.blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = result.filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        setReportMsg(`Downloaded ${result.filename}`);
+      })
+      .catch((err: unknown) => {
+        setReporting(null);
+        setReportMsg(err instanceof Error ? err.message : "Report failed");
+      });
   };
 
   const runGoogleSearch = () => {
@@ -222,13 +327,27 @@ export default function SkyMedicalFile({
     }
     setSearching(true);
     setSearchMsg(null);
-    window.setTimeout(() => {
-      setFacilities(data.facilities);
-      setSearching(false);
-      setSearchMsg(
-        `Would call Google Places Nearby (${selectedTypes.length} types · ${radius} mi driving) for “${address.trim()}”. Mock keeps ${data.facilities.length} facilities.`,
-      );
-    }, 650);
+    if (!liveMode || !caseId) {
+      window.setTimeout(() => {
+        setFacilities(data.facilities);
+        setSearching(false);
+        setSearchMsg(
+          `Would call Google Places Nearby (${selectedTypes.length} types · ${radius} mi driving) for “${address.trim()}”. Mock keeps ${data.facilities.length} facilities.`,
+        );
+      }, 650);
+      return;
+    }
+    void protiApi
+      .searchCanvass(caseId, { address: address.trim(), types: selectedTypes, radius_mi: radius })
+      .then((view) => {
+        applyView(view);
+        setSearching(false);
+        setSearchMsg(`Loaded ${view.facilities.length} facilities from proti (${view.address}).`);
+      })
+      .catch((err: unknown) => {
+        setSearching(false);
+        setSearchMsg(err instanceof Error ? err.message : "Facility search failed");
+      });
   };
 
   useEffect(() => {
@@ -275,7 +394,12 @@ export default function SkyMedicalFile({
           <p className="client">
             <span>{where || "—"}</span>
             <span className="cap d">Inv #{data.investigation_id}</span>
+            {loadState === "loading" && <span className="cap d">Loading proti…</span>}
+            {loadState === "live" && <span className="cap d">Live</span>}
+            {loadState === "mock" && caseId && <span className="cap d">Sample</span>}
+            {savingId && <span className="cap d">Saving…</span>}
           </p>
+          {loadMsg ? <p className="sky-osint-load-msg">{loadMsg}</p> : null}
 
           <div className="sky-osint-steps" aria-label="Canvass pipeline">
             {pipeline.map((step) => (
@@ -398,9 +522,7 @@ export default function SkyMedicalFile({
                     key={f.id}
                     f={f}
                     onNotes={() => setNoteFac(f)}
-                    onStatus={(status) =>
-                      setFacilities((prev) => prev.map((x) => (x.id === f.id ? { ...x, status } : x)))
-                    }
+                    onStatus={(status) => void persistStatus(f, status)}
                   />
                 ))}
               </div>
@@ -486,7 +608,7 @@ export default function SkyMedicalFile({
           facility={noteFac}
           onClose={() => setNoteFac(null)}
           onSave={(note) => {
-            setFacilities((prev) => prev.map((x) => (x.id === noteFac.id ? { ...x, note } : x)));
+            void persistStatus(noteFac, noteFac.status, note);
             setNoteFac(null);
           }}
         />

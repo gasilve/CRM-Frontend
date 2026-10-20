@@ -1,6 +1,6 @@
 /**
- * Sky View case layout with Medical Canvass + OSINT on the circle.
- * Boards swap boxes in-place (like Case), no modal.
+ * Sky View case layout with Forensic + Audio Isolation + OSINT + Medical on the circle.
+ * Video stays the existing upload modal (Valentin) — not a board.
  *
  * http://127.0.0.1:5174/admin/skyview-preview
  */
@@ -8,10 +8,14 @@ import { useEffect, useRef, useState } from "react";
 import { NavRing } from "@/components/cases/NavRing";
 import SkyOsintFile from "@/components/cases/osint/SkyOsintFile";
 import SkyMedicalFile from "@/components/cases/medical/SkyMedicalFile";
+import SkyForensicFile from "@/components/cases/forensic/SkyForensicFile";
+import SkyAudioIsolationFile from "@/components/cases/audio-isolation/SkyAudioIsolationFile";
 import "@/components/cases/sky-v6.css";
 import "@/components/cases/osint/osint-modal.css";
 
 const SUBJECT = "Karen Suley Cisneros";
+
+type Board = "case" | "osint" | "medical" | "forensic" | "audioIso";
 
 export default function SkyviewPreview() {
   const pageRef = useRef<HTMLDivElement>(null);
@@ -22,8 +26,15 @@ export default function SkyviewPreview() {
   const [medicalOn, setMedicalOn] = useState(false);
   const [medicalShown, setMedicalShown] = useState(false);
   const [medicalLeaving, setMedicalLeaving] = useState(false);
-  const boardActive = detailsOn || osintOn || medicalOn;
-  const boardBusy = osintLeaving || medicalLeaving;
+  const [forensicOn, setForensicOn] = useState(false);
+  const [forensicShown, setForensicShown] = useState(false);
+  const [forensicLeaving, setForensicLeaving] = useState(false);
+  const [audioIsoOn, setAudioIsoOn] = useState(false);
+  const [audioIsoShown, setAudioIsoShown] = useState(false);
+  const [audioIsoLeaving, setAudioIsoLeaving] = useState(false);
+
+  const boardActive = detailsOn || osintOn || medicalOn || forensicOn || audioIsoOn;
+  const boardBusy = osintLeaving || medicalLeaving || forensicLeaving || audioIsoLeaving;
 
   const closeOsint = () => {
     setOsintOn(false);
@@ -35,35 +46,60 @@ export default function SkyviewPreview() {
     setMedicalShown(false);
     setMedicalLeaving(false);
   };
+  const closeForensic = () => {
+    setForensicOn(false);
+    setForensicShown(false);
+    setForensicLeaving(false);
+  };
+  const closeAudioIso = () => {
+    setAudioIsoOn(false);
+    setAudioIsoShown(false);
+    setAudioIsoLeaving(false);
+  };
+
+  const closeSiblings = (keep: Board) => {
+    if (keep !== "case") setDetailsOn(false);
+    if (keep !== "osint" && osintOn) closeOsint();
+    if (keep !== "medical" && medicalOn) closeMedical();
+    if (keep !== "forensic" && forensicOn) closeForensic();
+    if (keep !== "audioIso" && audioIsoOn) closeAudioIso();
+  };
+
+  const openBoard = (which: Exclude<Board, "case">) => {
+    pageRef.current?.parentElement?.scrollTo({ top: 0 });
+    if (which === "osint") setOsintOn(true);
+    if (which === "medical") setMedicalOn(true);
+    if (which === "forensic") setForensicOn(true);
+    if (which === "audioIso") setAudioIsoOn(true);
+  };
 
   const toggleOsint = () => {
     if (boardBusy) return;
-    if (detailsOn) setDetailsOn(false);
-    if (medicalOn) closeMedical();
-    if (!osintOn) {
-      pageRef.current?.parentElement?.scrollTo({ top: 0 });
-      setOsintOn(true);
-      return;
-    }
-    setOsintLeaving(true);
+    closeSiblings("osint");
+    if (!osintOn) openBoard("osint");
+    else setOsintLeaving(true);
   };
-
   const toggleMedical = () => {
     if (boardBusy) return;
-    if (detailsOn) setDetailsOn(false);
-    if (osintOn) closeOsint();
-    if (!medicalOn) {
-      pageRef.current?.parentElement?.scrollTo({ top: 0 });
-      setMedicalOn(true);
-      return;
-    }
-    setMedicalLeaving(true);
+    closeSiblings("medical");
+    if (!medicalOn) openBoard("medical");
+    else setMedicalLeaving(true);
   };
-
+  const toggleForensic = () => {
+    if (boardBusy) return;
+    closeSiblings("forensic");
+    if (!forensicOn) openBoard("forensic");
+    else setForensicLeaving(true);
+  };
+  const toggleAudioIso = () => {
+    if (boardBusy) return;
+    closeSiblings("audioIso");
+    if (!audioIsoOn) openBoard("audioIso");
+    else setAudioIsoLeaving(true);
+  };
   const toggleDetails = () => {
     if (boardBusy) return;
-    if (osintOn) closeOsint();
-    if (medicalOn) closeMedical();
+    closeSiblings("case");
     setDetailsOn((v) => !v);
   };
 
@@ -75,7 +111,6 @@ export default function SkyviewPreview() {
     }
     setOsintShown(true);
   }, [osintOn]);
-
   useEffect(() => {
     if (!osintLeaving) return;
     const timer = window.setTimeout(() => setOsintOn(false), 340);
@@ -90,16 +125,41 @@ export default function SkyviewPreview() {
     }
     setMedicalShown(true);
   }, [medicalOn]);
-
   useEffect(() => {
     if (!medicalLeaving) return;
     const timer = window.setTimeout(() => setMedicalOn(false), 340);
     return () => window.clearTimeout(timer);
   }, [medicalLeaving]);
 
-  const hint = boardActive
-    ? null
-    : "Tap OSINT (blue) or Medical Canvass (pink) on the ring";
+  useEffect(() => {
+    if (!forensicOn) {
+      setForensicShown(false);
+      setForensicLeaving(false);
+      return;
+    }
+    setForensicShown(true);
+  }, [forensicOn]);
+  useEffect(() => {
+    if (!forensicLeaving) return;
+    const timer = window.setTimeout(() => setForensicOn(false), 340);
+    return () => window.clearTimeout(timer);
+  }, [forensicLeaving]);
+
+  useEffect(() => {
+    if (!audioIsoOn) {
+      setAudioIsoShown(false);
+      setAudioIsoLeaving(false);
+      return;
+    }
+    setAudioIsoShown(true);
+  }, [audioIsoOn]);
+  useEffect(() => {
+    if (!audioIsoLeaving) return;
+    const timer = window.setTimeout(() => setAudioIsoOn(false), 340);
+    return () => window.clearTimeout(timer);
+  }, [audioIsoLeaving]);
+
+  const hint = boardActive ? null : "Tap Forensic, Audio Isolation, OSINT, or Medical on the ring";
 
   return (
     <div className="sky-v6 sky-v6--preview">
@@ -120,7 +180,7 @@ export default function SkyviewPreview() {
           <div className="id-col">
             <div className="g id">
               <p className="occ" style={{ marginBottom: 8, color: "var(--ink3)", fontSize: 12 }}>
-                Preview · OSINT + Medical in-skyview
+                Preview · Forensic · Audio Isolation · OSINT · Medical
               </p>
               <h1 className="name">
                 {SUBJECT}
@@ -160,11 +220,15 @@ export default function SkyviewPreview() {
                 detailsOn={detailsOn}
                 osintOn={osintOn}
                 medicalOn={medicalOn}
+                forensicOn={forensicOn}
+                audioIsoOn={audioIsoOn}
                 onGo={() => {}}
-                onVideo={() => {}}
                 onDetails={toggleDetails}
                 onMedical={toggleMedical}
                 onOsint={toggleOsint}
+                onForensic={toggleForensic}
+                onVideo={() => {}}
+                onAudioIso={toggleAudioIso}
               />
               <div className="core g">
                 <div className="ime-core">IME</div>
@@ -198,13 +262,16 @@ export default function SkyviewPreview() {
             <div className="g idl">
               <div className="sec">Summary</div>
               <p className="sum">
-                OSINT and Medical Canvass swap these boxes in place — same motion as Case file.
+                Forensic Collection and Audio Isolation swap these boxes in place — same motion as
+                OSINT / Medical / Case. Video opens the existing upload flow.
               </p>
             </div>
           </div>
 
           {osintShown && <SkyOsintFile subjectName={SUBJECT} leaving={osintLeaving} />}
           {medicalShown && <SkyMedicalFile subjectName={SUBJECT} leaving={medicalLeaving} />}
+          {forensicShown && <SkyForensicFile subjectName={SUBJECT} leaving={forensicLeaving} />}
+          {audioIsoShown && <SkyAudioIsolationFile subjectName={SUBJECT} leaving={audioIsoLeaving} />}
         </div>
       </div>
     </div>
