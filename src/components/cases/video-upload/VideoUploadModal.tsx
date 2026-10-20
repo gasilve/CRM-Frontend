@@ -95,7 +95,10 @@ export function VideoUploadModal({
 
   // While copies are being made, look again every 20 seconds.
   const processingOpen = (batches ?? []).some((batch) =>
-    batch.clips.some((clip) => clip.processing && ["queued", "running", "waiting"].includes(clip.processing.status)),
+    batch.clips.some((clip) => {
+      const jobs = [clip.processing, clip.highlights];
+      return jobs.some((job) => job && ["queued", "running", "waiting"].includes(job.status));
+    }),
   );
   useEffect(() => {
     if (!processingOpen) return;
@@ -109,6 +112,16 @@ export function VideoUploadModal({
       setError(null);
     } catch {
       setError("Could not send that clip through again.");
+    }
+    await reload();
+  };
+
+  const retryHighlights = async (clipId: string) => {
+    try {
+      await videoApi.retryHighlights(clipId);
+      setError(null);
+    } catch {
+      setError("Could not send highlights through again.");
     }
     await reload();
   };
@@ -314,6 +327,7 @@ export function VideoUploadModal({
             onLeaveOut={setLeftOut}
             onFlag={setFlag}
             onRetryProcessing={(clipId) => void retryProcessing(clipId)}
+            onRetryHighlights={(clipId) => void retryHighlights(clipId)}
             headerSlot={headerSlot}
           />
         )}
@@ -403,6 +417,7 @@ function asSaved(batch: RemoteVideoBatch): SavedBatch {
       leftOutReason: clip.leftOutReason,
       coldAt: clip.coldAt,
       processing: clip.processing ?? null,
+      highlights: clip.highlights ?? null,
     })),
   };
 }
