@@ -27,21 +27,13 @@ import { SkyFieldPop, useSkyFieldPop, type SkyEditor, type SkyFieldRequest, type
 import { MOBILITY_CHOICES, MobilityMark } from "@/components/cases/SubjectMobility";
 import SkyCaseFile from "@/components/cases/SkyCaseFile";
 import SkyOnboardingToast from "@/components/cases/SkyOnboardingToast";
+import SkyOsintFile from "@/components/cases/osint/SkyOsintFile";
+import SkyMedicalFile from "@/components/cases/medical/SkyMedicalFile";
+import SkyForensicFile from "@/components/cases/forensic/SkyForensicFile";
+import SkyAudioIsolationFile from "@/components/cases/audio-isolation/SkyAudioIsolationFile";
+import { NavRing } from "@/components/cases/NavRing";
 import "./sky-modal.css";
 import "./sky-v6.css";
-
-const CX = 230;
-const CY = 230;
-const OUTER = 212;
-const GAP = 3;
-
-// Four equal slices. Seams sit on the diagonals, so the bottom of the ring is the middle of Video, not a gap.
-const NAV = [
-  { label: "Back", title: "Back to cases", color: "#ff9f45", path: (_id: string) => `/cases`, start: 315, end: 405 },
-  { label: "Details", title: "Details", color: "#3ee08a", details: true, start: 45, end: 135 },
-  { label: "Video", title: "Video", color: "#b18cff", video: true, start: 135, end: 225 },
-  { label: "Reports", title: "Reports", color: "#5aa9ff", path: (_id: string) => `/reports`, start: 225, end: 315 },
-] as const;
 
 const SETTING_LABEL = { suburban: "suburban", rural: "rural", dense: "densely populated" } as const;
 
@@ -65,21 +57,6 @@ type SkyFieldId =
   | "summary";
 
 const CASE_FIELDS = new Set<SkyFieldId>(["name", "age", "work", "address", "client", "service", "claim", "works", "due"]);
-
-const polar = (angle: number, radius: number): [number, number] => {
-  const a = ((angle - 90) * Math.PI) / 180;
-  return [CX + radius * Math.cos(a), CY + radius * Math.sin(a)];
-};
-
-const BAND_MID = 194;
-const BAND_MID_HOVER = 201;
-
-/** Arc through the middle of a segment. Stroke width grows around this line. */
-const midArc = (a0: number, a1: number, radius: number) => {
-  const [x0, y0] = polar(a0, radius);
-  const [x1, y1] = polar(a1, radius);
-  return `M${x0},${y0} A${radius},${radius} 0 0 1 ${x1},${y1}`;
-};
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -191,75 +168,6 @@ function faceFromEntries(entries: { type: string; meta: Record<string, unknown> 
   if (scores.length === 0) return { ok: false, score: null };
   const best = Math.max(...scores);
   return { ok: best >= 80, score: best };
-}
-
-function NavRing({
-  caseId,
-  detailsOn,
-  onGo,
-  onVideo,
-  onDetails,
-}: {
-  caseId: string;
-  detailsOn: boolean;
-  onGo: (path: string) => void;
-  onVideo: () => void;
-  onDetails: () => void;
-}) {
-  return (
-    <svg viewBox="0 0 460 460" role="navigation" aria-label="Case pages">
-      {NAV.map((item) => {
-        const a0 = item.start + GAP / 2;
-        const a1 = item.end - GAP / 2;
-        const mid = (a0 + a1) / 2;
-        const [x, y] = polar(mid, OUTER + 20);
-        const aim = ((mid - 90) * Math.PI) / 180;
-        const openDetails = "details" in item;
-        return (
-          <g
-            key={item.label}
-            className={openDetails && detailsOn ? "nav-g on" : "nav-g"}
-            style={{ ["--seg" as string]: item.color }}
-            onClick={() => {
-              if ("details" in item) onDetails();
-              else if ("video" in item) onVideo();
-              else onGo(item.path(caseId));
-            }}
-          >
-            <title>{item.title}</title>
-            <path
-              className="nav-seg"
-              d={midArc(a0, a1, BAND_MID)}
-              style={{
-                ["--arc" as string]: `path("${midArc(a0, a1, BAND_MID)}")`,
-                ["--arc-hot" as string]: `path("${midArc(a0, a1, BAND_MID_HOVER)}")`,
-              }}
-            />
-            <text
-              x={x}
-              y={y + 4}
-              textAnchor="middle"
-              className="dlab"
-              style={{
-                ["--nx" as string]: `${Math.cos(aim) * 18}px`,
-                ["--ny" as string]: `${Math.sin(aim) * 18}px`,
-              }}
-            >
-              {item.label.split(" ").map((line, index, lines) => (
-                <tspan
-                  key={line}
-                  x={x}
-                  dy={index === 0 ? (lines.length > 1 ? "-0.55em" : "0") : "1.15em"}
-                >
-                  {line}
-                </tspan>
-              ))}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
-  );
 }
 
 function DayRow({
@@ -721,22 +629,113 @@ export default function SkyViewPage() {
   const [stakeoutOpen, setStakeoutOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [detailsOn, setDetailsOn] = useState(false);
+  const [osintOn, setOsintOn] = useState(false);
+  const [medicalOn, setMedicalOn] = useState(false);
+  const [forensicOn, setForensicOn] = useState(false);
+  const [audioIsoOn, setAudioIsoOn] = useState(false);
   // The file stays mounted through its exit. Skyview only comes back once that exit has finished.
   const [boardShown, setBoardShown] = useState(false);
   const [fileLeaving, setFileLeaving] = useState(false);
+  const [osintShown, setOsintShown] = useState(false);
+  const [osintLeaving, setOsintLeaving] = useState(false);
+  const [medicalShown, setMedicalShown] = useState(false);
+  const [medicalLeaving, setMedicalLeaving] = useState(false);
+  const [forensicShown, setForensicShown] = useState(false);
+  const [forensicLeaving, setForensicLeaving] = useState(false);
+  const [audioIsoShown, setAudioIsoShown] = useState(false);
+  const [audioIsoLeaving, setAudioIsoLeaving] = useState(false);
   // Same cache key as the case screen, so a visit there makes this instant.
   const detailQuery = useQuery(id && boardShown ? `case:${id}` : null, () => casesApi.get(id), {
     staleMs: 60_000,
   });
   const pageRef = useRef<HTMLDivElement>(null);
+  const boardActive = detailsOn || osintOn || medicalOn || forensicOn || audioIsoOn;
+  const boardBusy = fileLeaving || osintLeaving || medicalLeaving || forensicLeaving || audioIsoLeaving;
+  const closeCaseBoard = () => {
+    setDetailsOn(false);
+    setBoardShown(false);
+    setFileLeaving(false);
+  };
+  const closeOsintBoard = () => {
+    setOsintOn(false);
+    setOsintShown(false);
+    setOsintLeaving(false);
+  };
+  const closeMedicalBoard = () => {
+    setMedicalOn(false);
+    setMedicalShown(false);
+    setMedicalLeaving(false);
+  };
+  const closeForensicBoard = () => {
+    setForensicOn(false);
+    setForensicShown(false);
+    setForensicLeaving(false);
+  };
+  const closeAudioIsoBoard = () => {
+    setAudioIsoOn(false);
+    setAudioIsoShown(false);
+    setAudioIsoLeaving(false);
+  };
+  const closeSiblingBoards = (keep: "case" | "osint" | "medical" | "forensic" | "audioIso") => {
+    if (keep !== "case" && detailsOn) closeCaseBoard();
+    if (keep !== "osint" && osintOn) closeOsintBoard();
+    if (keep !== "medical" && medicalOn) closeMedicalBoard();
+    if (keep !== "forensic" && forensicOn) closeForensicBoard();
+    if (keep !== "audioIso" && audioIsoOn) closeAudioIsoBoard();
+  };
   const toggleDetails = () => {
-    if (fileLeaving) return;
+    if (boardBusy) return;
+    closeSiblingBoards("case");
     if (!detailsOn) {
       pageRef.current?.parentElement?.scrollTo({ top: 0 });
       setDetailsOn(true);
       return;
     }
     setFileLeaving(true);
+  };
+  const toggleOsint = () => {
+    if (boardBusy) return;
+    closeSiblingBoards("osint");
+    if (!osintOn) {
+      pageRef.current?.parentElement?.scrollTo({ top: 0 });
+      setOsintOn(true);
+      return;
+    }
+    setOsintLeaving(true);
+  };
+  const toggleMedical = () => {
+    if (boardBusy) return;
+    closeSiblingBoards("medical");
+    if (!medicalOn) {
+      pageRef.current?.parentElement?.scrollTo({ top: 0 });
+      setMedicalOn(true);
+      return;
+    }
+    setMedicalLeaving(true);
+  };
+  const toggleForensic = () => {
+    if (boardBusy) return;
+    closeSiblingBoards("forensic");
+    if (!forensicOn) {
+      pageRef.current?.parentElement?.scrollTo({ top: 0 });
+      setForensicOn(true);
+      return;
+    }
+    setForensicLeaving(true);
+  };
+  const openVideo = () => {
+    if (!can("video.use")) return;
+    setDesignsOpen(true);
+  };
+  const toggleAudioIso = () => {
+    if (boardBusy) return;
+    closeSiblingBoards("audioIso");
+    if (!audioIsoOn) {
+      pageRef.current?.parentElement?.scrollTo({ top: 0 });
+      setAudioIsoOn(true);
+      return;
+    }
+    setAudioIsoLeaving(true);
   };
   useEffect(() => {
     if (!detailsOn) {
@@ -751,6 +750,58 @@ export default function SkyViewPage() {
     const timer = window.setTimeout(() => setDetailsOn(false), 340);
     return () => window.clearTimeout(timer);
   }, [fileLeaving]);
+  useEffect(() => {
+    if (!osintOn) {
+      setOsintShown(false);
+      setOsintLeaving(false);
+      return;
+    }
+    setOsintShown(true);
+  }, [osintOn]);
+  useEffect(() => {
+    if (!osintLeaving) return;
+    const timer = window.setTimeout(() => setOsintOn(false), 340);
+    return () => window.clearTimeout(timer);
+  }, [osintLeaving]);
+  useEffect(() => {
+    if (!medicalOn) {
+      setMedicalShown(false);
+      setMedicalLeaving(false);
+      return;
+    }
+    setMedicalShown(true);
+  }, [medicalOn]);
+  useEffect(() => {
+    if (!medicalLeaving) return;
+    const timer = window.setTimeout(() => setMedicalOn(false), 340);
+    return () => window.clearTimeout(timer);
+  }, [medicalLeaving]);
+  useEffect(() => {
+    if (!forensicOn) {
+      setForensicShown(false);
+      setForensicLeaving(false);
+      return;
+    }
+    setForensicShown(true);
+  }, [forensicOn]);
+  useEffect(() => {
+    if (!forensicLeaving) return;
+    const timer = window.setTimeout(() => setForensicOn(false), 340);
+    return () => window.clearTimeout(timer);
+  }, [forensicLeaving]);
+  useEffect(() => {
+    if (!audioIsoOn) {
+      setAudioIsoShown(false);
+      setAudioIsoLeaving(false);
+      return;
+    }
+    setAudioIsoShown(true);
+  }, [audioIsoOn]);
+  useEffect(() => {
+    if (!audioIsoLeaving) return;
+    const timer = window.setTimeout(() => setAudioIsoOn(false), 340);
+    return () => window.clearTimeout(timer);
+  }, [audioIsoLeaving]);
   const portraitInput = useRef<HTMLInputElement>(null);
   const stakeouts = useQuery(id ? `case:${id}:stakeout` : null, () => stakeoutApi.list(id), {
     staleMs: 60_000,
@@ -1606,7 +1657,7 @@ export default function SkyViewPage() {
         </div>
       </div>
 
-      <div ref={pageRef} className={detailsOn ? "page details-on" : "page"}>
+      <div ref={pageRef} className={boardActive ? "page details-on" : "page"}>
         <div className="id-col">
           <div className="g id">
             <h1
@@ -1745,11 +1796,17 @@ export default function SkyViewPage() {
             <NavRing
               caseId={kase.id}
               detailsOn={detailsOn}
+              osintOn={osintOn}
+              medicalOn={medicalOn}
+              forensicOn={forensicOn}
+              audioIsoOn={audioIsoOn}
               onGo={(path) => navigate(path)}
-              onVideo={() => {
-                if (can("video.use")) setDesignsOpen(true);
-              }}
               onDetails={toggleDetails}
+              onMedical={toggleMedical}
+              onOsint={toggleOsint}
+              onForensic={toggleForensic}
+              onVideo={openVideo}
+              onAudioIso={toggleAudioIso}
             />
             <div className="core g">
               <button
@@ -1908,6 +1965,14 @@ export default function SkyViewPage() {
             }}
           />
         )}
+        {osintShown && (
+          <SkyOsintFile caseId={kase.id} subjectName={kase.subjectName} leaving={osintLeaving} />
+        )}
+        {medicalShown && (
+          <SkyMedicalFile caseId={kase.id} subjectName={kase.subjectName} leaving={medicalLeaving} />
+        )}
+        {forensicShown && <SkyForensicFile subjectName={kase.subjectName} leaving={forensicLeaving} />}
+        {audioIsoShown && <SkyAudioIsolationFile subjectName={kase.subjectName} leaving={audioIsoLeaving} />}
       </div>
 
       {stakeoutOpen && (
