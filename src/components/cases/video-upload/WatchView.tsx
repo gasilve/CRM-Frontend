@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Archive, Check, ChevronLeft, Clock, FileCheck2, Flag, Lock, Play, Send, Upload, X } from "lucide-react";
 import type { LeftOutReason, SavedBatch, SavedClip } from "@/components/cases/video-library";
-import { videoApi } from "@/lib/crm-api";
+import { videoApi, type VideoProcessing } from "@/lib/crm-api";
 import { LEFT_OUT_LABEL, clock, dayName } from "@/components/cases/video-upload/checks";
 import { clipLocked, clipSent, shortAt, shortDay, type DayRow, type FieldDay } from "@/components/cases/video-upload/ledger";
 import type { SealJob } from "@/components/cases/video-upload/sealing";
@@ -42,6 +42,8 @@ export function WatchView({
   onCertificate,
   onLeaveOut,
   onFlag,
+  onRetryProcessing,
+  onRetryHighlights,
   headerSlot,
 }: {
   rows: DayRow[];
@@ -59,6 +61,9 @@ export function WatchView({
   onCertificate: (row: DayRow) => void;
   onLeaveOut: (batchId: string, clipId: string, reason: LeftOutReason | null) => void;
   onFlag: (batchId: string, note: string | null) => void;
+  /** Office: send a clip whose processing failed through again. */
+  onRetryProcessing: (clipId: string) => void;
+  onRetryHighlights: (clipId: string) => void;
   /** Where Upload and Back to videos sit, in the modal header. */
   headerSlot: HTMLElement | null;
 }) {
@@ -72,6 +77,10 @@ export function WatchView({
   const [note, setNote] = useState("");
   const [discarding, setDiscarding] = useState(false);
   const [fetched, setFetched] = useState<Record<string, string>>({});
+  const [copy, setCopy] = useState<"original" | "processed" | "highlights">("processed");
+  const [highlightMode, setHighlightMode] = useState(false);
+  const [processedUrls, setProcessedUrls] = useState<Record<string, string>>({});
+  const [highlightUrls, setHighlightUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (justSealed) setDate(justSealed);
@@ -136,6 +145,30 @@ export function WatchView({
   const missingDay = date && !dayRow ? missing.find((field) => field.day === date) ?? null : null;
   const mine = dayRow?.batches.find((batch) => batch.signerName === signerName) ?? null;
   const playingCard = shown.find((card) => card.clip.id === playing) ?? null;
+  const playingCopy = resolveCopy(playingCard?.clip ?? null, highlightMode && copy !== "original" && copy !== "processed" ? "highlights" : copy);
+  const playingId = playingCard?.clip.id ?? null;
+  useEffect(() => {
+    if (!playingId || playingCopy !== "processed" || processedUrls[playingId]) return;
+    let live = true;
+    void videoApi
+      .download(playingId, "inline", "processed")
+      .then((link) => live && setProcessedUrls((current) => ({ ...current, [playingId]: link.url })))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [playingId, playingCopy, processedUrls]);
+  useEffect(() => {
+    if (!playingId || playingCopy !== "highlights" || highlightUrls[playingId]) return;
+    let live = true;
+    void videoApi
+      .download(playingId, "inline", "highlights")
+      .then((link) => live && setHighlightUrls((current) => ({ ...current, [playingId]: link.url })))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [playingId, playingCopy, highlightUrls]);
 
   const toggle = (id: string) =>
     setPicked((set) => {
@@ -185,9 +218,22 @@ export function WatchView({
       {header}
       <aside className="vu-filters-side" aria-label="Filters">
         <p className="vu-filter-label">Show</p>
-        <button type="button" className={!date && status === "all" ? "vu-filter on" : "vu-filter"} onClick={() => { chooseDate(null); chooseStatus("all"); }}>
+        <button type="button" className={!date && status === "all" && !highlightMode ? "vu-filter on" : "vu-filter"} onClick={() => { chooseDate(null); chooseStatus("all"); setHighlightMode(false); setCopy("processed"); }}>
           All video
           <em>{cards.length}</em>
+        </button>
+        <button
+          type="button"
+          className={highlightMode ? "vu-filter on" : "vu-filter"}
+          onClick={() => {
+            setHighlightMode(true);
+            chooseDate(null);
+            chooseStatus("all");
+            setCopy("highlights");
+          }}
+        >
+          Highlights
+          <em>{cards.filter((card) => card.clip.highlights?.hasCopy).length}</em>
         </button>
 
         <p className="vu-filter-label">Days</p>
@@ -224,7 +270,50 @@ export function WatchView({
           <div className="vu-player-pane">
             <div className="vu-body">
               <section className="vu-main">
-                <Player clip={playable(playingCard)} />
+                {(playingCard.clip.processing || playingCard.clip.highlights) && (
+                  <div className="vu-copy-switch" role="group" aria-label="Which copy">
+                    <button type="button" className={playingCopy === "original" ? "on" : ""} onClick={() => setCopy("original")}>
+                      Original
+                    </button>
+                    <button
+                      type="button"
+                      className={playingCopy === "processed" ? "on" : ""}
+                      disabled={!playingCard.clip.processing?.hasCopy}
+                      onClick={() => setCopy("processed")}
+                    >
+                      Processed
+                    </button>
+                    <button
+                      type="button"
+                      className={playingCopy === "highlights" ? "on" : ""}
+                      disabled={!playingCard.clip.highlights?.hasCopy}
+                      title={highlightTitle(playingCard.clip.highlights)}
+                      onClick={() => setCopy("highlights")}
+                    >
+                      Highlights
+                    </button>
+                  </div>
+                )}
+                <Player
+                  key={`${playingCard.clip.id}-${playingCopy}`}
+                  clip={playable(
+                    playingCopy === "highlights"
+                      ? { ...playingCard, url: highlightUrls[playingCard.clip.id] ?? "" }
+                      : playingCopy === "processed"
+                        ? { ...playingCard, url: processedUrls[playingCard.clip.id] ?? "" }
+                        : playingCard,
+                  )}
+                />
+                <ProcessingLine
+                  processing={playingCard.clip.processing ?? null}
+                  canRetry={canManage}
+                  onRetry={() => onRetryProcessing(playingCard.clip.id)}
+                />
+                <HighlightsLine
+                  highlights={playingCard.clip.highlights ?? null}
+                  canRetry={canManage}
+                  onRetry={() => onRetryHighlights(playingCard.clip.id)}
+                />
               </section>
               <aside className="vu-rail" aria-label="Clips">
                 <div className="vu-rail-head">
@@ -283,6 +372,7 @@ export function WatchView({
               </p>
             ))}
             {justSealed && date === justSealed && <p className="vu-sealed-line">Certified. The originals are kept as recorded.</p>}
+            <ProcessingSummary clips={shown.map((card) => card.clip)} />
 
             {shown.length === 0 ? (
               <div className="vu-empty">
@@ -297,7 +387,10 @@ export function WatchView({
                     card={card}
                     picking={picking}
                     picked={picked.has(card.clip.id)}
-                    onPlay={() => setPlaying(card.clip.id)}
+                    onPlay={() => {
+                      if (highlightMode) setCopy("highlights");
+                      setPlaying(card.clip.id);
+                    }}
                     onToggle={() => toggle(card.clip.id)}
                   />
                 ))}
@@ -400,6 +493,23 @@ export function WatchView({
   );
 }
 
+function resolveCopy(clip: SavedClip | null, requested: "original" | "processed" | "highlights"): "original" | "processed" | "highlights" {
+  if (!clip) return "original";
+  if (requested === "highlights" && clip.highlights?.hasCopy) return "highlights";
+  if (requested === "processed" && clip.processing?.hasCopy) return "processed";
+  if (requested === "highlights" && clip.processing?.hasCopy) return "processed";
+  return "original";
+}
+
+function highlightTitle(highlights: VideoProcessing | null | undefined): string {
+  if (!highlights) return "Highlights are not ready yet";
+  if (highlights.status === "failed") return highlights.error ?? "Highlights failed";
+  if (highlights.status === "queued" || highlights.status === "running") return "Cutting the activity reel";
+  if (highlights.unchanged) return "No activity to highlight";
+  if (highlights.hasCopy) return "Activity highlights";
+  return "Highlights are not ready yet";
+}
+
 function playable(card: Card): PlayClip {
   return {
     id: card.clip.id,
@@ -409,7 +519,7 @@ function playable(card: Card): PlayClip {
     number: card.clip.number ?? null,
     seconds: card.clip.seconds,
     recordedAt: card.clip.recordedAt,
-    unreadable: card.clip.seconds == null,
+    unreadable: false,
     inClientVideo: card.clip.inClientVideo !== false,
     leftOutReason: card.clip.leftOutReason ?? null,
   };
@@ -474,9 +584,155 @@ function VideoCard({
             {shortAt(card.batch.certifiedAt)}
           </span>
           {card.clip.inClientVideo === false && <span title="Left out of the client video">Left out</span>}
+          {processingChip(card.clip.processing) && <span title="Viewing copy">{processingChip(card.clip.processing)}</span>}
+          {highlightsChip(card.clip.highlights) && <span title="Highlights">{highlightsChip(card.clip.highlights)}</span>}
         </span>
       </div>
       </div>
     </article>
   );
 }
+
+/** A word or two for the card. Nothing once the copy is ready. */
+function processingChip(processing: VideoProcessing | null | undefined): string | null {
+  if (!processing) return null;
+  if (processing.status === "failed") return "Processing failed";
+  if (processing.status === "waiting") return "Needs claim type";
+  if (processing.status === "queued" || processing.status === "running") return "Processing";
+  return null;
+}
+
+function highlightsChip(highlights: VideoProcessing | null | undefined): string | null {
+  if (!highlights) return null;
+  if (highlights.status === "failed") return "Highlights failed";
+  if (highlights.status === "queued" || highlights.status === "running") return "Highlights";
+  if (highlights.hasCopy) return "Highlights ready";
+  return null;
+}
+
+/** Under the player: what happened to the viewing copy, in plain words. */
+function ProcessingLine({
+  processing,
+  canRetry,
+  onRetry,
+}: {
+  processing: VideoProcessing | null;
+  canRetry: boolean;
+  onRetry: () => void;
+}) {
+  if (!processing) return null;
+  let text: string;
+  let tone = "";
+  if (processing.status === "done") {
+    if (processing.unchanged) {
+      text = "No processing needed. The original is the viewing copy.";
+    } else {
+      const parts = [
+        processing.steps?.stamp ? "time stamp added" : "camera's own time stamp kept",
+        ...(processing.steps?.color ? ["colors enhanced"] : []),
+        processing.steps?.trailer
+          ? `title page and trailer added${processing.steps.trailer_match === "fallback" ? " (no trailer for this state, so the general one)" : ""}`
+          : "no title page",
+        "sound removed",
+      ];
+      text = `Processed: ${parts.join(", ")}. The original is unchanged.`;
+    }
+    tone = "ok";
+  } else if (processing.status === "waiting") {
+    text = "Waiting for the case's claim type. Set it on the case and processing starts.";
+    tone = "warn";
+  } else if (processing.status === "failed") {
+    text = `Processing failed: ${processing.error ?? "unknown error"}`;
+    tone = "bad";
+  } else if (processing.offline) {
+    text = "The processing computer is offline. It will try again on its own.";
+    tone = "warn";
+  } else {
+    text = processing.status === "running" ? "Processing: adding the time stamp and title page." : "Queued for processing.";
+  }
+  return (
+    <p className={`vu-processing ${tone}`}>
+      {text}
+      {processing.status === "failed" && canRetry && (
+        <button type="button" className="vu-text-btn" onClick={onRetry}>
+          Try again
+        </button>
+      )}
+    </p>
+  );
+}
+
+function HighlightsLine({
+  highlights,
+  canRetry,
+  onRetry,
+}: {
+  highlights: VideoProcessing | null;
+  canRetry: boolean;
+  onRetry: () => void;
+}) {
+  if (!highlights) return null;
+  let text: string;
+  let tone = "";
+  if (highlights.status === "done") {
+    if (highlights.unchanged) {
+      text = "No activity to highlight. Nobody was in frame.";
+    } else {
+      const windows = highlights.steps?.windows;
+      text = windows
+        ? `Highlights: ${windows} ${windows === 1 ? "window" : "windows"} of activity. The original is unchanged.`
+        : "Highlights reel is ready. The original is unchanged.";
+    }
+    tone = "ok";
+  } else if (highlights.status === "failed") {
+    text = `Highlights failed: ${highlights.error ?? "unknown error"}`;
+    tone = "bad";
+  } else if (highlights.offline) {
+    text = "The processing computer is offline. Highlights will try again on its own.";
+    tone = "warn";
+  } else {
+    text = highlights.status === "running" ? "Cutting the activity reel." : "Queued for highlights.";
+  }
+  return (
+    <p className={`vu-processing ${tone}`}>
+      {text}
+      {highlights.status === "failed" && canRetry && (
+        <button type="button" className="vu-text-btn" onClick={onRetry}>
+          Try again
+        </button>
+      )}
+    </p>
+  );
+}
+
+/** One line over the clips: how many viewing copies are ready, being made, waiting or failed. */
+function ProcessingSummary({ clips }: { clips: SavedClip[] }) {
+  const jobs = clips.map((clip) => clip.processing).filter((job): job is VideoProcessing => Boolean(job));
+  const reels = clips.map((clip) => clip.highlights).filter((job): job is VideoProcessing => Boolean(job));
+  if (jobs.length === 0 && reels.length === 0) return null;
+  const count = (list: VideoProcessing[], test: (job: VideoProcessing) => boolean) => list.filter(test).length;
+  const ready = count(jobs, (job) => job.status === "done");
+  const busy = count(jobs, (job) => job.status === "queued" || job.status === "running");
+  const waiting = count(jobs, (job) => job.status === "waiting");
+  const failed = count(jobs, (job) => job.status === "failed");
+  const offline = count(jobs, (job) => job.offline);
+  const hlReady = count(reels, (job) => job.hasCopy);
+  const hlBusy = count(reels, (job) => job.status === "queued" || job.status === "running");
+  const hlFailed = count(reels, (job) => job.status === "failed");
+  const parts = [
+    ready > 0 && `${ready} processed`,
+    busy > 0 && (offline > 0 ? `${busy} waiting for the processing computer` : `${busy} processing`),
+    waiting > 0 && `${waiting} waiting for the case's claim type`,
+    failed > 0 && `${failed} failed`,
+    hlReady > 0 && `${hlReady} highlights`,
+    hlBusy > 0 && `${hlBusy} cutting highlights`,
+    hlFailed > 0 && `${hlFailed} highlights failed`,
+  ].filter(Boolean);
+  const tone = failed > 0 || hlFailed > 0 ? "bad" : waiting > 0 || offline > 0 ? "warn" : busy > 0 || hlBusy > 0 ? "" : "ok";
+  return (
+    <p className={`vu-processing vu-processing-summary ${tone}`}>
+      Viewing copies: {parts.join(" · ")}.{(busy > 0 || hlBusy > 0) && " This page updates on its own."}
+    </p>
+  );
+}
+

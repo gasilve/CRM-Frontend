@@ -1,10 +1,11 @@
+import type { VideoProcessing } from "@/lib/crm-api";
 const DB_NAME = "accenty-case-video";
 const STORE = "batches";
 const DRAFTS = "drafts";
 /** Draft files live apart from the draft so typing an answer never re-copies gigabytes of video. */
 const DRAFT_CLIPS = "draftClips";
 
-export type CameraKind = "covert" | "camcorder";
+export type CameraKind = "covert" | "camcorder" | "ultra";
 
 export type LeftOutReason = "wrong_person" | "too_dark" | "other";
 
@@ -24,6 +25,10 @@ export type SavedClip = {
   leftOutReason?: LeftOutReason | null;
   /** Set when this file, on its own, has been moved to cold storage. */
   coldAt?: string | null;
+  /** The viewing copy built after certify. */
+  processing?: VideoProcessing | null;
+  /** Activity reel built after the viewing copy. */
+  highlights?: VideoProcessing | null;
 };
 
 export type Declared = { files: number; seconds: number };

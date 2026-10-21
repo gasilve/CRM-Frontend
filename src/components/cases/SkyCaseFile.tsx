@@ -1,76 +1,54 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
-import type { CaseDetail, CaseStatus } from "@/lib/crm-api";
-import { SERVICE_LABELS } from "@/lib/mock-data";
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
+import type { CaseDetail, UpdateCasePayload } from "@/lib/crm-api";
+import { CASE_WORKS, CLAIM_LABELS, CLAIM_TYPES, WORK_LABELS, claimLabel, type CaseWork, type ClaimType } from "@/lib/case-kind";
+import { ageFromDob, calendarDateKey } from "@/lib/dates";
+import { SkyFieldPop, useSkyFieldPop, type SkyEditor, type SkyFieldRequest } from "@/components/cases/SkyFieldMenu";
 
-const REGION: Record<string, string> = { ca: "California", tristate: "Tri-state", texas: "Texas" };
-
-const STATUS: Record<CaseStatus, { label: string; color: string }> = {
-  open: { label: "Open", color: "var(--active)" },
-  suspended: { label: "Suspended", color: "var(--working)" },
-  closed: { label: "Closed", color: "var(--ink3)" },
-};
-
-function when(iso: string | null): { main: string; year: string } | null {
-  if (!iso) return null;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  return {
-    main: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-    year: String(date.getFullYear()),
-  };
+function ageOf(iso: string | null | undefined): number | null {
+  const key = iso ? calendarDateKey(iso) : null;
+  if (!key) return null;
+  const age = ageFromDob(key);
+  return age >= 0 && age < 130 ? age : null;
 }
 
-function shortDate(iso: string | null): string {
-  const parsed = when(iso);
-  return parsed ? `${parsed.main}, ${parsed.year}` : "—";
+function dateKey(iso: string | null | undefined): string {
+  if (!iso) return "";
+  return calendarDateKey(iso) ?? iso.slice(0, 10);
 }
 
-function clock(value: string | null): string {
-  if (!value) return "—";
-  if (/^\d{1,2}:\d{2}/.test(value)) return value.slice(0, 5);
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+function showDate(iso: string | null | undefined): string {
+  const key = dateKey(iso);
+  if (!key) return "—";
+  const date = new Date(`${key}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function roleOf(role: string): string {
-  const clean = role.replace(/[_-]+/g, " ").trim();
-  if (!clean) return "Investigator";
-  return clean.charAt(0).toUpperCase() + clean.slice(1);
-}
-
-function money(value: number | null): string | null {
-  if (value == null) return null;
-  return value.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-}
-
-function Field({ k, v }: { k: string; v: string | null | undefined }) {
-  if (!v) return null;
-  return (
-    <div className="pl">
-      <span className="k">{k}</span>
-      <span className="t">{v}</span>
-    </div>
-  );
-}
-
-function fileSize(bytes: number | null): string {
-  if (!bytes) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+function text(value: string | null | undefined): string {
+  const clean = value?.trim();
+  return clean || "—";
 }
 
 /**
- * The case file, drawn with Skyview's own cards. The wheel stays put. The left
- * card is the identity card's twin, the people sit where the schedule sits,
- * and the rail is adjuster, status, and files.
+ * The case file over Sky View. The wheel stays. The top repeats the identity
+ * card. The four short cards are the referral: subject, insurance, defense, employer.
  */
-export default function SkyCaseFile({ kase, leaving }: { kase: CaseDetail | null; leaving: boolean }) {
+export default function SkyCaseFile({
+  kase,
+  leaving,
+  canEdit,
+  onChange,
+}: {
+  kase: CaseDetail | null;
+  leaving: boolean;
+  canEdit: boolean;
+  onChange: (patch: UpdateCasePayload) => void;
+}) {
   const rootRef = useRef<HTMLElement>(null);
+  const fieldPop = useSkyFieldPop();
+  const { open } = fieldPop;
+  const [openCard, setOpenCard] = useState<"adjuster" | "attorney" | null>(null);
 
-  // Play the entrance backwards from wherever it is. A new reverse animation
-  // snaps to the hidden keyframe instead of moving.
   useEffect(() => {
     if (!leaving) return;
     const root = rootRef.current;
@@ -95,7 +73,7 @@ export default function SkyCaseFile({ kase, leaving }: { kase: CaseDetail | null
       root.style.height = `${view}px`;
       const wheel = page.querySelector<HTMLElement>(":scope > .center > .wheel");
       if (!wheel) return;
-      const gap = wheel.offsetTop + wheel.offsetHeight + 48;
+      const gap = wheel.offsetTop + wheel.offsetHeight + 28;
       const room = view - 40 - 28 - 260;
       root.style.setProperty("--sky-wheel-h", `${Math.max(180, Math.min(gap, room))}px`);
     };
@@ -106,75 +84,142 @@ export default function SkyCaseFile({ kase, leaving }: { kase: CaseDetail | null
     return () => observer.disconnect();
   }, []);
 
-  const opened = when(kase?.dateOpened ?? null);
-  const due = when(kase?.dueDate ?? null);
-  const status = kase ? STATUS[kase.status] : STATUS.open;
-  const assignments = kase?.assignments ?? [];
-  const files = kase?.files ?? [];
-  const people = (kase?.people ?? []).filter((person) => !person.isSubject);
-  const title = kase?.claimNumber || kase?.caseNumber || "Case file";
-  const aside = kase?.claimNumber ? kase.caseNumber : null;
-  const client = kase?.client as
-    | (NonNullable<CaseDetail["client"]> & {
-        contactName?: string | null;
-        contactEmail?: string | null;
-        contactPhone?: string | null;
-        location?: string | null;
-        address?: string | null;
-      })
-    | null
-    | undefined;
-  const where = [kase?.region ? REGION[kase.region] ?? kase.region : null, kase?.state].filter(Boolean).join(" · ");
+  const editText = (event: MouseEvent, title: string, key: keyof UpdateCasePayload, value: string | null | undefined, multiline = false) => {
+    if (!canEdit || !kase) return;
+    const request: SkyFieldRequest = {
+      title,
+      editor: { kind: "text", title, value: value ?? "", multiline },
+      onSave: async (fields) => {
+        onChange({ [key]: fields.value.trim() || null } as UpdateCasePayload);
+      },
+    };
+    open(event, request);
+  };
+
+  const editDate = (event: MouseEvent, title: string, key: "dateOfInjury" | "dueDate" | "subjectDob", value: string | null | undefined) => {
+    if (!canEdit || !kase) return;
+    open(event, {
+      title,
+      editor: { kind: "date", title, value: dateKey(value) },
+      onSave: async (fields) => {
+        onChange({ [key]: fields.value || null });
+      },
+    });
+  };
+
+  const editNumber = (event: MouseEvent, title: string, key: "daysAsked" | "daysDone", value: number | null | undefined) => {
+    if (!canEdit || !kase) return;
+    open(event, {
+      title,
+      editor: { kind: "text", title, value: value == null ? "" : String(value) },
+      onSave: async (fields) => {
+        const raw = fields.value.trim();
+        if (!raw) {
+          onChange({ [key]: null });
+          return;
+        }
+        const n = Number(raw);
+        if (!Number.isInteger(n) || n < 0 || n > 999) throw new Error("Use a whole number.");
+        onChange({ [key]: n });
+      },
+    });
+  };
+
+  const editClaim = (event: MouseEvent) => {
+    if (!canEdit || !kase) return;
+    open(event, {
+      title: "Claim type",
+      editor: {
+        kind: "choice",
+        title: "Claim type",
+        value: kase.claimType ?? "",
+        emptyLabel: "Not set",
+        options: CLAIM_TYPES.map((value) => ({ value, label: CLAIM_LABELS[value] })),
+      },
+      onSave: async (fields) => {
+        onChange({ claimType: (fields.value || null) as ClaimType | null });
+      },
+    });
+  };
+
+  const editWorks = (event: MouseEvent) => {
+    if (!canEdit || !kase) return;
+    open(event, {
+      title: "Work",
+      editor: {
+        kind: "checks",
+        title: "Work on this case",
+        value: (kase.works ?? []).join(","),
+        options: CASE_WORKS.map((value) => ({ value, label: WORK_LABELS[value] })),
+      } satisfies SkyEditor,
+      onSave: async (fields) => {
+        const works = fields.value.split(",").filter((item): item is CaseWork => (CASE_WORKS as readonly string[]).includes(item));
+        const service = works.find((work) => work !== "MED");
+        onChange({ works, ...(service ? { service } : {}) });
+      },
+    });
+  };
+
+  const works = kase?.works ?? [];
+  const age = ageOf(kase?.subjectDob);
+  const hint = canEdit ? "Right-click to edit" : undefined;
 
   return (
     <section ref={rootRef} className="sky-file" aria-label="Case file">
       <div className="g id sky-file-card">
         <p className="occ">Case file</p>
-        <h2 className="sky-file-title">{title}</h2>
+        <h2 className="sky-file-title">{kase?.subjectName || "Case file"}</h2>
         <p className="client">
-          <span className={kase?.client ? "" : "sky-empty"}>{kase?.client?.company ?? "No client"}</span>
-          {kase && <span className="cap c">{SERVICE_LABELS[kase.service]}</span>}
-          {aside && <span className="cap">{aside}</span>}
+          <span className={kase?.subjectJobTitle ? "" : "sky-empty"}>{kase?.subjectJobTitle || "No work on file"}</span>
+          <span className="cap">{age == null ? "Age —" : `Age ${age}`}</span>
+        </p>
+        <p className="client kinds">
+          <span className={kase?.claimType ? "cap c" : "cap ghost"} title={hint} onContextMenu={editClaim}>
+            {claimLabel(kase?.claimType)}
+          </span>
+          {works.length === 0 ? (
+            <span className="cap ghost" title={hint} onContextMenu={editWorks}>
+              Work not set
+            </span>
+          ) : (
+            works.map((work) => (
+              <span key={work} className="cap c" title={hint} onContextMenu={editWorks}>
+                {WORK_LABELS[work]}
+              </span>
+            ))
+          )}
         </p>
 
         <div className="facts">
           <div className="fact">
-            <div className="sec">Client</div>
-            <p className={client ? "sky-file-who" : "sky-file-who sky-empty"}>{client?.company ?? "No client"}</p>
-            <Field k="Contact" v={client?.contactName} />
-            <Field k="Email" v={client?.contactEmail} />
-            <Field k="Phone" v={client?.contactPhone} />
-            <Field k="Office" v={client?.location || client?.address} />
-            <Field k="Claim" v={kase?.claimNumber} />
-            <Field k="Policy" v={kase?.policyNumber} />
+            <div className="sec">Subject</div>
+            <Line k="Phone" v={text(kase?.subjectPhone)} title={hint} onContextMenu={(event) => editText(event, "Phone", "subjectPhone", kase?.subjectPhone)} />
+            <Line k="Date of birth" v={showDate(kase?.subjectDob)} title={hint} onContextMenu={(event) => editDate(event, "Date of birth", "subjectDob", kase?.subjectDob)} />
+            <Line
+              k="Aliases"
+              v={kase?.subjectAliases?.length ? kase.subjectAliases.join(", ") : "—"}
+              title={hint}
+              onContextMenu={(event) =>
+                canEdit &&
+                kase &&
+                open(event, {
+                  title: "Aliases",
+                  editor: { kind: "text", title: "Aliases", value: (kase.subjectAliases ?? []).join(", ") },
+                  onSave: async (fields) => {
+                    onChange({ subjectAliases: fields.value.split(",").map((item) => item.trim()).filter(Boolean) });
+                  },
+                })
+              }
+            />
           </div>
-
           <div className="fact">
-            <div className="sky-file-dates">
-              <div>
-                <b>{opened?.main ?? "—"}</b>
-                <span>{opened ? `${opened.year} · Opened` : "Opened"}</span>
-              </div>
-              <div>
-                <b className={due ? "" : "sky-empty"}>{due?.main ?? "—"}</b>
-                <span>
-                  {due ? `${due.year} · Due` : "Due"}
-                  {kase?.daysAllotted ? ` · ${kase.daysAllotted} days` : ""}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="fact">
-            <div className="sec">The file</div>
-            <Field k="Injury" v={kase?.dateOfInjury ? shortDate(kase.dateOfInjury) : null} />
-            <Field k="Closed" v={kase?.dateClosed ? shortDate(kase.dateClosed) : null} />
-            <Field k="Start" v={kase?.startTime ? clock(kase.startTime) : null} />
-            <Field k="Where" v={where || null} />
-            <Field k="Value" v={money(kase?.estimatedValue ?? null)} />
-            <Field k="Priority" v={kase?.priority === "rush" ? "Rush" : kase ? "Standard" : null} />
-            {kase?.tags?.length ? <Field k="Tags" v={kase.tags.join(", ")} /> : null}
-            {kase?.description?.trim() ? <p className="sum">{kase.description.trim()}</p> : null}
+            <div className="sec">Why we are watching</div>
+            <p className="sum" title={hint} onContextMenu={(event) => editText(event, "Articulable suspicion", "suspicion", kase?.suspicion, true)}>
+              {text(kase?.suspicion)}
+            </p>
+            <Line k="Body parts" v={text(kase?.bodyParts)} title={hint} onContextMenu={(event) => editText(event, "Body parts", "bodyParts", kase?.bodyParts)} />
+            <Line k="Restrictions" v={text(kase?.restrictions)} title={hint} onContextMenu={(event) => editText(event, "Restrictions", "restrictions", kase?.restrictions, true)} />
+            <Line k="Required dates" v={text(kase?.requiredDates)} title={hint} onContextMenu={(event) => editText(event, "Required dates", "requiredDates", kase?.requiredDates)} />
           </div>
         </div>
       </div>
@@ -182,65 +227,91 @@ export default function SkyCaseFile({ kase, leaving }: { kase: CaseDetail | null
       <div className="sky-file-mid">
         <div className="sky-file-gap" />
         <div className="g sky-file-bottom">
-          <div className="sec">On this case</div>
-          {assignments.length === 0 && people.length === 0 ? (
-            <p className="sum sky-empty">No one assigned yet.</p>
-          ) : (
-            <>
-              {assignments.map((person) => (
-                <div className="pl" key={person.id}>
-                  <span className="k">{person.user.name}</span>
-                  <span className="t">{roleOf(person.role)}</span>
-                  <span className="a">{shortDate(person.assignedAt)}</span>
-                </div>
-              ))}
-              {people.map((person) => (
-                <div className="pl" key={person.id}>
-                  <span className="k">{person.name}</span>
-                  <span className="t">{roleOf(person.relationship)}</span>
-                  {person.phone && <span className="a">{person.phone}</span>}
-                </div>
-              ))}
-            </>
+          <div className="sec">Insurance</div>
+          <p className="sky-file-who">{kase?.client?.company || "No carrier"}</p>
+          <button
+            type="button"
+            className="sky-file-person"
+            title={hint}
+            onClick={() => setOpenCard(openCard === "adjuster" ? null : "adjuster")}
+            onContextMenu={(event) => editText(event, "Adjuster", "adjusterName", kase?.adjusterName)}
+          >
+            {kase?.adjusterName || "No adjuster"}
+          </button>
+          <Line k="Email" v={text(kase?.adjusterEmail)} title={hint} onContextMenu={(event) => editText(event, "Adjuster email", "adjusterEmail", kase?.adjusterEmail)} />
+          {(openCard === "adjuster" || kase?.adjusterPhone) && (
+            <Line k="Phone" v={text(kase?.adjusterPhone)} title={hint} onContextMenu={(event) => editText(event, "Adjuster phone", "adjusterPhone", kase?.adjusterPhone)} />
           )}
-          <div className="sec" style={{ marginTop: 16 }}>
-            Files
-          </div>
-          {files.length === 0 ? (
-            <p className="sum sky-empty">No documents yet.</p>
-          ) : (
-            files.map((file) => (
-              <div className="pl" key={file.id}>
-                <span className="k">{file.filename}</span>
-                <span className="t">{fileSize(file.sizeBytes)}</span>
-              </div>
-            ))
-          )}
+          <Line k="Claim" v={text(kase?.claimNumber)} title={hint} onContextMenu={(event) => editText(event, "Claim number", "claimNumber", kase?.claimNumber)} />
+          <Line k="Injury" v={showDate(kase?.dateOfInjury)} title={hint} onContextMenu={(event) => editDate(event, "Date of injury", "dateOfInjury", kase?.dateOfInjury)} />
+          <Line k="Due" v={showDate(kase?.dueDate)} title={hint} onContextMenu={(event) => editDate(event, "Due date", "dueDate", kase?.dueDate)} />
+          <Line k="Days asked" v={kase?.daysAsked == null ? "—" : String(kase.daysAsked)} title={hint} onContextMenu={(event) => editNumber(event, "Days asked", "daysAsked", kase?.daysAsked)} />
+          <Line k="Days done" v={kase?.daysDone == null ? "—" : String(kase.daysDone)} title={hint} onContextMenu={(event) => editNumber(event, "Days done", "daysDone", kase?.daysDone)} />
         </div>
       </div>
 
       <div className="sky-file-rail">
         <div className="g idl">
-          <div className="sec">Adjuster</div>
-          <p className={kase?.adjusterName ? "sky-file-who" : "sky-file-who sky-empty"}>
-            {kase?.adjusterName || "No adjuster on file"}
-          </p>
-          <Field k="Email" v={kase?.adjusterEmail} />
-          <Field k="Phone" v={kase?.adjusterPhone} />
+          <div className="sec">Defense firm</div>
+          <button
+            type="button"
+            className="sky-file-person"
+            title={hint}
+            onClick={() => setOpenCard(openCard === "attorney" ? null : "attorney")}
+            onContextMenu={(event) => editText(event, "Attorney", "defenseAttorneyName", kase?.defenseAttorneyName)}
+          >
+            {kase?.defenseAttorneyName || "No attorney"}
+          </button>
+          <Line k="Firm" v={text(kase?.defenseFirm)} title={hint} onContextMenu={(event) => editText(event, "Law firm", "defenseFirm", kase?.defenseFirm)} />
+          <Line k="Phone" v={text(kase?.defensePhone)} title={hint} onContextMenu={(event) => editText(event, "Attorney phone", "defensePhone", kase?.defensePhone)} />
+          {openCard === "attorney" && (
+            <>
+              <Line k="Address" v={text(kase?.defenseAddress)} title={hint} onContextMenu={(event) => editText(event, "Attorney address", "defenseAddress", kase?.defenseAddress, true)} />
+              <Line k="Email" v={text(kase?.defenseEmail)} title={hint} onContextMenu={(event) => editText(event, "Attorney email", "defenseEmail", kase?.defenseEmail)} />
+              <Line k="Court case" v={text(kase?.courtCaseNumber)} title={hint} onContextMenu={(event) => editText(event, "Court case number", "courtCaseNumber", kase?.courtCaseNumber)} />
+            </>
+          )}
         </div>
-
         <div className="g idl">
-          <div className="sec">Status</div>
-          <p className="sky-file-status" style={{ color: status.color }}>
-            {status.label}
+          <div className="sec">Employer</div>
+          <p className="sky-file-who" title={hint} onContextMenu={(event) => editText(event, "Employer", "subjectEmployer", kase?.subjectEmployer)}>
+            {kase?.subjectEmployer || "No employer"}
           </p>
-          <Field k="Case" v={kase?.caseNumber} />
-          <Field k="Round" v={kase?.reopened ? "Reopened" : null} />
-          <Field k="Employer" v={kase?.subjectEmployer} />
-          <Field k="Work" v={kase?.subjectWorkStatus} />
-          <Field k="Language" v={kase?.subjectLanguage} />
+          <Line k="Contact" v={text(kase?.employerContactName)} title={hint} onContextMenu={(event) => editText(event, "Employer contact", "employerContactName", kase?.employerContactName)} />
+          <Line k="Phone" v={text(kase?.employerPhone)} title={hint} onContextMenu={(event) => editText(event, "Employer phone", "employerPhone", kase?.employerPhone)} />
+          <Line k="Email" v={text(kase?.employerEmail)} title={hint} onContextMenu={(event) => editText(event, "Employer email", "employerEmail", kase?.employerEmail)} />
         </div>
       </div>
+      <SkyFieldPop
+        pop={fieldPop.pop}
+        busy={fieldPop.busy}
+        fault={fieldPop.fault}
+        onEdit={fieldPop.toEdit}
+        onNew={fieldPop.toNew}
+        onPick={fieldPop.pick}
+        onClear={fieldPop.clear}
+        onCommit={fieldPop.commit}
+        onClose={fieldPop.close}
+      />
     </section>
+  );
+}
+
+function Line({
+  k,
+  v,
+  title,
+  onContextMenu,
+}: {
+  k: string;
+  v: string;
+  title?: string;
+  onContextMenu?: (event: MouseEvent) => void;
+}) {
+  return (
+    <div className="pl" title={title} onContextMenu={onContextMenu}>
+      <span className="k">{k}</span>
+      <span className={v === "—" ? "t sky-empty" : "t"}>{v}</span>
+    </div>
   );
 }

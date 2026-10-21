@@ -20,6 +20,7 @@ import {
   type StakeoutPosition,
 } from "@/lib/crm-api";
 import { SERVICE_LABELS } from "@/lib/mock-data";
+import { CASE_WORKS, CLAIM_LABELS, CLAIM_TYPES, WORK_LABELS, claimLabel, type CaseWork, type ClaimType } from "@/lib/case-kind";
 import { ageFromDob, calendarDateKey } from "@/lib/dates";
 import { useQuery } from "@/lib/query-cache";
 import { SkyFieldPop, useSkyFieldPop, type SkyEditor, type SkyFieldRequest, type SkyFields, type SkyMenuAction } from "@/components/cases/SkyFieldMenu";
@@ -44,6 +45,8 @@ type SkyFieldId =
   | "area"
   | "client"
   | "service"
+  | "claim"
+  | "works"
   | "eat"
   | "transport"
   | "vehicle"
@@ -53,7 +56,7 @@ type SkyFieldId =
   | "due"
   | "summary";
 
-const CASE_FIELDS = new Set<SkyFieldId>(["name", "age", "work", "address", "client", "service", "due"]);
+const CASE_FIELDS = new Set<SkyFieldId>(["name", "age", "work", "address", "client", "service", "claim", "works", "due"]);
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -1131,13 +1134,17 @@ export default function SkyViewPage() {
 
   const persist = (patch: (current: CaseDetail) => CaseDetail, work: () => Promise<unknown>) => {
     const snapshot = query.data;
+    const detailSnapshot = detailQuery.data;
     if (snapshot) query.mutate({ case: patch(snapshot.case) });
+    if (detailSnapshot) detailQuery.mutate({ case: patch(detailSnapshot.case) });
     void (async () => {
       try {
         await work();
         void query.refresh();
+        if (detailSnapshot) void detailQuery.refresh();
       } catch (err) {
         if (snapshot) query.mutate(snapshot);
+        if (detailSnapshot) detailQuery.mutate(detailSnapshot);
         setError(err instanceof Error ? err.message : "Could not save that.");
       }
     })();
@@ -1341,6 +1348,39 @@ export default function SkyViewPage() {
         onSave: async (fields) => {
           const service = fields.value as typeof kase.service;
           persist((current) => ({ ...current, service }), () => casesApi.update(kase.id, { service }));
+        },
+      };
+    } else if (id === "claim") {
+      request = {
+        title: "Claim type",
+        editor: {
+          kind: "choice",
+          title: "Claim type",
+          value: kase.claimType ?? "",
+          emptyLabel: "Not set",
+          options: CLAIM_TYPES.map((value) => ({ value, label: CLAIM_LABELS[value] })),
+        },
+        onSave: async (fields) => {
+          const claimType = (fields.value || null) as ClaimType | null;
+          persist((current) => ({ ...current, claimType }), () => casesApi.update(kase.id, { claimType }));
+        },
+      };
+    } else if (id === "works") {
+      request = {
+        title: "Work",
+        editor: {
+          kind: "checks",
+          title: "Work on this case",
+          value: (kase.works ?? []).join(","),
+          options: CASE_WORKS.map((value) => ({ value, label: WORK_LABELS[value] })),
+        },
+        onSave: async (fields) => {
+          const works = fields.value.split(",").filter((item): item is CaseWork => (CASE_WORKS as readonly string[]).includes(item));
+          const service = works.find((work) => work !== "MED");
+          persist(
+            (current) => ({ ...current, works, ...(service ? { service } : {}) }),
+            () => casesApi.update(kase.id, { works, ...(service ? { service } : {}) }),
+          );
         },
       };
     } else if (id === "eat") {
@@ -1656,18 +1696,40 @@ export default function SkyViewPage() {
             </p>
             <p className="client">
               <span
-                className={editClass("client", kase.client ? "" : "sky-empty")}
+                className={editClass("client", kase.client ? "client-name" : "client-name sky-empty")}
                 title={editable("client") ? "Right-click to edit" : undefined}
                 onContextMenu={(event) => openField(event, "client")}
               >
                 {kase.client?.company ?? "No client"}
               </span>
-              <span
-                className={editClass("service", "cap c")}
-                title={editable("service") ? "Right-click to edit" : undefined}
-                onContextMenu={(event) => openField(event, "service")}
-              >
-                {SERVICE_LABELS[kase.service]}
+              <span className="kinds">
+                <span
+                  className={editClass("claim", kase.claimType ? "cap c" : "cap ghost")}
+                  title={editable("claim") ? "Right-click to edit" : undefined}
+                  onContextMenu={(event) => openField(event, "claim")}
+                >
+                  {claimLabel(kase.claimType)}
+                </span>
+                {(kase.works ?? []).length === 0 ? (
+                  <span
+                    className={editClass("works", "cap ghost")}
+                    title={editable("works") ? "Right-click to edit" : undefined}
+                    onContextMenu={(event) => openField(event, "works")}
+                  >
+                    {SERVICE_LABELS[kase.service]}
+                  </span>
+                ) : (
+                  (kase.works ?? []).map((work) => (
+                    <span
+                      key={work}
+                      className={editClass("works", "cap c")}
+                      title={editable("works") ? "Right-click to edit" : undefined}
+                      onContextMenu={(event) => openField(event, "works")}
+                    >
+                      {WORK_LABELS[work]}
+                    </span>
+                  ))
+                )}
               </span>
             </p>
 
@@ -1889,7 +1951,20 @@ export default function SkyViewPage() {
           </div>
 
         </div>
-        {boardShown && <SkyCaseFile kase={detailQuery.data?.case ?? kase} leaving={fileLeaving} />}
+        {boardShown && (
+          <SkyCaseFile
+            kase={detailQuery.data?.case ?? kase}
+            leaving={fileLeaving}
+            canEdit={can("cases.edit")}
+            onChange={(patch) => {
+              const current = detailQuery.data?.case ?? kase;
+              persist(
+                (row) => ({ ...row, ...patch }),
+                () => casesApi.update(current.id, patch),
+              );
+            }}
+          />
+        )}
         {osintShown && (
           <SkyOsintFile caseId={kase.id} subjectName={kase.subjectName} leaving={osintLeaving} />
         )}
@@ -1918,6 +1993,7 @@ export default function SkyViewPage() {
           claimNumber={kase.claimNumber}
           caseNumber={kase.caseNumber}
           service={kase.service}
+          claimType={kase.claimType ?? null}
           state={(kase.addresses.find((address) => address.isPrimary) ?? kase.addresses[0])?.state || kase.state}
           signerName={user?.name || "Investigator"}
           canManage={can("cases.edit")}

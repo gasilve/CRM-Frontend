@@ -1,3 +1,14 @@
+.ex-feed {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--edge);
+  border-radius: 16px;
+  background: var(--glass);
+  color: var(--ink2);
+  font-size: 14px;
+  line-height: 1.45;
+}
 .ex-stage {
   --ink: #f4f6fb;
   --ink2: rgba(244, 246, 251, 0.72);
@@ -14,6 +25,7 @@
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 16px;
   color: var(--ink);
   font-family: Inter, -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;

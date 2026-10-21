@@ -11,6 +11,7 @@ import {
   type SavedClip,
 } from "@/components/cases/video-library";
 import { videoApi, type RemoteVideoBatch } from "@/lib/crm-api";
+import type { ClaimType } from "@/lib/case-kind";
 import { caseTypeLabel, dayKeyOf } from "@/components/cases/video-upload/checks";
 import { batchSends, buildLedger, narrowToClips, type DayRow, type FieldDay } from "@/components/cases/video-upload/ledger";
 import { useSealJobs } from "@/components/cases/video-upload/sealing";
@@ -39,6 +40,7 @@ export function VideoUploadModal({
   claimNumber,
   caseNumber,
   service,
+  claimType,
   state,
   signerName,
   canManage,
@@ -51,6 +53,8 @@ export function VideoUploadModal({
   claimNumber: string | null;
   caseNumber: string;
   service: CaseService;
+  /** Workers' comp or liability. Decides the title page and trailer. */
+  claimType: ClaimType | null;
   state: string | null;
   signerName: string;
   /** Office: send to the client and move originals to cold storage. */
@@ -88,6 +92,39 @@ export function VideoUploadModal({
   useEffect(() => {
     void reload();
   }, [reload, jobs.length]);
+
+  // While copies are being made, look again every 20 seconds.
+  const processingOpen = (batches ?? []).some((batch) =>
+    batch.clips.some((clip) => {
+      const jobs = [clip.processing, clip.highlights];
+      return jobs.some((job) => job && ["queued", "running", "waiting"].includes(job.status));
+    }),
+  );
+  useEffect(() => {
+    if (!processingOpen) return;
+    const timer = window.setInterval(() => void reload(), 20_000);
+    return () => window.clearInterval(timer);
+  }, [processingOpen, reload]);
+
+  const retryProcessing = async (clipId: string) => {
+    try {
+      await videoApi.retryProcessing(clipId);
+      setError(null);
+    } catch {
+      setError("Could not send that clip through again.");
+    }
+    await reload();
+  };
+
+  const retryHighlights = async (clipId: string) => {
+    try {
+      await videoApi.retryHighlights(clipId);
+      setError(null);
+    } catch {
+      setError("Could not send highlights through again.");
+    }
+    await reload();
+  };
 
   useEffect(() => {
     void clearDraft(key).catch(() => {});
@@ -228,7 +265,7 @@ export function VideoUploadModal({
             <p className="vu-claim">
               {claimNumber ? `Claim ${claimNumber}` : caseNumber}
               <span className="vu-chip">
-                {caseTypeLabel(service)}
+                {caseTypeLabel(claimType)}
                 {state ? ` · ${state}` : ""}
               </span>
             </p>
@@ -289,6 +326,8 @@ export function VideoUploadModal({
             onCertificate={(row) => setOverlay({ kind: "certificate", day: row.day })}
             onLeaveOut={setLeftOut}
             onFlag={setFlag}
+            onRetryProcessing={(clipId) => void retryProcessing(clipId)}
+            onRetryHighlights={(clipId) => void retryHighlights(clipId)}
             headerSlot={headerSlot}
           />
         )}
@@ -331,7 +370,7 @@ export function VideoUploadModal({
         )}
 
         {overlay?.kind === "send" && overlayRows.length > 0 && (
-          <SendPanel rows={overlayRows} recipients={recipients} service={service} state={state} onClose={() => setOverlay(null)} onSend={(to, note) => sendClips(overlay.clipIds, to, note)} />
+          <SendPanel rows={overlayRows} recipients={recipients} claimType={claimType} state={state} onClose={() => setOverlay(null)} onSend={(to, note) => sendClips(overlay.clipIds, to, note)} />
         )}
         {overlay?.kind === "cold" && overlayRows.length > 0 && <ColdPanel rows={overlayRows} onClose={() => setOverlay(null)} onConfirm={() => coldClips(overlay.clipIds)} />}
         {overlay?.kind === "certificate" && rowOf(overlay.day) && <CertificatePanel row={rowOf(overlay.day)!} onClose={() => setOverlay(null)} />}
@@ -377,6 +416,8 @@ function asSaved(batch: RemoteVideoBatch): SavedBatch {
       inClientVideo: clip.inClientVideo,
       leftOutReason: clip.leftOutReason,
       coldAt: clip.coldAt,
+      processing: clip.processing ?? null,
+      highlights: clip.highlights ?? null,
     })),
   };
 }

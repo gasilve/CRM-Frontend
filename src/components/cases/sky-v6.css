@@ -243,13 +243,15 @@ html[data-glass] .surveil-shell .sky-v6 :where(h1, h2, h3, p, span, a, button, l
 .sky-v6 .client {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   column-gap: 8px;
-  row-gap: 6px;
+  row-gap: 8px;
   margin-top: 10px;
   font-size: 16px;
   color: var(--ink2);
 }
+.sky-v6 .client-name { flex: 1 0 100%; }
+.sky-v6 .kinds { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .sky-v6 .addr .cap,
 .sky-v6 .client .cap { margin-left: 0; }
 .sky-v6 .cap {
@@ -419,6 +421,21 @@ html[data-glass] .surveil-shell .sky-v6 :where(h1, h2, h3, p, span, a, button, l
   color: var(--ink3);
 }
 .sky-v6 .sky-file .sum { margin: 10px 0 0; font-size: 15px; line-height: 1.45; color: var(--ink2); }
+.sky-v6 .sky-file-person {
+  display: block;
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+}
 .sky-v6 .sky-file-who {
   margin: 0 0 8px;
   font-size: 22px;
@@ -1614,7 +1631,7 @@ body.sky-gesturing { user-select: none; cursor: var(--sky-cursor, grabbing); }
   .sky-v6 .page > .center,
   .sky-v6 .sky-card { transition: none; animation: none !important; }
 }
-.sky-v6 .wheel { width: 100%; max-width: 380px; position: relative; z-index: 3; margin-top: 8px; margin-bottom: 8px; }
+.sky-v6 .wheel { width: 100%; max-width: 380px; position: relative; z-index: 3; margin-top: 8px; margin-bottom: 28px; }
 .sky-v6 .wheel svg {
   width: 100%;
   height: auto;

@@ -8,8 +8,7 @@ const BAND_MID = 194;
 const BAND_MID_HOVER = 201;
 
 export const SKY_NAV = [
-  { label: "Case", title: "Case details", color: "#3ee08a", details: true },
-  { label: "Investigator view", title: "Investigator view", color: "#ffc857", path: (id: string) => `/cases/${id}/work` },
+  { label: "Details", title: "Details", color: "#3ee08a", details: true },
   { label: "Video", title: "Video upload", color: "#b18cff", video: true },
   { label: "Audio Isolation", title: "Speaker isolation + transcript", color: "#22d3ee", audioIso: true },
   { label: "Medical Canvass", title: "Medical Canvass", color: "#f472b6", medical: true },

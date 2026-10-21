@@ -1,4 +1,7 @@
 import type { CaseScope, FieldAccessLevel, PeopleScope, RoleSummary, ScheduleScope } from "./auth-client";
+import type { CaseWork, ClaimType } from "./case-kind";
+
+export type { CaseWork, ClaimType };
 
 const CRM_API_URL = import.meta.env.VITE_CRM_API_URL ?? "http://localhost:3000";
 
@@ -660,6 +663,8 @@ export interface CaseListItem {
   adjusterEmail: string | null;
   adjusterPhone: string | null;
   service: CaseService;
+  claimType?: ClaimType | null;
+  works?: CaseWork[];
   tags: string[];
   status: CaseStatus;
   priority: CasePriority;
@@ -682,6 +687,7 @@ export interface CaseListItem {
   estimatedValue: number | null;
   description: string | null;
   subjectName: string;
+  subjectPhone?: string | null;
   subjectAliases: string[];
   subjectDob: string | null;
   subjectPhotoUrl: string | null;
@@ -702,6 +708,21 @@ export interface CaseDetail extends CaseListItem {
   subjectJobTitle: string | null;
   subjectEmployer: string | null;
   subjectEmployerAddress: string | null;
+  employerContactName: string | null;
+  employerPhone: string | null;
+  employerEmail: string | null;
+  defenseAttorneyName: string | null;
+  defenseFirm: string | null;
+  defenseAddress: string | null;
+  defensePhone: string | null;
+  defenseEmail: string | null;
+  courtCaseNumber: string | null;
+  bodyParts: string | null;
+  restrictions: string | null;
+  suspicion: string | null;
+  daysAsked: number | null;
+  daysDone: number | null;
+  requiredDates: string | null;
   subjectWorkStatus: string | null;
   subjectLanguage: string | null;
   subjectDescription: string | null;
@@ -827,6 +848,8 @@ export interface CreateCasePayload {
   adjusterEmail?: string;
   adjusterPhone?: string;
   service: CaseService;
+  claimType?: ClaimType | null;
+  works?: CaseWork[];
   tags?: string[];
   priority?: CasePriority;
   region?: Region | null;
@@ -840,6 +863,7 @@ export interface CreateCasePayload {
   estimatedValue?: number | null;
   description?: string;
   subjectName: string;
+  subjectPhone?: string | null;
   subjectAliases?: string[];
   subjectDob?: string;
   subjectSsn?: string;
@@ -847,6 +871,21 @@ export interface CreateCasePayload {
   subjectJobTitle?: string;
   subjectEmployer?: string;
   subjectEmployerAddress?: string;
+  employerContactName?: string | null;
+  employerPhone?: string | null;
+  employerEmail?: string | null;
+  defenseAttorneyName?: string | null;
+  defenseFirm?: string | null;
+  defenseAddress?: string | null;
+  defensePhone?: string | null;
+  defenseEmail?: string | null;
+  courtCaseNumber?: string | null;
+  bodyParts?: string | null;
+  restrictions?: string | null;
+  suspicion?: string | null;
+  daysAsked?: number | null;
+  daysDone?: number | null;
+  requiredDates?: string | null;
   subjectWorkStatus?: string;
   subjectLanguage?: string;
   subjectDescription?: string;
@@ -860,6 +899,7 @@ export type UpdateCasePayload = Omit<Partial<CreateCasePayload>, "subjectDob" | 
   subjectPhotoUrl?: string | null;
   subjectDob?: string | null;
   dueDate?: string | null;
+  dateOfInjury?: string | null;
 };
 
 export interface AddDayEntryPayload {
@@ -2193,6 +2233,33 @@ export interface RemoteVideoClip {
   status: string;
   location: string;
   error: string | null;
+  /** The viewing copy (clock, title page, trailer). Null when processing is not set up. */
+  processing?: VideoProcessing | null;
+  /** Activity reel. Null when highlights have not been asked for. */
+  highlights?: VideoProcessing | null;
+}
+
+export interface VideoProcessing {
+  status: "waiting" | "queued" | "running" | "done" | "failed";
+  /** "claim_type" while the case has no claim type. */
+  waitingFor: string | null;
+  /** The processing computer was off or busy at the last try; it will be tried again. */
+  offline: boolean;
+  error: string | null;
+  /** Nothing needed changing, so the original is the viewing copy. */
+  unchanged: boolean;
+  hasCopy: boolean;
+  steps: {
+    stamp?: boolean;
+    color?: boolean;
+    trailer?: string | null;
+    trailer_match?: string | null;
+    encoder?: string | null;
+    windows?: number;
+    moments?: number;
+  } | null;
+  outputSha256: string | null;
+  finishedAt: string | null;
 }
 
 export interface RemoteVideoBatch {
@@ -2230,7 +2297,10 @@ export const videoApi = {
       clips?: { id: string; inClientVideo: boolean; leftOutReason: RemoteVideoClip["leftOutReason"] }[];
     },
   ) => request<{ batch: RemoteVideoBatch }>(`/video/batches/${batchId}`, { method: "PATCH", body: JSON.stringify(body) }),
-  startClip: (batchId: string, body: { filename: string; contentType?: string; sizeBytes: number; number?: number | null }) =>
+  startClip: (
+    batchId: string,
+    body: { filename: string; contentType?: string; sizeBytes: number; number?: number | null; seconds?: number | null; recordedAt?: string | null },
+  ) =>
     request<{ clip: RemoteVideoClip; upload: VideoUploadTarget }>(`/video/batches/${batchId}/clips`, {
       method: "POST",
       body: JSON.stringify(body),
@@ -2241,8 +2311,12 @@ export const videoApi = {
       body: JSON.stringify(parts ? { parts } : {}),
     }),
   deleteClip: (clipId: string) => request<{ ok: boolean }>(`/video/clips/${clipId}`, { method: "DELETE" }),
-  download: (clipId: string, disposition: "inline" | "attachment" = "inline") =>
-    request<{ url: string }>(`/video/clips/${clipId}/download`, { method: "POST", body: JSON.stringify({ disposition }) }),
+  download: (clipId: string, disposition: "inline" | "attachment" = "inline", copy: "original" | "processed" | "highlights" = "original") =>
+    request<{ url: string }>(`/video/clips/${clipId}/download`, { method: "POST", body: JSON.stringify({ disposition, copy }) }),
+  retryProcessing: (clipId: string) =>
+    request<{ batch: RemoteVideoBatch }>(`/video/clips/${clipId}/process`, { method: "POST", body: "{}" }),
+  retryHighlights: (clipId: string) =>
+    request<{ batch: RemoteVideoBatch }>(`/video/clips/${clipId}/highlights`, { method: "POST", body: "{}" }),
   certify: (batchId: string, body: Record<string, unknown>) =>
     request<{ batch: RemoteVideoBatch }>(`/video/batches/${batchId}/certify`, { method: "POST", body: JSON.stringify(body) }),
   moveCold: (caseId: string, clipIds: string[]) =>
@@ -2268,11 +2342,15 @@ export type StorageListing = {
 
 export type StorageOpen = { url: string; name: string; contentType: string; key: string };
 
+export type StagingCase = { id: string; name: string; caseNumber: string; days: string[]; folders: number };
+export type StagingSummary = { folders: number; cases: StagingCase[] };
+
 export const storageApi = {
   list: (bucket: StorageBucketId, prefix = "") =>
     request<StorageListing>(`/storage${toQuery({ bucket, prefix })}`),
   open: (bucket: StorageBucketId, key: string) =>
     request<StorageOpen>(`/storage/play${toQuery({ bucket, key })}`),
+  staging: () => request<StagingSummary>("/storage/staging"),
 };
 
 /** PUT the file straight to Wasabi. crm-api never sees the bytes. */
