@@ -414,8 +414,8 @@ export default function SkyOsintFile({
 
           <div className="g idl">
             <div className="sec">WhatsApp</div>
-            <p className="sky-file-who" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <MessageCircle size={18} strokeWidth={1.8} style={{ opacity: 0.7 }} />
+            <p className={`sky-file-who sky-osint-wa sky-osint-wa--${wa.status}`}>
+              <MessageCircle size={18} strokeWidth={1.8} />
               {wa.status === "found" ? "Found" : wa.status === "not_found" ? "Not found" : "Unchecked"}
             </p>
             {wa.phone && (

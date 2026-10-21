@@ -63,7 +63,7 @@ function FacilityCard({
 }) {
   const tel = telHref(f.phone);
   return (
-    <article className="sky-medical-fac">
+    <article className={`sky-medical-fac sky-medical-fac--${f.status}`}>
       <header className="sky-medical-fac__head">
         <div>
           <b>{f.name}</b>
@@ -89,23 +89,26 @@ function FacilityCard({
         <button type="button" onClick={onNotes}>
           {f.note ? "Edit notes" : "Add notes"}
         </button>
-        {(
-          [
-            ["pending", "Pending"],
-            ["with_record", "Record"],
-            ["chart_only", "Chart"],
-            ["no_record", "None"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            className={f.status === id ? "on" : ""}
-            onClick={() => onStatus(id)}
-          >
-            {label}
-          </button>
-        ))}
+        <div className="sky-medical-seg" role="group" aria-label="Call result">
+          {(
+            [
+              ["pending", "Pending"],
+              ["with_record", "Record"],
+              ["chart_only", "Chart"],
+              ["no_record", "None"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={f.status === id ? "on" : ""}
+              aria-pressed={f.status === id}
+              onClick={() => onStatus(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
     </article>
   );
@@ -462,7 +465,7 @@ export default function SkyMedicalFile({
               {searchMsg && <p className="sum sky-medical-searchmsg">{searchMsg}</p>}
             </div>
 
-            <div className="fact">
+            <div className="fact sky-medical-counts">
               <div className="sec">Counts (filtered)</div>
               <div className="pl">
                 <span className="k">Shown</span>

@@ -438,91 +438,148 @@ html[data-glass] .surveil-shell .sky-v6 :where(h1, h2, h3, p, span, a, button, l
 .sky-v6 .sky-file-row { grid-template-columns: 108px minmax(0, 1fr) auto; }
 .sky-v6 .sky-file-row .i b { font-weight: 500; }
 
-/* OSINT board — denser than Case file so a typical viewport needs no scroll. */
+/* OSINT + Medical Canvass boards. Same grid, padding, and type ladder as the
+   Case file so the columns land where Skyview's do; a little denser inside the
+   cards so a typical viewport needs no scroll. Each board takes its ring colour
+   as --accent (OSINT blue, Medical pink). */
 .sky-v6 .sky-osint {
   --low: #9aa5b8;
   --possible: #ffc857;
   --probable: #ff9f45;
   --confirmed: #3ee08a;
-  gap: 20px;
-  padding: 28px 36px 18px;
+  --accent: #38bdf8;
+  --accent-ink: #7dd3fc;
+  --well: rgba(255, 255, 255, 0.045);
+  --well-edge: rgba(255, 255, 255, 0.1);
+  --field: rgba(6, 9, 18, 0.38);
 }
-.sky-v6 .sky-osint .sky-file-card {
-  overflow: auto;
+.sky-v6 .sky-osint.sky-medical {
+  --accent: #f472b6;
+  --accent-ink: #f9a8d4;
 }
-.sky-v6 .sky-osint .sky-file-rail {
-  overflow: hidden;
+
+/* Left card: identity header, then facts. The last fact (notes) takes up the
+   rest of the card instead of leaving a dead band at the bottom. */
+.sky-v6 .sky-osint .id {
+  display: flex;
+  flex-direction: column;
+  padding: 30px 30px 26px;
 }
-.sky-v6 .sky-osint .facts {
-  margin-top: 10px;
+.sky-v6 .sky-osint .occ {
+  margin: 0;
+  display: flex;
+  align-items: center;
   gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--accent-ink);
 }
-.sky-v6 .sky-osint .sky-file-bottom {
-  min-height: 160px;
-  padding: 12px 16px 12px;
-  overflow: auto;
-}
-.sky-v6 .sky-osint .sky-file-rail {
-  gap: 12px;
+.sky-v6 .sky-osint .occ::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
 }
 .sky-v6 .sky-osint .sky-file-title {
-  margin: 2px 0 0;
-  font-size: 34px;
-  letter-spacing: -1.1px;
+  margin: 10px 0 0;
+  font-size: 38px;
+  letter-spacing: -1.3px;
 }
-.sky-v6 .sky-osint .id {
-  padding: 20px 22px;
+.sky-v6 .sky-osint .client { margin: 10px 0 0; font-size: 15px; }
+.sky-v6 .sky-osint .facts {
+  flex: 1 0 auto;
+  margin-top: 18px;
+  gap: 12px;
 }
-.sky-v6 .sky-osint .idl {
+.sky-v6 .sky-osint .fact {
   padding: 14px 16px;
-  font-size: 13px;
+  border-radius: 18px;
+  font-size: 13.5px;
 }
-.sky-v6 .sky-osint .client { margin: 4px 0 0; }
 .sky-v6 .sky-osint .sky-osint-load-msg {
   margin: 6px 0 0;
   font-size: 11px;
   line-height: 1.35;
   color: var(--possible, #ffc857);
 }
-.sky-v6 .sky-osint .fact { padding: 10px 12px; }
-.sky-v6 .sky-osint .sec { margin-bottom: 4px; font-size: 10px; }
-.sky-v6 .sky-osint .sky-file-who {
-  margin: 0 0 4px;
-  font-size: 17px;
+.sky-v6 .sky-osint .fact:last-child {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
 }
-.sky-v6 .sky-osint .sum {
-  margin: 6px 0 0;
+.sky-v6 .sky-osint .fact:last-child .sky-osint-notes {
+  flex: 1 0 auto;
+  max-height: none;
+  min-height: 64px;
+}
+
+.sky-v6 .sky-osint .sec {
+  margin-bottom: 8px;
   font-size: 12px;
-  line-height: 1.35;
+  font-weight: 500;
+  color: var(--ink3);
+}
+.sky-v6 .sky-osint .sum,
+.sky-v6 .sky-osint .idl .sum {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink3);
+}
+.sky-v6 .sky-osint .idl .sec + .sum { margin-top: 0; }
+.sky-v6 .sky-osint .sum.sky-empty {
+  margin: 0;
+  padding: 18px 12px;
+  border-radius: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  text-align: center;
+  color: var(--ink3);
 }
 .sky-v6 .sky-osint .pl {
-  padding: 6px 0;
-  font-size: 12px;
+  padding: 9px 0;
+  font-size: 13.5px;
 }
-.sky-v6 .sky-osint-top {
-  display: grid;
-  grid-template-columns: 52px 1fr;
-  gap: 10px;
-  align-items: start;
-  margin-top: 2px;
+.sky-v6 .sky-osint .pl .t { font-size: 13px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.sky-v6 .sky-osint .pl .t a,
+.sky-v6 .sky-osint .osint-record__engine a,
+.sky-v6 .sky-osint .osint-sherlock a {
+  color: var(--accent-ink);
+  font-weight: 500;
+  text-decoration: none;
 }
-.sky-v6 .sky-osint .osint-top__photo {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  object-fit: cover;
+.sky-v6 .sky-osint .pl .t a:hover,
+.sky-v6 .sky-osint .osint-record__engine a:hover,
+.sky-v6 .sky-osint .osint-sherlock a:hover { text-decoration: underline; }
+.sky-v6 .sky-osint .sky-file-who {
+  margin: 0 0 6px;
+  font-size: 20px;
 }
-.sky-v6 .sky-osint .osint-top__handle a { font-size: 15px; }
-.sky-v6 .sky-osint .osint-top__platform { margin: 2px 0 0; font-size: 12px; }
-.sky-v6 .sky-osint .osint-score-row { margin-top: 6px; gap: 8px; }
-.sky-v6 .sky-osint .osint-signals { margin-top: 8px; gap: 4px; }
-.sky-v6 .sky-osint .osint-chip { font-size: 10px; padding: 2px 6px; }
-.sky-v6 .sky-osint .osint-sherlock { margin-top: 8px; gap: 6px; }
-.sky-v6 .sky-osint .osint-rest { margin-top: 6px; gap: 6px; }
-.sky-v6 .sky-osint .osint-row { padding: 7px 9px; gap: 8px; border-radius: 12px; }
-.sky-v6 .sky-osint .osint-records { margin-top: 4px; gap: 6px; }
-.sky-v6 .sky-osint .osint-record { padding: 8px 10px; border-radius: 12px; }
-.sky-v6 .sky-osint .osint-record p { font-size: 12px; }
+
+/* Middle and rail */
+.sky-v6 .sky-osint .sky-file-bottom {
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  padding: 16px 18px;
+}
+/* The rail never scrolls: its cards keep their size and, on Medical, the map
+   takes whatever height is left. */
+.sky-v6 .sky-osint .sky-file-rail { gap: 16px; overflow: hidden; }
+.sky-v6 .sky-osint .sky-file-rail > .idl { flex: none; }
+.sky-v6 .sky-osint .idl {
+  padding: 16px 18px 18px;
+  font-size: 13.5px;
+}
+.sky-v6 .sky-osint .sky-file-card,
+.sky-v6 .sky-osint .sky-file-bottom,
+.sky-v6 .sky-osint .sky-file-rail {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
 .sky-v6 .sky-osint .osint-row,
 .sky-v6 .sky-osint .osint-record,
 .sky-v6 .sky-osint .sky-osint-linkbtn,
@@ -532,15 +589,22 @@ html[data-glass] .surveil-shell .sky-v6 :where(h1, h2, h3, p, span, a, button, l
   pointer-events: auto;
 }
 
+/* Shared focus ring for every control on both boards. */
+.sky-v6 .sky-osint :is(button, a, input, textarea):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
+}
+
+/* Pipeline */
 .sky-v6 .sky-osint-steps {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 2px 8px;
-  margin: 10px 0 0;
-  padding: 8px 10px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 2px 10px;
+  margin: 18px 0 0;
+  padding: 8px;
+  border-radius: 16px;
+  background: var(--well);
+  border: 1px solid var(--well-edge);
 }
 .sky-v6 .sky-osint-step {
   appearance: none;
@@ -548,412 +612,790 @@ html[data-glass] .surveil-shell .sky-v6 :where(h1, h2, h3, p, span, a, button, l
   background: transparent;
   width: 100%;
   margin: 0;
-  padding: 4px 2px;
-  border-radius: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
   display: grid;
-  grid-template-columns: 6px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: 8px minmax(0, 1fr);
+  gap: 9px;
   align-items: center;
-  font-size: 11px;
+  font-size: 12.5px;
   font-family: inherit;
   text-align: left;
   color: inherit;
   cursor: pointer;
   pointer-events: auto;
+  transition: background 140ms ease;
 }
-.sky-v6 .sky-osint-step:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-.sky-v6 .sky-osint-step:focus-visible {
-  outline: 1px solid color-mix(in srgb, var(--seg, #38bdf8) 55%, transparent);
-  outline-offset: 1px;
-}
+.sky-v6 .sky-osint-step:hover { background: rgba(255, 255, 255, 0.07); }
 .sky-v6 .sky-osint-step > i {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
 }
+.sky-v6 .sky-osint-step--done > i { box-shadow: 0 0 8px rgba(62, 224, 138, 0.55); }
+.sky-v6 .sky-osint-step--running > i {
+  box-shadow: 0 0 0 0 rgba(255, 200, 87, 0.6);
+  animation: sky-osint-pulse 1.8s ease-out infinite;
+}
 .sky-v6 .sky-osint-step b {
-  font-weight: 550;
+  font-weight: 500;
   color: var(--ink);
-  letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.sky-v6 .sky-osint-step span {
-  display: none;
-}
+.sky-v6 .sky-osint-step span { display: none; }
 .sky-v6 .sky-osint-step--running b { color: var(--possible); }
-.sky-v6 .sky-osint-step--pending { opacity: 0.55; }
+.sky-v6 .sky-osint-step--pending b,
+.sky-v6 .sky-osint-step--skipped b { color: var(--ink3); font-weight: 400; }
+@keyframes sky-osint-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 200, 87, 0.6); }
+  70%, 100% { box-shadow: 0 0 0 6px rgba(255, 200, 87, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sky-v6 .sky-osint-step--running > i { animation: none; }
+}
 
+/* Segmented tabs at the top of the middle panel */
 .sky-v6 .sky-osint-tabs {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
+  flex: none;
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  margin-bottom: 10px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--field);
+  border: 1px solid var(--well-edge);
 }
 .sky-v6 .sky-osint-tabs button {
   appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--ink3);
   border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 11px;
-  font-weight: 550;
+  padding: 6px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
+  transition: color 140ms ease, background 140ms ease;
 }
+.sky-v6 .sky-osint-tabs button:hover { color: var(--ink2); }
 .sky-v6 .sky-osint-tabs button span {
-  font-weight: 500;
-  opacity: 0.7;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .sky-v6 .sky-osint-tabs button.on {
   color: var(--ink);
-  border-color: rgba(56, 189, 248, 0.45);
-  background: rgba(56, 189, 248, 0.12);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.sky-v6 .sky-osint-tabs button.on span {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  color: var(--accent-ink);
 }
 
+/* Findings rows */
 .sky-v6 .sky-osint .sky-file-row {
-  grid-template-columns: 78px minmax(0, 1fr) 40px;
-  align-items: baseline;
+  grid-template-columns: 96px minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 0 -8px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  border-top-color: rgba(255, 255, 255, 0.06);
+}
+.sky-v6 .sky-osint .sky-file-row:hover { background: rgba(255, 255, 255, 0.04); }
+.sky-v6 .sky-osint .sky-file-row .k {
+  font-size: 13px;
+  text-transform: capitalize;
 }
 .sky-v6 .sky-osint .sky-file-row .i {
-  color: var(--ink2);
-  font-size: 12px;
+  color: var(--ink3);
+  font-size: 13px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.sky-v6 .sky-osint .sky-file-row .i b { color: var(--ink); font-weight: 500; }
 .sky-v6 .sky-osint .sky-file-row .a {
   grid-column: auto;
   text-align: right;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 600;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .sky-v6 .sky-osint .sky-file-row .k a {
   color: inherit;
   text-decoration: none;
 }
-.sky-v6 .sky-osint .sky-file-row .k a:hover { text-decoration: underline; }
+.sky-v6 .sky-osint .sky-file-row .k a:hover { color: var(--accent-ink); text-decoration: underline; }
 
-.sky-v6 .sky-osint-thumbs {
+/* Top match + candidates */
+.sky-v6 .sky-osint-top {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.sky-v6 .sky-osint .osint-top__photo {
+  width: 56px !important;
+  height: 56px !important;
+  border-radius: 50%;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  color: var(--ink3);
+  box-shadow: 0 0 0 3px rgba(62, 224, 138, 0.16);
+}
+.sky-v6 .sky-osint .osint-top__handle a { font-size: 16px; font-weight: 600; }
+.sky-v6 .sky-osint .osint-top__platform { margin: 2px 0 0; font-size: 12.5px; color: var(--ink3); text-transform: capitalize; }
+.sky-v6 .sky-osint .osint-score-row { margin-top: 8px; gap: 10px; }
+.sky-v6 .sky-osint .osint-score-bar { height: 6px; }
+.sky-v6 .sky-osint .osint-signals { margin-top: 12px; gap: 5px; }
+.sky-v6 .sky-osint .osint-chip {
+  font-size: 11.5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.sky-v6 .sky-osint .osint-chip--off { opacity: 1; color: var(--ink3); background: transparent; border-style: dashed; }
+.sky-v6 .sky-osint .osint-sherlock {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 12px;
+  font-size: 12.5px;
+}
+.sky-v6 .sky-osint .osint-badge { border-radius: 999px; padding: 2px 8px; }
+.sky-v6 .sky-osint .osint-rest { margin-top: 2px; gap: 8px; }
+.sky-v6 .sky-osint .osint-row {
+  padding: 10px 12px;
+  gap: 12px;
+  border-radius: 14px;
+  background: var(--well);
+  border-color: var(--well-edge);
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.sky-v6 .sky-osint .osint-row:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.sky-v6 .sky-osint .osint-row__handle { font-size: 13.5px; }
+.sky-v6 .sky-osint .osint-row__sub { font-size: 12px; text-transform: none; }
+.sky-v6 .sky-osint .osint-row__score { display: flex; align-items: center; gap: 8px; }
+.sky-v6 .sky-osint .osint-row__score b { font-size: 15px; font-variant-numeric: tabular-nums; }
+
+.sky-v6 .sky-osint .osint-records { margin-top: 10px; gap: 8px; }
+.sky-v6 .sky-osint .osint-record {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--well);
+  border-color: var(--well-edge);
+}
+.sky-v6 .sky-osint .osint-record__engine {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 2px 0 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 11.5px;
+}
+.sky-v6 .sky-osint .osint-record p { font-size: 13px; line-height: 1.45; color: var(--ink2); }
+
+/* Photos (rail) */
+.sky-v6 .sky-osint-thumbs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
 }
 .sky-v6 .sky-osint-thumb {
   appearance: none;
+  position: relative;
+  aspect-ratio: 1;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--well);
   padding: 0;
-  border-radius: 10px;
+  border-radius: 14px;
   overflow: hidden;
   cursor: pointer;
   line-height: 0;
+  transition: border-color 140ms ease, transform 140ms ease;
 }
-.sky-v6 .sky-osint-thumb:hover { border-color: rgba(56, 189, 248, 0.55); }
+.sky-v6 .sky-osint-thumb:hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  transform: translateY(-1px);
+}
 .sky-v6 .sky-osint-thumb .osint-avatar,
 .sky-v6 .sky-osint-thumb img {
   border-radius: 0;
   border: 0;
-  display: block;
-  width: 40px !important;
-  height: 40px !important;
+  display: grid;
+  place-items: center;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  background: transparent;
 }
 
+/* Buttons: a pill in the board's accent, like .btn with colour. */
 .sky-v6 .sky-osint-linkbtn {
   appearance: none;
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  background: rgba(56, 189, 248, 0.1);
-  color: #7dd3fc;
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 11px;
-  font-weight: 550;
-  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
+  min-height: 38px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  color: var(--accent-ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
-.sky-v6 .sky-osint-linkbtn:hover { background: rgba(56, 189, 248, 0.18); }
+.sky-v6 .sky-osint-linkbtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.sky-v6 .sky-osint-linkbtn:disabled { opacity: 0.6; cursor: progress; }
 
+/* Text areas and inputs */
 .sky-v6 .sky-osint-notes {
   width: 100%;
-  margin-top: 2px;
+  margin-top: 0;
   resize: none;
-  min-height: 64px;
-  max-height: 84px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.22);
+  min-height: 72px;
+  max-height: 120px;
+  border-radius: 14px;
+  border: 1px solid var(--well-edge);
+  background: var(--field);
   color: var(--ink);
   font: inherit;
-  font-size: 12.5px;
-  line-height: 1.4;
-  padding: 9px 11px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  transition: border-color 140ms ease, background 140ms ease;
 }
-.sky-v6 .sky-osint-notes:focus {
+.sky-v6 .sky-osint-notes::placeholder,
+.sky-v6 .sky-medical-field input::placeholder { color: var(--ink3); }
+.sky-v6 .sky-osint-notes:focus,
+.sky-v6 .sky-osint .sky-osint-notes:focus-visible {
   outline: none;
-  border-color: rgba(56, 189, 248, 0.45);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: rgba(6, 9, 18, 0.5);
 }
+
+/* WhatsApp status line */
+.sky-v6 .sky-osint .sky-osint-wa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sky-v6 .sky-osint .sky-osint-wa svg {
+  flex: none;
+  padding: 6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  opacity: 1 !important;
+}
+.sky-v6 .sky-osint .sky-osint-wa--found { color: var(--confirmed); }
+.sky-v6 .sky-osint .sky-osint-wa--found svg { background: rgba(62, 224, 138, 0.14); }
+.sky-v6 .sky-osint .sky-osint-wa--unchecked,
+.sky-v6 .sky-osint .sky-osint-wa--not_found { color: var(--ink2); }
+
+/* ---- Medical Canvass ---- */
 
 .sky-v6 .sky-medical-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 4px;
 }
 .sky-v6 .sky-medical-chip {
   appearance: none;
-  padding: 4px 9px;
+  padding: 5px 11px;
   border-radius: 999px;
-  font-size: 11px;
-  font-weight: 550;
+  font-size: 12px;
+  font-weight: 500;
   font-family: inherit;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
   color: var(--ink3);
   cursor: pointer;
   pointer-events: auto;
-}
-.sky-v6 .sky-medical-chip.on {
-  border-color: rgba(244, 114, 182, 0.45);
-  background: rgba(244, 114, 182, 0.16);
-  color: #f9a8d4;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 .sky-v6 .sky-medical-chip:hover {
-  border-color: rgba(244, 114, 182, 0.35);
+  border-color: rgba(255, 255, 255, 0.3);
   color: var(--ink2);
 }
+.sky-v6 .sky-medical-chip.on {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent-ink);
+}
+.sky-v6 .sky-medical-chip.on:hover { background: color-mix(in srgb, var(--accent) 26%, transparent); }
 
 .sky-v6 .sky-medical-field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  margin-top: 8px;
-  font-size: 11px;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 12px;
   color: var(--ink3);
   pointer-events: auto;
 }
 .sky-v6 .sky-medical-field input[type="text"] {
   width: 100%;
+  min-height: 40px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--well-edge);
+  background: var(--field);
   color: var(--ink);
   font: inherit;
-  font-size: 13px;
-  padding: 8px 10px;
+  font-size: 14px;
+  padding: 9px 12px;
+  transition: border-color 140ms ease, background 140ms ease;
 }
 .sky-v6 .sky-medical-field input[type="text"]:focus {
   outline: none;
-  border-color: rgba(244, 114, 182, 0.45);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: rgba(6, 9, 18, 0.5);
 }
-.sky-v6 .sky-medical-field--row {
-  margin-top: 10px;
-}
+.sky-v6 .sky-medical-field--row { margin-top: 14px; }
 .sky-v6 .sky-medical-radius {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 10px;
+  gap: 14px;
   align-items: center;
 }
 .sky-v6 .sky-medical-radius input[type="range"] {
   width: 100%;
-  accent-color: #f472b6;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 .sky-v6 .sky-medical-radius b {
-  font-size: 13px;
-  color: #f9a8d4;
-  min-width: 3.2rem;
-  text-align: right;
+  min-width: 3.6rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-ink);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
-.sky-v6 .sky-medical-search {
-  margin-top: 10px;
-  border-color: rgba(244, 114, 182, 0.4);
-  background: rgba(244, 114, 182, 0.14);
-  color: #f9a8d4;
+.sky-v6 .sky-medical-search { margin-top: 14px; }
+.sky-v6 .sky-osint .sky-medical-searchmsg {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--accent-ink);
+  font-size: 12.5px;
 }
-.sky-v6 .sky-medical-search:hover:not(:disabled) {
-  background: rgba(244, 114, 182, 0.22);
+
+/* Counts read like the Case file's dates: big light numerals, small labels. */
+.sky-v6 .sky-medical-counts { flex: none; }
+.sky-v6 .sky-medical-counts .sec { grid-column: 1 / -1; }
+.sky-v6 .sky-osint .sky-medical-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 12px;
 }
-.sky-v6 .sky-medical-search:disabled {
-  opacity: 0.65;
-  cursor: default;
+.sky-v6 .sky-osint .sky-medical-counts .pl {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 2px 0 0;
+  border-top: 0;
 }
-.sky-v6 .sky-medical-searchmsg {
-  color: #f9a8d4;
+.sky-v6 .sky-osint .sky-medical-counts .pl + .pl {
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
 }
+.sky-v6 .sky-osint .sky-medical-counts .pl .t {
+  font-size: 32px;
+  font-weight: 300;
+  letter-spacing: -1px;
+  line-height: 1;
+  color: var(--ink);
+  text-align: left;
+}
+.sky-v6 .sky-osint .sky-medical-counts .pl .k {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink3);
+}
+
 .sky-v6 .sky-medical-report-actions {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   pointer-events: auto;
 }
-.sky-v6 .sky-medical-report-sec {
+.sky-v6 .sky-osint .sky-medical-report-sec {
   border-color: rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--ink2);
 }
-.sky-v6 .sky-medical-report-sec:hover:not(:disabled) {
-  background: rgba(244, 114, 182, 0.12);
-  border-color: rgba(244, 114, 182, 0.35);
-  color: #f9a8d4;
-}
-.sky-v6 .sky-medical-report-sec:disabled {
-  opacity: 0.65;
-  cursor: default;
+.sky-v6 .sky-osint .sky-medical-report-sec:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: var(--ink);
 }
 
+/* Facility list */
 .sky-v6 .sky-medical-faclist {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 10px;
   pointer-events: auto;
 }
 .sky-v6 .sky-medical-fac {
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.03);
+  --st: var(--ink3);
+  position: relative;
+  padding: 14px 16px 14px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--well-edge);
+  background: var(--well);
+  overflow: hidden;
+  transition: border-color 140ms ease, background 140ms ease;
 }
+.sky-v6 .sky-medical-fac::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--st);
+  opacity: 0.85;
+}
+.sky-v6 .sky-medical-fac:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.065);
+}
+.sky-v6 .sky-medical-fac--with_record { --st: var(--confirmed); }
+.sky-v6 .sky-medical-fac--chart_only { --st: var(--possible); }
+.sky-v6 .sky-medical-fac--pending { --st: var(--accent); }
+.sky-v6 .sky-medical-fac--no_record,
+.sky-v6 .sky-medical-fac--dismissed { --st: rgba(244, 246, 251, 0.3); }
 .sky-v6 .sky-medical-fac__head {
   display: flex;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
   align-items: flex-start;
 }
 .sky-v6 .sky-medical-fac__head b {
   display: block;
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 600;
   color: var(--ink);
-  line-height: 1.25;
+  line-height: 1.3;
 }
 .sky-v6 .sky-medical-fac__type {
   display: block;
-  margin-top: 2px;
-  font-size: 11px;
+  margin-top: 3px;
+  font-size: 12px;
   color: var(--ink3);
-  text-transform: capitalize;
 }
 .sky-v6 .sky-medical-fac__status {
-  font-size: 11px;
-  font-weight: 650;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font-size: 11.5px;
+  font-weight: 600;
   white-space: nowrap;
 }
+.sky-v6 .sky-medical-fac__status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
 .sky-v6 .sky-medical-fac__addr {
-  margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 1.35;
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
   color: var(--ink2);
 }
 .sky-v6 .sky-medical-fac__meta {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 10px;
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: 4px;
+  font-size: 12.5px;
   color: var(--ink3);
 }
 .sky-v6 .sky-medical-fac__phone {
-  color: #7dd3fc;
-  font-weight: 600;
+  color: var(--accent-ink);
+  font-weight: 500;
   text-decoration: none;
 }
-.sky-v6 .sky-medical-fac__phone:hover {
-  text-decoration: underline;
-}
+.sky-v6 a.sky-medical-fac__phone:hover { text-decoration: underline; }
+.sky-v6 .sky-medical-fac__phone.sky-empty { color: var(--ink3); font-weight: 400; }
 .sky-v6 .sky-medical-fac__note {
-  margin: 6px 0 0;
-  font-size: 11px;
-  line-height: 1.35;
-  color: var(--ink3);
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(6, 9, 18, 0.28);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink2);
 }
 .sky-v6 .sky-medical-fac__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
 .sky-v6 .sky-medical-fac__actions button {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--ink3);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ink2);
   border-radius: 999px;
-  padding: 3px 8px;
-  font-size: 10px;
-  font-weight: 550;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-}
-.sky-v6 .sky-medical-fac__actions button.on {
-  border-color: rgba(244, 114, 182, 0.45);
-  background: rgba(244, 114, 182, 0.16);
-  color: #f9a8d4;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 .sky-v6 .sky-medical-fac__actions button:hover {
-  color: var(--ink2);
-  border-color: rgba(244, 114, 182, 0.35);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.1);
+}
+/* Status picker: one segmented control. */
+.sky-v6 .sky-medical-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--field);
+  border: 1px solid var(--well-edge);
+}
+.sky-v6 .sky-medical-fac__actions .sky-medical-seg button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink3);
+  padding: 4px 11px;
+}
+.sky-v6 .sky-medical-fac__actions .sky-medical-seg button:hover { color: var(--ink2); background: rgba(255, 255, 255, 0.06); }
+.sky-v6 .sky-medical-fac__actions .sky-medical-seg button.on {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--st) 50%, transparent);
+  background: color-mix(in srgb, var(--st) 20%, transparent);
 }
 
+/* Map */
+.sky-v6 .sky-medical .sky-file-rail > .idl:has(.sky-medical-map) {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .sky-v6 .sky-medical-map {
-  margin-top: 6px;
-  height: 180px;
-  border-radius: 14px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   pointer-events: auto;
+  isolation: isolate;
 }
 .sky-v6 .sky-medical-map .leaflet-container {
+  flex: 1 1 auto;
+  height: auto !important;
+  min-height: 110px;
+  border-radius: 16px !important;
+  border: 1px solid var(--well-edge);
   background: #0b1220;
   font: inherit;
 }
-.sky-v6 .sky-medical-map__cap {
-  margin: 6px 0 0;
+/* OSM's light tiles, dimmed into the dark glass. */
+.sky-v6 .sky-medical-map .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(200deg) brightness(0.92) contrast(0.85) saturate(0.35);
+}
+.sky-v6 .sky-medical-map .leaflet-bar {
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+.sky-v6 .sky-medical-map .leaflet-bar a {
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+  background: rgba(14, 18, 30, 0.88);
+  color: var(--ink2);
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+.sky-v6 .sky-medical-map .leaflet-bar a:hover { background: rgba(30, 36, 52, 0.95); color: var(--ink); }
+.sky-v6 .sky-medical-map .leaflet-control-attribution {
+  background: rgba(10, 13, 22, 0.7);
+  color: var(--ink3);
   font-size: 10px;
-  line-height: 1.35;
+  border-top-left-radius: 8px;
+}
+.sky-v6 .sky-medical-map .leaflet-control-attribution a { color: var(--ink2); }
+.sky-v6 .sky-medical-map .leaflet-popup-content-wrapper,
+.sky-v6 .sky-medical-map .leaflet-popup-tip {
+  background: rgba(14, 18, 30, 0.95);
+  color: var(--ink);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.sky-v6 .sky-medical-map .leaflet-popup-content-wrapper {
+  border: 1px solid var(--edge);
+  border-radius: 14px;
+}
+.sky-v6 .sky-medical-map .leaflet-popup-content {
+  margin: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink2);
+}
+.sky-v6 .sky-medical-map .leaflet-popup-content strong { color: var(--ink); font-weight: 600; }
+.sky-v6 .sky-medical-map .leaflet-container a.leaflet-popup-close-button { color: var(--ink3); }
+.sky-v6 .sky-medical-map__cap {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--ink3);
 }
 
+/* Note modal (portaled to body, so not under .sky-v6). */
 .sky-medical-note-modal {
-  width: min(28rem, 94vw);
-  max-height: min(88vh, 720px);
+  --accent: #f472b6;
+  --accent-ink: #f9a8d4;
+  width: min(34rem, 94vw);
+  max-height: min(88vh, 760px);
 }
+.sky-medical-note-modal .osint-step-modal__body { padding-bottom: 0; }
 .sky-medical-note-opts {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .sky-medical-note-opts button {
   appearance: none;
   text-align: left;
-  padding: 7px 11px;
-  border-radius: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 12.5px;
   font-family: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.03);
+  line-height: 1.3;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--ink2);
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.sky-medical-note-opts button:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  color: var(--ink);
 }
 .sky-medical-note-opts button.on {
-  border-color: rgba(244, 114, 182, 0.5);
-  background: rgba(244, 114, 182, 0.14);
-  color: #f9a8d4;
-  font-weight: 600;
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent-ink);
+  font-weight: 500;
 }
+.sky-medical-note-modal .sky-osint-notes {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(6, 9, 18, 0.38);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+  padding: 10px 12px;
+}
+.sky-medical-note-modal .sky-osint-notes:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.sky-medical-note-modal :is(button, textarea):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
+}
+/* Actions stay in view at the bottom of the scrolling body. */
 .sky-medical-note-actions {
-  display: grid;
-  grid-template-columns: 1fr 1.4fr;
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
   gap: 8px;
-  margin-top: 14px;
+  margin: 16px -20px 0;
+  padding: 14px 20px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(16, 20, 32, 0.96);
+}
+.sky-medical-note-actions .sky-osint-linkbtn {
+  appearance: none;
+  min-height: 38px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink2);
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.sky-medical-note-actions .sky-osint-linkbtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--ink);
+}
+.sky-medical-note-actions .sky-medical-search {
+  margin: 0;
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent-ink);
+}
+.sky-medical-note-actions .sky-medical-search:hover {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  color: #fff;
 }
 
 
