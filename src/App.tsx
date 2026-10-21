@@ -37,6 +37,7 @@ const Assistant = lazy(() => import("./pages/Assistant"));
 const DocumentGenerator = lazy(() => import("./pages/DocumentGenerator"));
 const Reports = lazy(() => import("./pages/Reports"));
 const VideoPlayer = lazy(() => import("./pages/VideoPlayer"));
+const SkyviewPreview = lazy(() => import("./pages/SkyviewPreview"));
 
 function LazyRoute({ children }: { children: ReactNode }) {
   // Panel loader only — the full boot screen was remounting on every route
@@ -60,6 +61,16 @@ export default function App() {
       <Route path="/awaiting-access" element={<AwaitingAccess />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      {/* Sky View OSINT / Medical Canvass mockup — no auth / no crm-api */}
+      <Route
+        path="/skyview-preview"
+        element={
+          <LazyRoute>
+            <SkyviewPreview />
+          </LazyRoute>
+        }
+      />
+      <Route path="/osint-preview" element={<Navigate to="/skyview-preview" replace />} />
       {/* Signed-in, but not yet MFA-enrolled — still outside AppShell */}
       <Route path="/mfa-setup" element={<MfaSetup />} />
 
